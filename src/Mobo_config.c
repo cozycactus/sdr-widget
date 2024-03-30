@@ -1325,7 +1325,7 @@ void mobo_print_selected_frequency(U32 frequency) {
 }
 
 
-void mobo_xo_select(U32 frequency, uint8_t source) {
+void mobo_xo_select(U32 frequency) {
 // XO and MCLK control
 
 	#if (defined HW_GEN_AB1X)
@@ -1400,6 +1400,7 @@ void mobo_xo_select(U32 frequency, uint8_t source) {
 		// Control XOs. Only use parameter FREQ_RXNATIVE_EN or FREQ_RXNATIVE_DIS on hardware that has the mux assembled!!
 		static U32 prev_frequency = FREQ_INVALID;
 		static U32 xo_frequency = FREQ_INVALID;
+		static bool	regen_used = FALSE;					// Default setting is to run on XOs
 		
 		if ( (frequency == FREQ_44) || (frequency == FREQ_48) || (frequency == FREQ_88) || (frequency == FREQ_96) || (frequency == FREQ_176) || (frequency == FREQ_192) ) {
 			xo_frequency = frequency;					// Which XO should be used? Good to know if we're running on regenerated clock for a while
@@ -1413,29 +1414,35 @@ void mobo_xo_select(U32 frequency, uint8_t source) {
 			gpio_set_gpio_pin(AVR32_PIN_PX22); 			// Enable RX recovered MCLK
 			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
 			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// 48 control
+			regen_used = TRUE;
 		}
-		else if (frequency == FREQ_RXNATIVE_DIS) {	// Revert to MCLK from crystal. This may have changed!
+		else if (frequency == FREQ_RXNATIVE_DIS) {		// Revert to MCLK from crystal. This may have changed!
 			frequency = xo_frequency;					// Use last requested frequency from sources
 			prev_frequency = FREQ_INVALID;				// Force XO pin update below
+			regen_used = FALSE;	
 		}
 
 		// Select desired XO - only run at startup or when things change
-		if ( ( (frequency == FREQ_44) || (frequency == FREQ_88) || (frequency == FREQ_176) ) &&
-			    ( (prev_frequency == FREQ_48) || (prev_frequency == FREQ_96) || (prev_frequency == FREQ_192) || (prev_frequency == FREQ_INVALID) )
-			) {
-			gpio_set_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// 48 control
-			gpio_clr_gpio_pin(AVR32_PIN_PX22); 			// Disable RX recovered MCLK
-			prev_frequency = frequency;					// Establish history among valid XO settings
-		}
-		// FREQ_INVALID defaults to 48kHz domain? Is that consistent in code?
-		else if ( ( (frequency == FREQ_48) || (frequency == FREQ_96) || (frequency == FREQ_192) ) &&
-			    ( (prev_frequency == FREQ_44) || (prev_frequency == FREQ_88) || (prev_frequency == FREQ_176) || (prev_frequency == FREQ_INVALID) )
-			) {
-			gpio_set_gpio_pin(AVR32_PIN_PA21); 			// 48 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PX22); 			// Disable RX recovered MCLK
-			prev_frequency = frequency;					// Establish history among valid XO settings
+		if (regen_used == FALSE) {
+			if ( ( (frequency == FREQ_44) || (frequency == FREQ_88) || (frequency == FREQ_176) ) &&
+					( (prev_frequency == FREQ_48) || (prev_frequency == FREQ_96) || (prev_frequency == FREQ_192) || (prev_frequency == FREQ_INVALID) )
+				) {
+				gpio_set_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
+				gpio_clr_gpio_pin(AVR32_PIN_PA21); 		// 48 control
+				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
+				prev_frequency = frequency;				// Establish history among valid XO settings
+				print_cpu_char('c');					// Indicate XO change
+			}
+			// FREQ_INVALID defaults to 48kHz domain? Is that consistent in code?
+			else if ( ( (frequency == FREQ_48) || (frequency == FREQ_96) || (frequency == FREQ_192) ) &&
+					( (prev_frequency == FREQ_44) || (prev_frequency == FREQ_88) || (prev_frequency == FREQ_176) || (prev_frequency == FREQ_INVALID) )
+				) {
+				gpio_set_gpio_pin(AVR32_PIN_PA21); 		// 48 control
+				gpio_clr_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
+				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
+				prev_frequency = frequency;				// Establish history among valid XO settings
+				print_cpu_char('d');					// Indicate XO change
+			}
 		}
 
 		return;

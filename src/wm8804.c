@@ -100,18 +100,26 @@ void wm8804_task_init(void) {
 
 
 // Enable MCLK output on the CLKOUT (9) pin
-void wm8804_mclk_out_enable(void) {
-	uint8_t temp = wm8804_read_byte(0x08);
-	temp = temp | 0b00010000;
-	wm8804_write_byte(0x08, temp);
-}
+uint8_t wm8804_mclk_out(uint8_t mode) {
+	static uint8_t mode_recall = WM8804_MCLK_DISABLE;	// default setting is to disable MCLK output and run on XOs
+	
+	if ( (mode == WM8804_MCLK_ENABLE) &&  (mode == WM8804_MCLK_DISABLE) ) {
+		uint8_t temp = wm8804_read_byte(0x08);
 
+		if (mode == WM8804_MCLK_ENABLE) {
+			temp = temp | 0b00010000;					// Turn bit 4 on
+		}
+		else { // implicitly: disable
+			temp = temp & 0b11101111;					// Turn bit 4 off
+		}
 
-// Disable MCLK output on the CLKOUT (9) pin
-void wm8804_mclk_out_disable(void) {
-	uint8_t temp = wm8804_read_byte(0x08);
-	temp = temp & 0b11101111;
-	wm8804_write_byte(0x08, temp);
+		wm8804_write_byte(0x08, temp);
+		mode_recall = mode;
+	}
+	
+	// else if mode == WM8804_MCLK_RECALL is redundant
+	
+	return mode_recall;
 }
 
  
@@ -297,7 +305,7 @@ void wm8804_task(void *pvParameters) {
 								print_dbg_char('{');						// WM8804 takes
 
 								// Trying this as only setup site in wm8804 code...
-								mobo_xo_select(spdif_rx_status.frequency, input_select);
+								mobo_xo_select(spdif_rx_status.frequency);
 								mobo_clock_division(spdif_rx_status.frequency);
 								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //								print_dbg_char('Z');
@@ -353,11 +361,14 @@ void wm8804_init(void) {
 
 	spdif_rx_status.channel = MOBO_SRC_NONE;	// Start from a known state on wakeup
 
-	// With CLKOUT
-//	wm8804_write_byte(0x08, 0x70);	// 7:0 CLK2, 6:1 auto error handling disable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:000 ignored // WM8804 rewrite
-
-	// Without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
-	wm8804_write_byte(0x08, 0x60);	// 7:0 CLK2, 6:1 auto error handling disable, 5:1 zeros@error, 4:0 CLKOUT disable, 3:0 CLK1 out, 2-0:000 ignored // WM8804 rewrite
+	if (wm8804_mclk_out(WM8804_MCLK_TEST) == WM8804_MCLK_ENABLE) {
+		// With CLKOUT
+		wm8804_write_byte(0x08, 0x70);	// 7:0 CLK2, 6:1 auto error handling disable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:000 ignored // WM8804 rewrite
+	}
+	else if (wm8804_mclk_out(WM8804_MCLK_TEST) == WM8804_MCLK_DISABLE) {
+		// Without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
+		wm8804_write_byte(0x08, 0x60);	// 7:0 CLK2, 6:1 auto error handling disable, 5:1 zeros@error, 4:0 CLKOUT disable, 3:0 CLK1 out, 2-0:000 ignored // WM8804 rewrite
+	}
 
 	wm8804_write_byte(0x1C, 0xCE);	// 7:1 I2S alive, 6:1 master, 5:0 normal pol, 4:0 normal, 3-2:11 or 10 24 bit, 1-0:10 I2S ? CE or CA ? // WM8804 same
 
@@ -533,9 +544,6 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 	uint32_t clkdiv_temp = 0;
 
 
-
-
-
 // #ifdef HW_GEN_SPRX_PATCH_01
 // PATCH_01 of RXmod_t1_A and RXmod_t1_C will multiplex first and then check if MUX output is alive. 
 // This saves two flip-flops and a shitload of routing
@@ -554,11 +562,14 @@ if ( !(wm8804_live_detect()) ) {
 }
 // If given input is alive, do things
 else {
-		// With CLKOUT
-//		wm8804_write_byte(0x08, 0x30);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
-
-		// Default: without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
-		wm8804_write_byte(0x08, 0x20);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:0 CLKOUT disable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
+		if (wm8804_mclk_out(WM8804_MCLK_TEST) == WM8804_MCLK_ENABLE) {
+			// With CLKOUT
+			wm8804_write_byte(0x08, 0x30);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
+		}
+		else if (wm8804_mclk_out(WM8804_MCLK_TEST) == WM8804_MCLK_DISABLE) {
+			// Default: without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
+			wm8804_write_byte(0x08, 0x20);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:0 CLKOUT disable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
+		}
 		
 		wm8804_write_byte(0x1E, 0x04);			// 7-6:0, 5:0 OUT, 4:0 IF, 3:0 OSC, 2:1 _TX, 1:0 RX, 0:0 PLL // WM8804 same bit use, not verified here
 

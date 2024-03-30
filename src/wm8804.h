@@ -59,6 +59,9 @@
 #define WM8804_SCAN_ONE		0x10				// Scan only one channel
 #define WM8804_SCAN_FROM_PRESENT	0x20		// Start scanning from presented channel
 #define WM8804_SCAN_FROM_NEXT		0x30		// Start scanning from next channel in list
+#define WM8804_MCLK_ENABLE	1					// WM8804 enables MCLK output
+#define WM8804_MCLK_DISABLE 0					// WM8804 disables MCLK output
+#define WM8804_MCLK_TEST	2					// WM8804 MCLK status is recalled
 
 // æææ periods!
 #define WM8804_DETECT_MUSIC			5			// Was:15 20ms*5 = 100ms of music reception must take place before 3s of pause count as silence
@@ -86,11 +89,8 @@ void wm8804_init(void);
 // Start up the WM8804 config task
 extern void wm8804_task_init(void);
 
-// Enable MCLK output on the CLKOUT (9) pin
-extern void wm8804_mclk_out_enable(void);
-
-// Disable MCLK output on the CLKOUT (9) pin
-extern void wm8804_mclk_out_disable(void);
+// Enable, disable, or recall MCLK output on the CLKOUT (9) pin
+extern uint8_t wm8804_mclk_out(uint8_t mode);
 
 // The config task itself
 extern void wm8804_task(void *pvParameters);
