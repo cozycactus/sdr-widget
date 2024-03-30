@@ -733,8 +733,8 @@ void uac2_device_audio_task(void *pvParameters)
 									print_dbg_char('[');						// USB takes
 									playerStarted = TRUE;						// Is it better off here?
 									
-									mobo_xo_select(spk_current_freq.frequency);
-									mobo_clock_division(spk_current_freq.frequency);
+									// mobo_xo_select(spk_current_freq.frequency);
+									// mobo_clock_division(spk_current_freq.frequency);
 									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //									print_dbg_char('R');
 
@@ -1131,6 +1131,19 @@ void uac2_device_audio_task(void *pvParameters)
 			if (must_init_spk_index) {
 				
 				gpio_tgl_gpio_pin(AVR32_PIN_PA22);		// Indicate resetting
+
+				// Saving on code duplication efforts here
+				U32 temp_frequency = FREQ_48;
+				if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
+					temp_frequency = spdif_rx_status.frequency;
+				}
+				else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
+					temp_frequency = spk_current_freq.frequency;
+				}
+
+				// These are moved here from statatements like if (xSemaphoreTake(input_select_semphr, 10) == pdTRUE)
+				mobo_xo_select(temp_frequency);
+				mobo_clock_division(temp_frequency);
 				
 				// USB startup has this a little past the middle of the output buffer. But SPDIF startup seems to let it start a bit too soon
 				// æææ understand that before code can be fully trusted!
@@ -1141,14 +1154,9 @@ void uac2_device_audio_task(void *pvParameters)
 				// Starting point offset depending on detected source speed
 				#ifdef HW_GEN_SPRX
 					// rate/channel read status and adapt starting point in buffer
-					int8_t stored_direction = SI_NORMAL;
-					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
-						stored_direction = mobo_rate_storage(spdif_rx_status.frequency, input_select, 0, RATE_RETRIEVE);
-					}
-					else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
-						stored_direction = mobo_rate_storage(spk_current_freq.frequency, input_select, 0, RATE_RETRIEVE);
-					}
-				
+					// mobo_rate_storage(.. RATE_RETRIEVE) is picky other input parameters. Hence test its output precisely
+					int8_t stored_direction = mobo_rate_storage(temp_frequency, input_select, 0, RATE_RETRIEVE);
+
 					if (stored_direction == SI_INSERT) {	// Source is known to be slow and we should start late in buffer
 						spk_index += SPK_GAP_SIOFS;
 //						print_dbg_char('i');
