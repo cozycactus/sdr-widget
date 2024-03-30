@@ -422,9 +422,8 @@ void wm8804_sleep(void) {
 
 
 // Course detection of AC vs. DC on SPDIF input lines
-// Sequential code supports both baseline HW_GEN_SPRX = initial build 
-// of RXmod_t1_A, and HW_GEN_SPRX_PATCH_01 = strap from U1:13 to U6:CP via R117
-// which enables only a single live detection flip-flop
+// All hardware must support strap from U1:13 to U6:CP via R117 on rev. B and onwards. Default on Rev. E and onwards
+// This used to be code switch HW_GEN_SPRX_PATCH_01
 uint8_t wm8804_live_detect(void) {
 	#define WM8804_SPDIF_LIVE_COUNT	0x20			// Detection takes about 50µs
 	uint8_t counter = WM8804_SPDIF_LIVE_COUNT;
@@ -435,35 +434,9 @@ uint8_t wm8804_live_detect(void) {
 
 	// Poll SPDIF/TOSLINK data signal a number of times. Only bother with one of them in shared counter
 	while (counter--) {
-		// Unified approach in PATCH_01, one flip-flop after MUX
-		// replace by defined(HW_GEN_SPRX_PATCH_01)
-//		if (input_sel == MOBO_SRC_MUXED) {
-			if (gpio_get_pin_value(AVR32_PIN_PX16) == 1) {	// PCB patch from MUX output to net SPDIF0_TO_MCU / input MOBO_SRC_SPDIF0
-				chx++;
-			}
-//		}
-/*		
-		// Initial approach in RXmod_t1_A, one detector for each source
-		// Replace by not defined (HW_GEN_SPRX_PATCH_01)
-		else {
-			if (input_sel == MOBO_SRC_TOSLINK1) {
-				if (gpio_get_pin_value(AVR32_PIN_PX21) == 1) {	// Schematic net TOSLINK1_TO_MCU / input MOBO_SRC_TOSLINK1
-					chx++;
-				}
-			}
-			if (input_sel == MOBO_SRC_TOSLINK0) {				// No else! Equal execution time!
-				if (gpio_get_pin_value(AVR32_PIN_PA29) == 1) {	// Schematic net TOSLINK0_TO_MCU / input MOBO_SRC_TOSLINK0
-					chx++;
-				}
-			}
-			if (input_sel == MOBO_SRC_SPDIF0) {					// No else! Equal execution time!
-				if (gpio_get_pin_value(AVR32_PIN_PX16) == 1) {	// Schematic net SPDIF0_TO_MCU / input MOBO_SRC_SPDIF0
-					chx++;
-				}
-			}
+		if (gpio_get_pin_value(AVR32_PIN_PX16) == 1) {	// PCB patch from MUX output to net SPDIF0_TO_MCU / input MOBO_SRC_SPDIF0
+			chx++;
 		}
-*/		
-
 	}
 	gpio_clr_gpio_pin(AVR32_PIN_PB04);			// Count disable
 
@@ -581,35 +554,11 @@ if ( !(wm8804_live_detect()) ) {
 }
 // If given input is alive, do things
 else {
-
-/*
-#else // not PATCH_01
-// Initial build of RXmod_t1_A will check multiple channels first and MUX later
-	// If given input is not alive, terminate
-	if (!(wm8804_live_detect(input_sel))) {
-		mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	// Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
-		return (FREQ_INVALID);
-	}
-	// If given input is alive, do things
-	else {
-		mobo_SPRX_input(input_sel);			// Hardware MUX control
-#endif
-*/
-
-		// RXMODFIX Also power cycle PLL? Also verify that detected sample rate matches present PLL configuration?
-//LeavePLL		wm8804_write_byte(0x1E, 0x06);			// 7-6:0, 5:0 OUT, 4:0 IF, 3:0 OSC, 2:1 _TX, 1:1 _RX, 0:0 PLL // WM8804 same bit use, not verified here
-
-		// Is this needed in WM8804 where it does not select input channel?
-		// When input is selected, turn on executive functions in WM8804
-		
 		// With CLKOUT
 //		wm8804_write_byte(0x08, 0x30);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
 
-		// Without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
-		wm8804_write_byte(0x08, 0x20);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:0 CLKOUT enable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
-		
-		
-		
+		// Default: without CLKOUT export. (MCLK pin is not connected in SPRX D and E)
+		wm8804_write_byte(0x08, 0x20);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:0 CLKOUT disable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804
 		
 		wm8804_write_byte(0x1E, 0x04);			// 7-6:0, 5:0 OUT, 4:0 IF, 3:0 OSC, 2:1 _TX, 1:0 RX, 0:0 PLL // WM8804 same bit use, not verified here
 

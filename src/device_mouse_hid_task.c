@@ -338,6 +338,18 @@ void device_mouse_hid_task(void)
 				FB_rate -= 64;								// Replicated FB_RATE_DELTA from Uac2_device_audio_task.c
 			}
 
+			// Enable clock from SPDIF/TOSLINK receiver
+			else if (a == MCU_CHAR_REGEN_EN) {				// Uppercase 'X'
+				wm8804_mclk_out_enable();					// Also patch in the clock!
+				print_cpu_char_hex(CPU_CHAR_REGEN);			// Report use of regenerated clock
+			}
+
+			// Disable clock from SPDIF/TOSLINK receiver
+			else if (a == MCU_CHAR_REGEN_DIS) {				// Lowercase 'x'
+				wm8804_mclk_out_disable();					// Also patch in the clock!
+			}
+
+
 // Normal debug system
             else if (a == '0') {							// Digit 0
 	            // usb_ch = USB_CH_NONE;
@@ -488,28 +500,7 @@ Arash
 	            print_dbg_char_hex( (uint8_t)(spk_current_freq.frequency/1000) );			// Is rate known? 
 	            mobo_led_select(spk_current_freq.frequency, input_select);
             }
-			
-
-			// Enable WM8804 MCLK output on CLKOUT (9) pin - prerequisite for mobo_xo_select(FREQ_RXNATIVE, input_select);
-            else if (a == 'c') {
-				wm8804_mclk_out_enable();
-			}
-
-			// Disable WM8804 MCLK output on CLKOUT (9) pin
-			else if (a == 'd') {
-				wm8804_mclk_out_disable();
-			}
-						
-			// High-level I2S & MCLK MUX control, use recovered MCLK from WM8804
-            else if (a == 'b') {							// Lowercase b
-	            mobo_xo_select(FREQ_RXNATIVE, input_select);
-            }
-			
-			// High-level I2S & MCLK MUX control, use recovered XO corresponding to MCLK from WM8804
-            else if (a == 'a') {							// Lowercase a
-	            mobo_xo_select(spdif_rx_status.frequency, input_select);
-            }
-
+		
 #endif // HW_GEN_SPRX
 
             // Check source and rate, output to terminal

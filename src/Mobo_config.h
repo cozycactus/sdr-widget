@@ -48,29 +48,30 @@ void mobo_clear_dac_channel(void);
 #define CPU_CHAR_UAC1_C				'c'	// MCU reports that Front USB-C USB Audio Class 1 is input
 #define CPU_CHAR_UAC2_C				'C'	// MCU reports that Front USB-C USB Audio Class 2 is input
 #define CPU_CHAR_SRC_DEF			'y' // MCU reports that Input is not known
-#define CPU_CHAR_44					'1' // MCU requests oscillator for 44.1ksps and outputs on that rate
-#define CPU_CHAR_48					'2' // MCU requests oscillator for 48ksps and outputs on that rate
-#define CPU_CHAR_88					'3' // MCU requests oscillator for 88.2ksps and outputs on that rate
-#define CPU_CHAR_96					'4' // MCU requests oscillator for 96ksps and outputs on that rate
-#define CPU_CHAR_176				'5' // MCU requests oscillator for 176.4ksps and outputs on that rate
-#define CPU_CHAR_192				'6' // MCU requests oscillator for 192ksps and outputs on that rate
-#define CPU_CHAR_REGEN				'X' // MCU requests regenerated clock from SPDIF/TOSLINK receiver. Probably outputs on last reported rate ('1'-'6')
-#define CPU_CHAR_RATE_DEF			'z' // 'Y' // MCU rate request is unknown
-#define CPU_CHAR_INC_FREQ			'+' // MCU requests increased sample rate from Host
-#define CPU_CHAR_DEC_FREQ			'-' // MCU requests decreased sample rate from Host
-#define CPU_CHAR_NOMINC_FREQ		'.' // MCU requests increased sample rate from Host while returning to nominal gap
-#define CPU_CHAR_NOMDEC_FREQ		':' // MCU requests decreased sample rate from Host while returning to nominal gap
-#define CPU_CHAR_INCINC_FREQ		'*' // MCU intensely requests increased-increased sample rate from Host
-#define CPU_CHAR_DECDEC_FREQ		'/' // MCU intensely requests decreased-decreased sample rate from Host
-#define CPU_CHAR_ALIVE				'l' // MCU is alive
-#define MCU_CHAR_SI_ENABLE			'I' // CPU instructs MCU to enable sample skip/insert on SPDIF/TOSLINK reception. NOT IMPLEMENTED!
-#define MCU_CHAR_SI_DISABLE			'i' // CPU instructs MCU to disable sample skip/insert on SPDIF/TOSLINK reception. NOT IMPLEMENTED! - Probably entails wm8804_CLKOUT(WM8804_CLKOUT_ENABLE)
+#define CPU_CHAR_44					'1' // MCU reports oscillator for 44.1ksps
+#define CPU_CHAR_48					'2' // MCU reports oscillator for 48ksps
+#define CPU_CHAR_88					'3' // MCU reports oscillator for 88.2ksps
+#define CPU_CHAR_96					'4' // MCU reports oscillator for 96ksps
+#define CPU_CHAR_176				'5' // MCU reports oscillator for 176.4ksps
+#define CPU_CHAR_192				'6' // MCU reports oscillator for 192ksps
+#define CPU_CHAR_REGEN              '9' // MCU reports using regenerated clock from SPDIF/TOSLINK receiver
+#define CPU_CHAR_RATE_DEF			'z' // MCU reports unknown sample rate
+#define CPU_CHAR_INC_FREQ			'+' // MCU reports increased sample rate from Host
+#define CPU_CHAR_DEC_FREQ			'-' // MCU reports decreased sample rate from Host
+#define CPU_CHAR_NOMINC_FREQ		'.' // MCU reports increased sample rate from Host while returning to nominal gap
+#define CPU_CHAR_NOMDEC_FREQ		':' // MCU reports decreased sample rate from Host while returning to nominal gap
+#define CPU_CHAR_INCINC_FREQ		'*' // MCU reports onset of sample insert
+#define CPU_CHAR_DECDEC_FREQ		'/' // MCU reports onset of sample skip
+#define CPU_CHAR_ALIVE				'l' // MCU reports being alive is alive
 #define MCU_CHAR_RESET				'R'	// CPU resets MCU over UART
 #define MCU_CHAR_ALIVE				'L' // CPU asks MCU if it is alive
 #define MCU_CHAR_SPRATE				's' // CPU asks MCU about sample rate on SPDIF/TOSLINK receiver - response is rate in Hz as 32-bit signed, then \n
 #define MCU_CHAR_FBRATE				'f' // CPU asks MCU about feedback sample rate in USB playback - response is rate in kHz left-shifted 14 positions, as 32-bit signed, then \n
 #define MCU_CHAR_RATEUP				'U' // CPU asks MCU to increase feedback rate by 64 = FB_RATE_DELTA
 #define MCU_CHAR_RATEDOWN			'u' // CPU asks MCU to increase feedback rate by 64 = FB_RATE_DELTA
+#define MCU_CHAR_REGEN_EN			'X' // CPU requests regenerated enable of clock from SPDIF/TOSLINK receiver = skip/insert disable
+#define MCU_CHAR_REGEN_DIS			'x' // CPU requests regenerated disable of clock from SPDIF/TOSLINK receiver = skip/insert enable
+
 
 // New code for adaptive USB fallback using skip / insert s/i
 #define SI_SKIP						-1

@@ -268,8 +268,10 @@
 /*! \name GPIO Connections of the sample freq
  */
 //! @{
-#define SAMPLEFREQ_VAL0                    AVR32_PIN_PC00
-#define SAMPLEFREQ_VAL1                    AVR32_PIN_PC01
+#ifdef HW_GEN_AB1X
+	#define SAMPLEFREQ_VAL0                    AVR32_PIN_PC00
+	#define SAMPLEFREQ_VAL1                    AVR32_PIN_PC01
+#endif
 //! @}
 
 

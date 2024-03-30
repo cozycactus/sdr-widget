@@ -1038,14 +1038,7 @@ void mobo_ADC_position_uni(U32 *last_pos, U32 num_remaining) {
 // Handle spdif and toslink input
 void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high, S32 *num_samples, Bool *cache_holds_silence) {
 	
-	
-// Overwritten parameters, rewrite without '*' if handled inline instead of as function call
-	static U32 spk_index = 0;
-
 	U32 i;								// Generic counter
-	U32 num_remaining;
-
-	S32 sample_temp = 0;
 	S32 sample_L = 0;
 	S32 sample_R = 0;
 
@@ -1275,9 +1268,6 @@ void mobo_start_spdif_tc(U32 frequency) {
 		case FREQ_192:
 			temp = 48;	// UAC2: 48 samples per 250탎
 		break;
-		case FREQ_RXNATIVE:
-			temp = 12;	// UAC2: 11 samples per 250탎 - risky, we may have to process packets more often than every 250탎
-		break;
 		default:
 			temp = 12;	// UAC2: 11 samples per 250탎
 		break;
@@ -1311,140 +1301,152 @@ void mobo_print_selected_frequency(U32 frequency) {
 	// Report to CPU (when present) and debug terminal
 	switch (frequency) {
 		case FREQ_44:
-		print_cpu_char(CPU_CHAR_44); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_44); // Inform CPU (when present)
 		break;
 		case FREQ_48:
-		print_cpu_char(CPU_CHAR_48); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_48); // Inform CPU (when present)
 		break;
 		case FREQ_88:
-		print_cpu_char(CPU_CHAR_88); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_88); // Inform CPU (when present)
 		break;
 		case FREQ_96:
-		print_cpu_char(CPU_CHAR_96); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_96); // Inform CPU (when present)
 		break;
 		case FREQ_176:
-		print_cpu_char(CPU_CHAR_176); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_176); // Inform CPU (when present)
 		break;
 		case FREQ_192:
-		print_cpu_char(CPU_CHAR_192); // Inform CPU (when present)
-		break;
-		case FREQ_RXNATIVE:
-		print_cpu_char(CPU_CHAR_REGEN); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_192); // Inform CPU (when present)
 		break;
 		default:
-		print_cpu_char(CPU_CHAR_RATE_DEF); // Inform CPU (when present)
+			print_cpu_char(CPU_CHAR_RATE_DEF); // Inform CPU (when present)
 		break;
-	}
+	} // switch
 }
 
 
 void mobo_xo_select(U32 frequency, uint8_t source) {
-// XO control and SPI muxing on ab1x hardware generation
-	static U32 prev_frequency = FREQ_INVALID;
+// XO and MCLK control
 
-	if ( (frequency != prev_frequency) || (prev_frequency == FREQ_INVALID) ) { 	// Only run at startup or when things change
 	#if (defined HW_GEN_AB1X)
-		switch (frequency) {
-			case FREQ_44:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_clr_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
-			break;
-			case FREQ_48:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_set_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
-			break;
-			case FREQ_88:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_clr_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
-				gpio_set_gpio_pin(SAMPLEFREQ_VAL0);
-			break;
-			case FREQ_96:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_set_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
-				gpio_set_gpio_pin(SAMPLEFREQ_VAL0);
-			break;
-			case FREQ_176:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_clr_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
-				gpio_set_gpio_pin(SAMPLEFREQ_VAL1);
-			break;
-			case FREQ_192:
-				if (FEATURE_BOARD_USBI2S)
-					gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_set_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
-				gpio_set_gpio_pin(SAMPLEFREQ_VAL1);
-			break;
-			default: // same as 44.1
-				if (FEATURE_BOARD_USBI2S)
-					gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
-				else if (FEATURE_BOARD_USBDAC)
-					gpio_clr_gpio_pin(AVR32_PIN_PX51);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
-				gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
-			break;
-		} // switch
+		static U32 prev_frequency = FREQ_INVALID;
+		if ( (frequency != prev_frequency) || (prev_frequency == FREQ_INVALID) ) { 	// Only run at startup or when things change
+			switch (frequency) {
+				case FREQ_44:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_clr_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
+				break;
+				case FREQ_48:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_set_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
+				break;
+				case FREQ_88:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_clr_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
+					gpio_set_gpio_pin(SAMPLEFREQ_VAL0);
+				break;
+				case FREQ_96:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_set_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
+					gpio_set_gpio_pin(SAMPLEFREQ_VAL0);
+				break;
+				case FREQ_176:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_clr_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
+					gpio_set_gpio_pin(SAMPLEFREQ_VAL1);
+				break;
+				case FREQ_192:
+					if (FEATURE_BOARD_USBI2S)
+						gpio_set_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 24.576MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_set_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
+					gpio_set_gpio_pin(SAMPLEFREQ_VAL1);
+				break;
+				default: // same as 44.1
+					if (FEATURE_BOARD_USBI2S)
+						gpio_clr_gpio_pin(AVR32_PIN_PX16); // BSB 20110301 MUX in 22.5792MHz/2 for AB-1
+					else if (FEATURE_BOARD_USBDAC)
+						gpio_clr_gpio_pin(AVR32_PIN_PX51);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL0);
+					gpio_clr_gpio_pin(SAMPLEFREQ_VAL1);
+				break;
+			} // switch
 		
-		mobo_print_selected_frequency(frequency);
+			mobo_print_selected_frequency(frequency);
+		} // frequency != prev_frequency
+
+		prev_frequency = frequency;					// Establish history based on frequency, not XO selection. That can be improved upon like for SPRX below
+		return;
 
 	#elif (defined HW_GEN_SPRX) 
-
-		// New version, without I2S mux, with buffering via MCU's ADC interface
-		// RXmod_t1_B has the MUX built-in but sets SEL_USBP_RXN = PC01 to always select MCU's outgoing I2S port toward the DAC chip
-		gpio_set_gpio_pin(AVR32_PIN_PC01); 			// SEL_USBP_RXN = 1 defaults to USB and buffering via MCU FIFO - not used on RXMOD C and onwards
-
-		// Clock source control
-		if (frequency == FREQ_RXNATIVE) {			// Use MCLK from SPDIF RX
-			// Explicitly turn on MCLK generation in SPDIF RX?
-			gpio_set_gpio_pin(AVR32_PIN_PX22); 		// Enable RX recovered MCLK
-			gpio_clr_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA21); 		// 48 control
-//				gpio_clr_gpio_pin(AVR32_PIN_PC01); 		// SEL_USBP_RXN = 0 defaults to RX-I2S Don't bypass with MUX when it is buffered!
+		// Control XOs. Only use parameter FREQ_RXNATIVE_EN or FREQ_RXNATIVE_DIS on hardware that has the mux assembled!!
+		static U32 prev_frequency = FREQ_INVALID;
+		static U32 xo_frequency = FREQ_INVALID;
+		
+		if ( (frequency == FREQ_44) || (frequency == FREQ_48) || (frequency == FREQ_88) || (frequency == FREQ_96) || (frequency == FREQ_176) || (frequency == FREQ_192) ) {
+			xo_frequency = frequency;					// Which XO should be used? Good to know if we're running on regenerated clock for a while
+			mobo_print_selected_frequency(frequency);	// Always show which (among valid rates) is desired by source
 		}
-		else if ( (frequency == FREQ_44) || (frequency == FREQ_88) || (frequency == FREQ_176) ) {
-			gpio_set_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA21); 		// 48 control
-			gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
+
+		// Choose XO or regenerated clock
+		// NB! This may not be supported by hardware versions after E !! Must be supported on Boenicke hardware
+		if (frequency == FREQ_RXNATIVE_EN) {			// Use MCLK from SPDIF RX			FREQ_RXNATIVE_DIS
+			// Explicitly turn on MCLK generation in SPDIF RX?
+			gpio_set_gpio_pin(AVR32_PIN_PX22); 			// Enable RX recovered MCLK
+			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
+			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// 48 control
+		}
+		else if (frequency == FREQ_RXNATIVE_DIS) {	// Revert to MCLK from crystal. This may have changed!
+			frequency = xo_frequency;					// Use last requested frequency from sources
+			prev_frequency = FREQ_INVALID;				// Force XO pin update below
+		}
+
+		// Select desired XO - only run at startup or when things change
+		if ( ( (frequency == FREQ_44) || (frequency == FREQ_88) || (frequency == FREQ_176) ) &&
+			    ( (prev_frequency == FREQ_48) || (prev_frequency == FREQ_96) || (prev_frequency == FREQ_192) || (prev_frequency == FREQ_INVALID) )
+			) {
+			gpio_set_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
+			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// 48 control
+			gpio_clr_gpio_pin(AVR32_PIN_PX22); 			// Disable RX recovered MCLK
+			prev_frequency = frequency;					// Establish history among valid XO settings
 		}
 		// FREQ_INVALID defaults to 48kHz domain? Is that consistent in code?
-		else {
-			gpio_set_gpio_pin(AVR32_PIN_PA21); 		// 48 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
+		else if ( ( (frequency == FREQ_48) || (frequency == FREQ_96) || (frequency == FREQ_192) ) &&
+			    ( (prev_frequency == FREQ_44) || (prev_frequency == FREQ_88) || (prev_frequency == FREQ_176) || (prev_frequency == FREQ_INVALID) )
+			) {
+			gpio_set_gpio_pin(AVR32_PIN_PA21); 			// 48 control
+			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
+			gpio_clr_gpio_pin(AVR32_PIN_PX22); 			// Disable RX recovered MCLK
+			prev_frequency = frequency;					// Establish history among valid XO settings
 		}
 
-		mobo_print_selected_frequency(frequency);
+		return;
 
 	#elif (defined HW_GEN_FMADC)
 		// FMADC_site 
 		// 96ksps domain is permanently turned on
+		return;
 	#else
 		#error undefined hardware
 	#endif
-
-		// Establish history
-		prev_frequency = frequency;
-		
-//		print_dbg_char('c'); // Clock setting changed
-	} // if (frequency != prev_frequency)
 }
 
 
