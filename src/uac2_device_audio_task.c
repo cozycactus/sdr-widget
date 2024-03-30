@@ -159,7 +159,7 @@ void uac2_device_audio_task(void *pvParameters)
 		U8 counter_44k = 0;
 		U8 limit_44k = 11;	// Default setting for 44.1 rounding off into average packet length
 		uint32_t sample_left = 0; 					// Must be unsigned for zeros to be right-shifted into MSBs ??
-		uint32_t sample_right = 0;					// ææææ convert to signed to merge with sample_R and spdif code. Probably OK. See sample.c which compiles into identical code
+		uint32_t sample_right = 0;					// ææææ convert to signed to merge with sample_R and spdif code
 		const U8 EP_AUDIO_IN = ep_audio_in;
 	#endif
 	
@@ -171,7 +171,7 @@ void uac2_device_audio_task(void *pvParameters)
 	U8 sample_LSB;
 	S32 sample_L = 0;
 	S32 sample_R = 0; // BSB 20131102 Expanded for skip/insert, 20160322 changed to S32
-
+	
 	const U8 EP_AUDIO_OUT = ep_audio_out;
 	const U8 EP_AUDIO_OUT_FB = ep_audio_out_fb;
 	uint32_t silence_USB = SILENCE_USB_LIMIT;	// BSB 20150621: detect silence in USB channel, initially assume silence
@@ -730,10 +730,10 @@ void uac2_device_audio_task(void *pvParameters)
 									print_dbg_char('[');						// USB takes
 									playerStarted = TRUE;						// Is it better off here?
 									
-									mobo_xo_select(spk_current_freq.frequency);
-									mobo_clock_division(spk_current_freq.frequency);
-									// must_init_xo = TRUE;						// New frequency setting means resync DAC DMA
-									must_init_spk_index = TRUE;					// Reset buffer position
+//									mobo_xo_select(spk_current_freq.frequency);
+//									mobo_clock_division(spk_current_freq.frequency);
+									must_init_xo = TRUE;
+									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //									print_dbg_char('R');
 
 									#ifdef HW_GEN_SPRX 
@@ -940,7 +940,7 @@ void uac2_device_audio_task(void *pvParameters)
 			mobo_handle_spdif(&si_index_low, &si_score_high, &si_index_high, &num_samples, &cache_holds_silence);
 		#endif
 
-		// Start checking gap adn then writing from chache to spk_buffer
+		// Start checking gap and then writing from cache to spk_buffer
 		// Don't check input_source again, trust that num_samples > 0 only occurs when cache was legally written to
 
 		num_samples = min(num_samples, SPK_CACHE_MAX_SAMPLES);	// prevent overshoot of cache_L and cache_R
@@ -968,7 +968,8 @@ void uac2_device_audio_task(void *pvParameters)
 			if (time_to_calculate_gap > 0) {
 				time_to_calculate_gap--;
 			}
-			else if (!cache_holds_silence) {					// Time to calculate gap AND music playback operation
+//			else if (!must_init_spk_index) {					// Time to calculate gap AND normal operation
+			else if (!cache_holds_silence) {					// Time to calculate gap AND normal operation
 				time_to_calculate_gap = SPK_PACKETS_PER_GAP_CALCULATION - 1;
 
 				gap = DAC_BUFFER_UNI - spk_index - (spk_pdca_channel->tcr);
@@ -1123,38 +1124,29 @@ void uac2_device_audio_task(void *pvParameters)
 				}
 			}
 
-//			gpio_set_gpio_pin(AVR32_PIN_PX31);					// Start copying cache to spk_buffer_X
+//			gpio_set_gpio_pin(AVR32_PIN_PX31);				// Start copying cache to spk_buffer_X
 
-			
-			// Oscillator setup - only do it once silence is over
+
+			// Moving xo init here in an attempt to counter tock-tock-tock with two connected spdif sources operating at opposite rates
 			if (must_init_xo) {
-//				if (cache_holds_silence) {						// No tock-tock-tock sound but very late XO setup
-				if (0) {										// Early XO setup with tock-tock-tock
-					num_samples = 0;							// Before setup, disqualify cache contents that are silent
-				}
-				else {
-					// These are moved here from statatements like if (xSemaphoreTake(input_select_semphr, 10) == pdTRUE)
+				if (!cache_holds_silence) {
 					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
 						mobo_xo_select(spdif_rx_status.frequency);
 						mobo_clock_division(spdif_rx_status.frequency);
-//						vTaskDelay(1);	// Allow for a tiny bit of stabilization perhaps? Is this enough?
 					}
-					else if (input_select == MOBO_SRC_UAC2) {
+					else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
 						mobo_xo_select(spk_current_freq.frequency);
 						mobo_clock_division(spk_current_freq.frequency);
-//						vTaskDelay(1);
 					}
-					
-					must_init_xo = FALSE;						// Done configuring for a while
-					must_init_spk_index = TRUE;					// Always reset buffers after changing xo and clock division
+
+					must_init_xo = FALSE;
 				}
 			}
-
 
 			// spk_index normalization
 			if (must_init_spk_index) {
 				
-//				gpio_tgl_gpio_pin(AVR32_PIN_PA22);				// Indicate resetting
+				gpio_tgl_gpio_pin(AVR32_PIN_PA22);		// Indicate resetting
 				
 				// USB startup has this a little past the middle of the output buffer. But SPDIF startup seems to let it start a bit too soon
 				// æææ understand that before code can be fully trusted!
@@ -1166,14 +1158,13 @@ void uac2_device_audio_task(void *pvParameters)
 				#ifdef HW_GEN_SPRX
 					// rate/channel read status and adapt starting point in buffer
 					int8_t stored_direction = SI_NORMAL;
-
 					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
-						mobo_rate_storage(spdif_rx_status.frequency, input_select, 0, RATE_RETRIEVE);
+						stored_direction = mobo_rate_storage(spdif_rx_status.frequency, input_select, 0, RATE_RETRIEVE);
 					}
 					else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
-						mobo_rate_storage(spk_current_freq.frequency, input_select, 0, RATE_RETRIEVE);
+						stored_direction = mobo_rate_storage(spk_current_freq.frequency, input_select, 0, RATE_RETRIEVE);
 					}
-
+				
 					if (stored_direction == SI_INSERT) {	// Source is known to be slow and we should start late in buffer
 						spk_index += SPK_GAP_SIOFS;
 //						print_dbg_char('i');
@@ -1204,7 +1195,7 @@ void uac2_device_audio_task(void *pvParameters)
 				return_to_nominal = FALSE;				// Restart feedback system
 				prev_sample_L = 0;
 				prev_sample_R = 0;
-				prev_si_score_high = 0;					// Clear energy history
+				prev_si_score_high = 0;				// Clear energy history
 				diff_value = 0;
 				diff_sum = 0;
 				cache_silence_counter = 0;				// Don't look for cached silence for a little while
@@ -1212,10 +1203,8 @@ void uac2_device_audio_task(void *pvParameters)
 //				pcm5142_unmute();						// Experiment to prevent tick-pop during silence. This alone doesn't help!
 				
 				must_init_spk_index = FALSE;
-			} // if must_init_spk_index
-			
-			
-			// Transfer cache contents out
+			}
+
 			prev_si_score_high = (si_score_high >> 1) + (prev_si_score_high >> 1);	// Establish energy history, primitive IIR, out(n) = 0.5*out(n-1) + 0.5*in(n)
 
 			i = 0;

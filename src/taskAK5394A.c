@@ -393,4 +393,6 @@ void AK5394A_task_init(const Bool uac1) {
 	mobo_clock_division(FREQ_INVALID);
 	must_init_spk_index = TRUE;						// New frequency setting means resync DAC DMA
 	print_dbg_char('Q');
+
+
 }

@@ -305,10 +305,10 @@ void wm8804_task(void *pvParameters) {
 								print_dbg_char('{');						// WM8804 takes
 
 								// Trying this as only setup site in wm8804 code...
-								mobo_xo_select(spdif_rx_status.frequency);
-								mobo_clock_division(spdif_rx_status.frequency);
-								// must_init_xo = TRUE;						// New frequency setting means resync DAC DMA
-								must_init_spk_index = TRUE;					// Reset buffer position
+//								mobo_xo_select(spdif_rx_status.frequency);
+//								mobo_clock_division(spdif_rx_status.frequency);
+								must_init_xo = TRUE;
+								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //								print_dbg_char('Z');
 								// End only site of setup code
 
@@ -558,7 +558,8 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 mobo_SPRX_input(input_sel);			// Hardware MUX control
 
 if ( !(wm8804_live_detect()) ) {
-	mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	// Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
+//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
+	mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	
 	return (FREQ_INVALID);
 }
 // If given input is alive, do things
