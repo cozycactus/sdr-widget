@@ -425,7 +425,7 @@ void wm8804_sleep(void) {
 // Sequential code supports both baseline HW_GEN_SPRX = initial build 
 // of RXmod_t1_A, and HW_GEN_SPRX_PATCH_01 = strap from U1:13 to U6:CP via R117
 // which enables only a single live detection flip-flop
-uint8_t wm8804_live_detect(uint8_t input_sel) {
+uint8_t wm8804_live_detect(void) {
 	#define WM8804_SPDIF_LIVE_COUNT	0x20			// Detection takes about 50µs
 	uint8_t counter = WM8804_SPDIF_LIVE_COUNT;
 	uint8_t chx = 0;
@@ -437,11 +437,12 @@ uint8_t wm8804_live_detect(uint8_t input_sel) {
 	while (counter--) {
 		// Unified approach in PATCH_01, one flip-flop after MUX
 		// replace by defined(HW_GEN_SPRX_PATCH_01)
-		if (input_sel == MOBO_SRC_MUXED) {
+//		if (input_sel == MOBO_SRC_MUXED) {
 			if (gpio_get_pin_value(AVR32_PIN_PX16) == 1) {	// PCB patch from MUX output to net SPDIF0_TO_MCU / input MOBO_SRC_SPDIF0
 				chx++;
 			}
-		}
+//		}
+/*		
 		// Initial approach in RXmod_t1_A, one detector for each source
 		// Replace by not defined (HW_GEN_SPRX_PATCH_01)
 		else {
@@ -461,6 +462,7 @@ uint8_t wm8804_live_detect(uint8_t input_sel) {
 				}
 			}
 		}
+*/		
 
 	}
 	gpio_clr_gpio_pin(AVR32_PIN_PB04);			// Count disable
@@ -561,7 +563,7 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 
 
 
-#ifdef HW_GEN_SPRX_PATCH_01
+// #ifdef HW_GEN_SPRX_PATCH_01
 // PATCH_01 of RXmod_t1_A and RXmod_t1_C will multiplex first and then check if MUX output is alive. 
 // This saves two flip-flops and a shitload of routing
 // PATCH_01 consists of:
@@ -573,13 +575,14 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 // If given input is not alive, terminate
 mobo_SPRX_input(input_sel);			// Hardware MUX control
 
-if (!(wm8804_live_detect(MOBO_SRC_MUXED))) {
+if ( !(wm8804_live_detect()) ) {
 	mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	// Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
 	return (FREQ_INVALID);
 }
 // If given input is alive, do things
 else {
 
+/*
 #else // not PATCH_01
 // Initial build of RXmod_t1_A will check multiple channels first and MUX later
 	// If given input is not alive, terminate
@@ -591,6 +594,7 @@ else {
 	else {
 		mobo_SPRX_input(input_sel);			// Hardware MUX control
 #endif
+*/
 
 		// RXMODFIX Also power cycle PLL? Also verify that detected sample rate matches present PLL configuration?
 //LeavePLL		wm8804_write_byte(0x1E, 0x06);			// 7-6:0, 5:0 OUT, 4:0 IF, 3:0 OSC, 2:1 _TX, 1:1 _RX, 0:0 PLL // WM8804 same bit use, not verified here

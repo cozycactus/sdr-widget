@@ -468,7 +468,7 @@ void mobo_led_select(U32 frequency, uint8_t source) {
 
 /*	
 	static U32 prev_frequency = FREQ_INVALID;
-	static uint8_t prev_source = MOBO_SRC_INVALID;
+	static uint8_t prev_source = MOBO_SRC_NONE;
 	
 	if (frequency == FREQ_NOCHANGE) {
 		frequency = prev_frequency;
