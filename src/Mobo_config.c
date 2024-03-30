@@ -1431,7 +1431,7 @@ void mobo_xo_select(U32 frequency) {
 				gpio_clr_gpio_pin(AVR32_PIN_PA21); 		// 48 control
 				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
 				prev_frequency = frequency;				// Establish history among valid XO settings
-				print_cpu_char('c');					// Indicate XO change
+//				print_cpu_char('c');					// Indicate XO change
 			}
 			// FREQ_INVALID defaults to 48kHz domain? Is that consistent in code?
 			else if ( ( (frequency == FREQ_48) || (frequency == FREQ_96) || (frequency == FREQ_192) ) &&
@@ -1441,7 +1441,7 @@ void mobo_xo_select(U32 frequency) {
 				gpio_clr_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
 				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
 				prev_frequency = frequency;				// Establish history among valid XO settings
-				print_cpu_char('d');					// Indicate XO change
+//				print_cpu_char('d');					// Indicate XO change
 			}
 		}
 

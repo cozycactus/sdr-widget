@@ -158,6 +158,9 @@ void uac2_device_audio_task(void *pvParameters)
 		S32 num_samples_adc = 0;
 		U8 counter_44k = 0;
 		U8 limit_44k = 11;	// Default setting for 44.1 rounding off into average packet length
+		uint32_t sample_left = 0; 					// Must be unsigned for zeros to be right-shifted into MSBs ??
+		uint32_t sample_right = 0;					// ææææ convert to signed to merge with sample_R and spdif code. Probably OK. See sample.c which compiles into identical code
+		const U8 EP_AUDIO_IN = ep_audio_in;
 	#endif
 	
 	S16 time_to_calculate_gap = 0; // BSB 20131101 New variables for skip/insert
@@ -168,13 +171,7 @@ void uac2_device_audio_task(void *pvParameters)
 	U8 sample_LSB;
 	S32 sample_L = 0;
 	S32 sample_R = 0; // BSB 20131102 Expanded for skip/insert, 20160322 changed to S32
-	static uint8_t prev_input_select = MOBO_SRC_NONE; // Source history
 
-	// Trying to speed up ADC DMA to USB copy
-	uint32_t sample_left = 0; 					// Must be unsigned for zeros to be right-shifted into MSBs ??
-	uint32_t sample_right = 0;					// ææææ convert to signed to merge with sample_R and spdif code
-	
-	const U8 EP_AUDIO_IN = ep_audio_in;
 	const U8 EP_AUDIO_OUT = ep_audio_out;
 	const U8 EP_AUDIO_OUT_FB = ep_audio_out_fb;
 	uint32_t silence_USB = SILENCE_USB_LIMIT;	// BSB 20150621: detect silence in USB channel, initially assume silence
@@ -733,9 +730,10 @@ void uac2_device_audio_task(void *pvParameters)
 									print_dbg_char('[');						// USB takes
 									playerStarted = TRUE;						// Is it better off here?
 									
-									// mobo_xo_select(spk_current_freq.frequency);
-									// mobo_clock_division(spk_current_freq.frequency);
-									must_init_xo = TRUE;						// New frequency setting means resync DAC DMA
+									mobo_xo_select(spk_current_freq.frequency);
+									mobo_clock_division(spk_current_freq.frequency);
+									// must_init_xo = TRUE;						// New frequency setting means resync DAC DMA
+									must_init_spk_index = TRUE;					// Reset buffer position
 //									print_dbg_char('R');
 
 									#ifdef HW_GEN_SPRX 
@@ -1130,30 +1128,25 @@ void uac2_device_audio_task(void *pvParameters)
 			
 			// Oscillator setup - only do it once silence is over
 			if (must_init_xo) {
-				
-				// Is it time to set up clocks? If we do that with two muted spdif inputs we risk and risk tocka-tocka sounds
-				if ( (prev_input_select == MOBO_SRC_NONE) && (input_select != MOBO_SRC_NONE) ) {
-					if (cache_holds_silence) {
-						num_samples = 0;						// Before setup, disqualify cache contents that are silent
-					}
-					else {
-						// These are moved here from statatements like if (xSemaphoreTake(input_select_semphr, 10) == pdTRUE)
-						if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
-							mobo_xo_select(spdif_rx_status.frequency);
-							mobo_clock_division(spdif_rx_status.frequency);
-						}
-						else if (input_select == MOBO_SRC_UAC2) {
-							mobo_xo_select(spk_current_freq.frequency);
-							mobo_clock_division(spk_current_freq.frequency);
-						}
-						
-						must_init_spk_index = TRUE;				// Always reset buffers after changing xo and clock division
-						must_init_xo = FALSE;
-						prev_input_select = input_select;		// So that we won't init again immediately
-					}
+//				if (cache_holds_silence) {						// No tock-tock-tock sound but very late XO setup
+				if (0) {										// Early XO setup with tock-tock-tock
+					num_samples = 0;							// Before setup, disqualify cache contents that are silent
 				}
 				else {
-					prev_input_select = input_select;			// Establish history
+					// These are moved here from statatements like if (xSemaphoreTake(input_select_semphr, 10) == pdTRUE)
+					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
+						mobo_xo_select(spdif_rx_status.frequency);
+						mobo_clock_division(spdif_rx_status.frequency);
+//						vTaskDelay(1);	// Allow for a tiny bit of stabilization perhaps? Is this enough?
+					}
+					else if (input_select == MOBO_SRC_UAC2) {
+						mobo_xo_select(spk_current_freq.frequency);
+						mobo_clock_division(spk_current_freq.frequency);
+//						vTaskDelay(1);
+					}
+					
+					must_init_xo = FALSE;						// Done configuring for a while
+					must_init_spk_index = TRUE;					// Always reset buffers after changing xo and clock division
 				}
 			}
 
@@ -1161,7 +1154,7 @@ void uac2_device_audio_task(void *pvParameters)
 			// spk_index normalization
 			if (must_init_spk_index) {
 				
-				gpio_tgl_gpio_pin(AVR32_PIN_PA22);				// Indicate resetting
+//				gpio_tgl_gpio_pin(AVR32_PIN_PA22);				// Indicate resetting
 				
 				// USB startup has this a little past the middle of the output buffer. But SPDIF startup seems to let it start a bit too soon
 				// æææ understand that before code can be fully trusted!
@@ -1221,6 +1214,8 @@ void uac2_device_audio_task(void *pvParameters)
 				must_init_spk_index = FALSE;
 			} // if must_init_spk_index
 			
+			
+			// Transfer cache contents out
 			prev_si_score_high = (si_score_high >> 1) + (prev_si_score_high >> 1);	// Establish energy history, primitive IIR, out(n) = 0.5*out(n-1) + 0.5*in(n)
 
 			i = 0;
