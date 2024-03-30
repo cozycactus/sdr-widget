@@ -307,7 +307,7 @@ void wm8804_task(void *pvParameters) {
 								// Trying this as only setup site in wm8804 code...
 								// mobo_xo_select(spdif_rx_status.frequency);
 								// mobo_clock_division(spdif_rx_status.frequency);
-								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
+								must_init_xo = TRUE;						// New frequency setting means resync DAC DMA
 //								print_dbg_char('Z');
 								// End only site of setup code
 
