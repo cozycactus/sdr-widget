@@ -969,7 +969,7 @@ void uac2_device_audio_task(void *pvParameters)
 				time_to_calculate_gap--;
 			}
 //			else if (!must_init_spk_index) {					// Time to calculate gap AND normal operation
-			else if (!cache_holds_silence) {					// Time to calculate gap AND normal operation
+			else if ( (!cache_holds_silence) && (!must_init_xo) && (!must_init_spk_index) && (input_select != MOBO_SRC_NONE) ) {	// Time to calculate gap AND normal operation
 				time_to_calculate_gap = SPK_PACKETS_PER_GAP_CALCULATION - 1;
 
 				gap = DAC_BUFFER_UNI - spk_index - (spk_pdca_channel->tcr);
