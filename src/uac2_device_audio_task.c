@@ -938,27 +938,8 @@ void uac2_device_audio_task(void *pvParameters)
 
 		// Process digital input
 		#ifdef HW_GEN_SPRX
-		
-			// The passed parameters are overwritten if input_select is an spdif class
+			// The passed parameters are overwritten if input_select is among spdif sources
 			mobo_handle_spdif(&si_index_low, &si_score_high, &si_index_high, &num_samples, &cache_holds_silence);
-
-/* // Trying to reduce sites that initiate playback
-			if (input_select == MOBO_SRC_NONE) {
-				// Did SPDIF system just give up I2S control? If so get onto the sample rate of the USB system ASAP
-				if ( (prev_input_select == MOBO_SRC_SPDIF0) ||
-				(prev_input_select == MOBO_SRC_TOSLINK0) ||
-				(prev_input_select == MOBO_SRC_TOSLINK1) ) {
-					mobo_xo_select(spk_current_freq.frequency);	// Give USB the I2S control with proper MCLK, print status
-					mobo_clock_division(spk_current_freq.frequency);			// Re-configure correct USB sample rate
-					must_init_spk_index = TRUE;									// New frequency setting means resync DAC DMA
-					print_dbg_char('S');
-				}
-
-				// Whenever we're idle, reset where in outgoing DMA any cache writes will happen æææ merge with USB init logic for this same purpose
-			}
-			
-*/			
-			prev_input_select = input_select;
 		#endif
 
 		// Start checking gap adn then writing from chache to spk_buffer
