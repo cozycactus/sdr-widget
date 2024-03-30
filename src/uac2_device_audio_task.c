@@ -733,7 +733,7 @@ void uac2_device_audio_task(void *pvParameters)
 //									mobo_xo_select(spk_current_freq.frequency);
 //									mobo_clock_division(spk_current_freq.frequency);
 									must_init_xo = TRUE;
-									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
+//									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //									print_dbg_char('R');
 
 									#ifdef HW_GEN_SPRX 
@@ -1140,6 +1140,7 @@ void uac2_device_audio_task(void *pvParameters)
 					}
 
 					must_init_xo = FALSE;
+					must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 				}
 			}
 
