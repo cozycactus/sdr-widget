@@ -732,6 +732,8 @@ void uac2_device_audio_task(void *pvParameters)
 									
 //									mobo_xo_select(spk_current_freq.frequency);
 //									mobo_clock_division(spk_current_freq.frequency);
+									samples_per_package_min = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14); // 250us worth of music +- some slack
+									samples_per_package_max = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
 									must_init_xo = TRUE;
 //									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //									print_dbg_char('R');
@@ -969,7 +971,7 @@ void uac2_device_audio_task(void *pvParameters)
 				time_to_calculate_gap--;
 			}
 //			else if (!must_init_spk_index) {					// Time to calculate gap AND normal operation
-			else if ( (!cache_holds_silence) && (!must_init_xo) && (!must_init_spk_index) && (input_select != MOBO_SRC_NONE) ) {	// Time to calculate gap AND normal operation
+			else if ( (!cache_holds_silence) && (!must_init_xo) && (!must_init_spk_index) && (input_select != MOBO_SRC_NONE) && (num_samples >= samples_per_package_min) && (num_samples <= samples_per_package_max) ) {	// Time to calculate gap AND normal operation
 				time_to_calculate_gap = SPK_PACKETS_PER_GAP_CALCULATION - 1;
 
 				gap = DAC_BUFFER_UNI - spk_index - (spk_pdca_channel->tcr);
