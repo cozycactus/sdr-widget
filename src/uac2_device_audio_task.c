@@ -1110,14 +1110,14 @@ void uac2_device_audio_task(void *pvParameters)
 			if (si_pkg_counter > SI_PKG_RESOLUTION_F) {			// "Force", apply skip/insert regardless
 				si_pkg_counter = 0;								// instead of -= SI_PKG_RESOLUTION
 				si_action = si_pkg_direction;					// Apply only once in a while
-				print_dbg_char('F');
+//				print_dbg_char('F');
 			}
 			else if (si_pkg_counter > SI_PKG_RESOLUTION_H) {	// "Hint", compare to 1/1 of finding in IIR filter
 				if (si_score_high < prev_si_score_high) {		// si_score_high follows packet, prev_si_score_high is static
 					si_pkg_counter = 0;							// instead of -= SI_PKG_RESOLUTION
 					si_action = si_pkg_direction;				// Apply only once in a while
 				}
-				print_dbg_char('H');
+//				print_dbg_char('H');
 			}
 			else if (si_pkg_counter > SI_PKG_RESOLUTION) {		// Preferred: compare to 1/2 of finding in IIR filter
 				if (si_score_high < (prev_si_score_high / 2) ) {	// si_score_high follows packet, prev_si_score_high is static
