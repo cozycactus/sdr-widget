@@ -1129,14 +1129,16 @@ void uac2_device_audio_task(void *pvParameters)
 			// Moving xo init here in an attempt to counter tock-tock-tock with two connected spdif sources operating at opposite rates
 			if (must_init_xo) {
 				if (!cache_holds_silence) {
-					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
-						mobo_xo_select(spdif_rx_status.frequency, input_select);
-						mobo_clock_division(spdif_rx_status.frequency);
-					}
-					else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
-						mobo_xo_select(spk_current_freq.frequency, input_select);
-						mobo_clock_division(spk_current_freq.frequency);
-					}
+					#if ( (defined HW_GEN_SPRX) || (defined HW_GEN_AB1X) )
+						if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
+							mobo_xo_select(spdif_rx_status.frequency, input_select);
+							mobo_clock_division(spdif_rx_status.frequency);
+						}
+						else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
+							mobo_xo_select(spk_current_freq.frequency, input_select);
+							mobo_clock_division(spk_current_freq.frequency);
+						}
+					#endif
 
 					must_init_xo = FALSE;
 					must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
