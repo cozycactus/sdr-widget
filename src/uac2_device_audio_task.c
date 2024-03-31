@@ -1137,10 +1137,10 @@ void uac2_device_audio_task(void *pvParameters)
 						else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
 					#else
 						if (1) {
+					#endif
 							mobo_xo_select(spk_current_freq.frequency, input_select);
 							mobo_clock_division(spk_current_freq.frequency);
 						}
-					#endif
 
 					must_init_xo = FALSE;
 					must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
