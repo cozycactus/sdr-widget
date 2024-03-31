@@ -1325,7 +1325,7 @@ void mobo_print_selected_frequency(U32 frequency) {
 }
 
 
-void mobo_xo_select(U32 frequency) {
+void mobo_xo_select(U32 frequency, uint8_t source) {
 // XO and MCLK control
 
 	#if (defined HW_GEN_AB1X)
@@ -1398,6 +1398,13 @@ void mobo_xo_select(U32 frequency) {
 
 	#elif (defined HW_GEN_SPRX) 
 		// Control XOs. Only use parameter FREQ_RXNATIVE_EN or FREQ_RXNATIVE_DIS on hardware that has the mux assembled!!
+		
+		print_dbg_char('=');
+		print_dbg_char_hex(source);
+		print_dbg_char('=');
+		print_dbg_hex(frequency);
+		print_dbg_char('=');
+		
 		static U32 prev_frequency = FREQ_INVALID;
 		static U32 xo_frequency = FREQ_INVALID;
 		static bool	regen_used = FALSE;					// Default setting is to run on XOs
@@ -1409,21 +1416,26 @@ void mobo_xo_select(U32 frequency) {
 
 		// Choose XO or regenerated clock
 		// NB! This may not be supported by hardware versions after E !! Must be supported on Boenicke hardware
-		if (frequency == FREQ_RXNATIVE_EN) {			// Use MCLK from SPDIF RX			FREQ_RXNATIVE_DIS
-			// Explicitly turn on MCLK generation in SPDIF RX?
-			gpio_set_gpio_pin(AVR32_PIN_PX22); 			// Enable RX recovered MCLK
-			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// 44.1 control
-			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// 48 control
+		if (frequency == FREQ_RXNATIVE_EN) {
 			regen_used = TRUE;
+			prev_frequency = FREQ_INVALID;				// Force XO pin update whenever USB is enabled
 		}
-		else if (frequency == FREQ_RXNATIVE_DIS) {		// Revert to MCLK from crystal. This may have changed!
+		if ( regen_used && 	( (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1)  || (input_select == MOBO_SRC_SPDIF0)  || (input_select == MOBO_SRC_SPDIF1) )  ) {	// Use MCLK from SPDIF RX
+			// Explicitly turn on MCLK generation in SPDIF RX
+			gpio_set_gpio_pin(AVR32_PIN_PX22); 			// Enable RX recovered MCLK
+			gpio_clr_gpio_pin(AVR32_PIN_PA23); 			// Disable 44.1 control
+			gpio_clr_gpio_pin(AVR32_PIN_PA21); 			// Disable 48 control
+			prev_frequency = FREQ_INVALID;				// Force XO pin update whenever USB is enabled
+		}
+		if (frequency == FREQ_RXNATIVE_DIS) {			// Revert to MCLK from crystal. This may have changed!
 			frequency = xo_frequency;					// Use last requested frequency from sources
-			prev_frequency = FREQ_INVALID;				// Force XO pin update below
+			prev_frequency = FREQ_INVALID;				// Force XO pin update below or whenever USB is enabled
 			regen_used = FALSE;	
 		}
 
 		// Select desired XO - only run at startup or when things change
-		if (regen_used == FALSE) {
+		// Using regenerated clock is not applied to USB
+		if ( (!regen_used) || (source == MOBO_SRC_UAC2) ) {
 			if ( ( (frequency == FREQ_44) || (frequency == FREQ_88) || (frequency == FREQ_176) ) &&
 					( (prev_frequency == FREQ_48) || (prev_frequency == FREQ_96) || (prev_frequency == FREQ_192) || (prev_frequency == FREQ_INVALID) )
 				) {
@@ -1431,7 +1443,7 @@ void mobo_xo_select(U32 frequency) {
 				gpio_clr_gpio_pin(AVR32_PIN_PA21); 		// 48 control
 				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
 				prev_frequency = frequency;				// Establish history among valid XO settings
-//				print_cpu_char('c');					// Indicate XO change
+				print_cpu_char('c');					// Indicate XO change
 			}
 			// FREQ_INVALID defaults to 48kHz domain? Is that consistent in code?
 			else if ( ( (frequency == FREQ_48) || (frequency == FREQ_96) || (frequency == FREQ_192) ) &&
@@ -1441,7 +1453,7 @@ void mobo_xo_select(U32 frequency) {
 				gpio_clr_gpio_pin(AVR32_PIN_PA23); 		// 44.1 control
 				gpio_clr_gpio_pin(AVR32_PIN_PX22); 		// Disable RX recovered MCLK
 				prev_frequency = frequency;				// Establish history among valid XO settings
-//				print_cpu_char('d');					// Indicate XO change
+				print_cpu_char('d');					// Indicate XO change
 			}
 		}
 

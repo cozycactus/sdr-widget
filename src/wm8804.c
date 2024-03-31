@@ -103,7 +103,7 @@ void wm8804_task_init(void) {
 uint8_t wm8804_mclk_out(uint8_t mode) {
 	static uint8_t mode_recall = WM8804_MCLK_DISABLE;	// default setting is to disable MCLK output and run on XOs
 	
-	if ( (mode == WM8804_MCLK_ENABLE) &&  (mode == WM8804_MCLK_DISABLE) ) {
+	if ( (mode == WM8804_MCLK_ENABLE) || (mode == WM8804_MCLK_DISABLE) ) {
 		uint8_t temp = wm8804_read_byte(0x08);
 
 		if (mode == WM8804_MCLK_ENABLE) {
@@ -305,7 +305,7 @@ void wm8804_task(void *pvParameters) {
 								print_dbg_char('{');						// WM8804 takes
 
 								// Trying this as only setup site in wm8804 code...
-//								mobo_xo_select(spdif_rx_status.frequency);
+//								mobo_xo_select(spdif_rx_status.frequency, input_select);
 //								mobo_clock_division(spdif_rx_status.frequency);
 								samples_per_package_min = (spdif_rx_status.frequency >> 12) - (spdif_rx_status.frequency >> 14); // 250us worth of music +- some slack
 								samples_per_package_max = (spdif_rx_status.frequency >> 12) + (spdif_rx_status.frequency >> 14);

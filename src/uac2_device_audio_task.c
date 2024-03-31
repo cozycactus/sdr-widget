@@ -730,7 +730,7 @@ void uac2_device_audio_task(void *pvParameters)
 									print_dbg_char('[');						// USB takes
 									playerStarted = TRUE;						// Is it better off here?
 									
-//									mobo_xo_select(spk_current_freq.frequency);
+//									mobo_xo_select(spk_current_freq.frequency, input_select);
 //									mobo_clock_division(spk_current_freq.frequency);
 									samples_per_package_min = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14); // 250us worth of music +- some slack
 									samples_per_package_max = (spk_current_freq.frequency >> 12) + (spk_current_freq.frequency >> 14);
@@ -1133,11 +1133,11 @@ void uac2_device_audio_task(void *pvParameters)
 			if (must_init_xo) {
 				if (!cache_holds_silence) {
 					if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
-						mobo_xo_select(spdif_rx_status.frequency);
+						mobo_xo_select(spdif_rx_status.frequency, input_select);
 						mobo_clock_division(spdif_rx_status.frequency);
 					}
 					else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
-						mobo_xo_select(spk_current_freq.frequency);
+						mobo_xo_select(spk_current_freq.frequency, input_select);
 						mobo_clock_division(spk_current_freq.frequency);
 					}
 

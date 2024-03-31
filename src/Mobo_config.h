@@ -23,7 +23,7 @@ void mobo_sleep_rtc_ms(uint16_t time_ms);
 void mobo_print_selected_frequency(U32 frequency);
 
 // Audio Widget select oscillator
-void mobo_xo_select(U32 frequency);
+void mobo_xo_select(U32 frequency, uint8_t source);
 
 // Master clock to DAC's I2S port frequency setup
 void mobo_clock_division(U32 frequency);

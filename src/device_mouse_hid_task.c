@@ -341,12 +341,12 @@ void device_mouse_hid_task(void)
 			// Enable clock from SPDIF/TOSLINK receiver
 			else if (a == MCU_CHAR_REGEN_EN) {				// Uppercase 'X'
 				wm8804_mclk_out(WM8804_MCLK_ENABLE);		// Turn on the regenerated clock
-				mobo_xo_select(FREQ_RXNATIVE_EN);			// Select regenerated clock and disable XOs
+				mobo_xo_select(FREQ_RXNATIVE_EN, MOBO_SRC_NONE);	// Select regenerated clock and disable XOs
 			}
 
 			// Disable clock from SPDIF/TOSLINK receiver
 			else if (a == MCU_CHAR_REGEN_DIS) {				// Lowercase 'x'
-				mobo_xo_select(FREQ_RXNATIVE_DIS);			// Revert to using an XO
+				mobo_xo_select(FREQ_RXNATIVE_DIS, MOBO_SRC_NONE);			// Revert to using an XO
 				wm8804_mclk_out(WM8804_MCLK_DISABLE);		// Turn off the regenerated clock
 			}
 
