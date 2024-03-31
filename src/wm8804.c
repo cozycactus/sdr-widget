@@ -308,7 +308,7 @@ void wm8804_task(void *pvParameters) {
 //								mobo_xo_select(spdif_rx_status.frequency);
 //								mobo_clock_division(spdif_rx_status.frequency);
 								samples_per_package_min = (spdif_rx_status.frequency >> 12) - (spdif_rx_status.frequency >> 14); // 250us worth of music +- some slack
-								samples_per_package_max = (spdif_rx_status.frequency >> 12) - (spdif_rx_status.frequency >> 14);
+								samples_per_package_max = (spdif_rx_status.frequency >> 12) + (spdif_rx_status.frequency >> 14);
 								must_init_xo = TRUE;
 //								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //								print_dbg_char('Z');

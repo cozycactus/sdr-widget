@@ -246,7 +246,7 @@ void uac2_freq_change_handler() {
 //		mobo_xo_select(spk_current_freq.frequency);			// Give USB the I2S control with proper MCLK
 //		mobo_clock_division(spk_current_freq.frequency);	// Re-configure correct USB sample rate
 		samples_per_package_min = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
-		samples_per_package_max = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
+		samples_per_package_max = (spk_current_freq.frequency >> 12) + (spk_current_freq.frequency >> 14);
 		must_init_xo = TRUE;
 //		must_init_spk_index = TRUE;							// New frequency setting means resync DAC DMA
 		print_dbg_char('V');		
@@ -257,7 +257,7 @@ void uac2_freq_change_handler() {
 	mobo_clear_dac_channel();
 
 	samples_per_package_min = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
-	samples_per_package_max = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
+	samples_per_package_max = (spk_current_freq.frequency >> 12) + (spk_current_freq.frequency >> 14);
 	mobo_xo_select(spk_current_freq.frequency);				// GPIO XO control and frequency indication
 	mobo_clock_division(spk_current_freq.frequency);
 	must_init_spk_index = TRUE;								// New frequency setting means resync DAC DMA

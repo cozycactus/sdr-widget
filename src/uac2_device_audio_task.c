@@ -733,7 +733,7 @@ void uac2_device_audio_task(void *pvParameters)
 //									mobo_xo_select(spk_current_freq.frequency);
 //									mobo_clock_division(spk_current_freq.frequency);
 									samples_per_package_min = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14); // 250us worth of music +- some slack
-									samples_per_package_max = (spk_current_freq.frequency >> 12) - (spk_current_freq.frequency >> 14);
+									samples_per_package_max = (spk_current_freq.frequency >> 12) + (spk_current_freq.frequency >> 14);
 									must_init_xo = TRUE;
 //									must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //									print_dbg_char('R');
