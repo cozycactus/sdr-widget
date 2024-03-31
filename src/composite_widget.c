@@ -291,7 +291,7 @@ wm8804_reset(WM8804_RESET_START);							// Early hardware reset of WM8805 becaus
 	usb_ch_swap = USB_CH_NOSWAP;							// No swapping detected yet
 
 	// Try to remove this function. It is currently empty.
-	mobo_i2s_enable(MOBO_I2S_DISABLE);						// Disable here and enable with audio on.
+	// mobo_i2s_enable(MOBO_I2S_DISABLE);					// Disable here and enable with audio on.
 
 	// Just keep I2S on, mobo_i2s_enable() does nothing for now
 	gpio_set_gpio_pin(AVR32_PIN_PX58); 						// Enable I2S data

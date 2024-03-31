@@ -748,7 +748,7 @@ void uac2_device_audio_task(void *pvParameters)
 										}
 
 										mobo_led_select(spk_current_freq.frequency, input_select);
-										mobo_i2s_enable(MOBO_I2S_ENABLE);		// Hard-unmute of I2S pin
+										// mobo_i2s_enable(MOBO_I2S_ENABLE);		// Hard-unmute of I2S pin
 									#endif
 								}												// Hopefully, this code won't be called repeatedly. Would there be time??
 								else {
@@ -788,7 +788,7 @@ void uac2_device_audio_task(void *pvParameters)
 						playerStarted = FALSE;
 
 						#ifdef HW_GEN_SPRX 					// Dedicated mute pin
-							mobo_i2s_enable(MOBO_I2S_DISABLE);	// Hard-mute of I2S pin
+							// mobo_i2s_enable(MOBO_I2S_DISABLE);	// Hard-mute of I2S pin
 						#endif
 
 						// Clear buffers before give
@@ -808,7 +808,6 @@ void uac2_device_audio_task(void *pvParameters)
 									// Report to cpu and debug terminal
 									print_cpu_char(CPU_CHAR_IDLE);
 									#ifdef HW_GEN_SPRX
-//										pcm5142_mute();						// Experiment to prevent tick-pop during silence, this doesn't help!
 										mobo_led_select(FREQ_NOCHANGE, MOBO_SRC_NONE);	// User interface NO-channel indicator 
 									#endif
 									input_select = MOBO_SRC_NONE;			// Do this LATE! Indicate WM may take over control
@@ -850,7 +849,7 @@ void uac2_device_audio_task(void *pvParameters)
 					playerStarted = FALSE;	// Inserted here in mobodebug untested fix, removed above
 
 					#ifdef HW_GEN_SPRX	// Dedicated mute pin
-						mobo_i2s_enable(MOBO_I2S_DISABLE);		// Hard-mute of I2S pin
+						// mobo_i2s_enable(MOBO_I2S_DISABLE);		// Hard-mute of I2S pin
 					#endif
 
 					// Clear buffers before give
@@ -869,7 +868,6 @@ void uac2_device_audio_task(void *pvParameters)
 								// Report to cpu and debug terminal
 								print_cpu_char(CPU_CHAR_IDLE);
 								#ifdef HW_GEN_SPRX
-//									pcm5142_mute();						// Experiment to prevent tick-pop during silence. This doesn't help
 									mobo_led_select(FREQ_NOCHANGE, MOBO_SRC_NONE);	// User interface NO-channel indicator
 								#endif
 								input_select = MOBO_SRC_NONE;			// Do this LATE! Indicate WM may take over control
@@ -920,7 +918,6 @@ void uac2_device_audio_task(void *pvParameters)
 							// Report to cpu and debug terminal
 							print_cpu_char(CPU_CHAR_IDLE);
 							#ifdef HW_GEN_SPRX
-//								pcm5142_mute();						// Experiment to prevent tick-pop during silence, this doesn't help
 								mobo_led_select(FREQ_NOCHANGE, MOBO_SRC_NONE);	// User interface NO-channel indicator
 							#endif
 							input_select = MOBO_SRC_NONE;			// Do this LATE! Indicate WM may take over control
@@ -1149,10 +1146,10 @@ void uac2_device_audio_task(void *pvParameters)
 			// spk_index normalization
 			if (must_init_spk_index) {
 				
-				gpio_tgl_gpio_pin(AVR32_PIN_PA22);		// Indicate resetting
+//				gpio_tgl_gpio_pin(AVR32_PIN_PA22);		// Indicate resetting
 				
 				// USB startup has this a little past the middle of the output buffer. But SPDIF startup seems to let it start a bit too soon
-				// æææ understand that before code can be fully trusted!
+				// Understand that before code can be fully trusted!
 
 				// Starting point basics
 				spk_index = DAC_BUFFER_UNI - (spk_pdca_channel->tcr) + DAC_BUFFER_UNI / 2; // Starting half a unified buffer away from DMA's read head
@@ -1203,8 +1200,6 @@ void uac2_device_audio_task(void *pvParameters)
 				diff_sum = 0;
 				cache_silence_counter = 0;				// Don't look for cached silence for a little while
 				
-//				pcm5142_unmute();						// Experiment to prevent tick-pop during silence. This alone doesn't help!
-				
 				must_init_spk_index = FALSE;
 			}
 
@@ -1230,7 +1225,6 @@ void uac2_device_audio_task(void *pvParameters)
 				i++;	// Next sample from cache
 			} // end while i - before skip/insert
 
-
 			// i now points at sample to be skipped or inserted
 			sample_L = cache_L[i];
 			sample_R = cache_R[i];
@@ -1238,7 +1232,6 @@ void uac2_device_audio_task(void *pvParameters)
 			if (si_action == SI_SKIP) {
 				// Do nothing
 			}
-			
 			else if (si_action == SI_NORMAL) {
 				// Single stereo sample
 				spk_buffer[spk_index++] = sample_L;
