@@ -1398,13 +1398,13 @@ void mobo_xo_select(U32 frequency, uint8_t source) {
 
 	#elif (defined HW_GEN_SPRX) 
 		// Control XOs. Only use parameter FREQ_RXNATIVE_EN or FREQ_RXNATIVE_DIS on hardware that has the mux assembled!!
-		
+/*		
 		print_dbg_char('=');
 		print_dbg_char_hex(source);
 		print_dbg_char('=');
 		print_dbg_hex(frequency);
 		print_dbg_char('=');
-		
+*/		
 		static U32 prev_frequency = FREQ_INVALID;
 		static U32 xo_frequency = FREQ_INVALID;
 		static bool	regen_used = FALSE;					// Default setting is to run on XOs
