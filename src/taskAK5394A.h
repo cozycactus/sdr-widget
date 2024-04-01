@@ -79,7 +79,7 @@ Short buffers give less system latency and poorer synch state machine performanc
 #define FLED_WHITE			7
 #define FLED_DARK			0
 #define FLED_NO_CHG			9
-#define FLED_SCANNING		FLED_WHITE	// While scanning for an input, should there be a default light? Implemented only on HW_GEN_SPRX
+#define FLED_SCANNING		FLED_BLUE	// While idle and scanning for an input, should there be a default light? Implemented only on HW_GEN_SPRX
 
 // USB channels
 #define USB_CH_NONE			0		// No USB port has been detected
