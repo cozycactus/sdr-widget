@@ -431,6 +431,7 @@ void wm8804_sleep(void) {
 #endif
 
 	wm8804_write_byte(0x1E, 0x1F);	// Power down 7-6:0, 5:0 OUT, 4:1 _IF, 3:1 _OSC, 2:1 _TX, 1:1 _RX, 0:1 _PLL // WM8804 same
+	mobo_SPRX_input(MOBO_SRC_NONE);	// For the time being (all SPRX revisions until F) select the unconnected SPDIF1 input. On rev. E that powers down the three assembled inputs
 }
 
 
