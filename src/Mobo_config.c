@@ -1630,6 +1630,18 @@ void mobo_clear_dac_channel(void) {
 //	print_dbg_char('C');
 //	gpio_set_gpio_pin(AVR32_PIN_PX17); // ch3
 
+
+#ifdef I2S_POLARITY_CHECK
+	for (i = 0; i < DAC_BUFFER_UNI; i=i+2) {
+		spk_buffer[i] = 0; 
+		spk_buffer[i+1] = -1;		// Pretty close to being in-phase with LRCK
+	}
+	
+	for (i = 0; i < SPK_CACHE_MAX_SAMPLES; i++) {
+		cache_L[i] = 0;
+		cache_R[i] = -1;	// Pretty close to being in-phase with LRCK
+	}
+#else
 	for (i = 0; i < DAC_BUFFER_UNI; i++) {
 		spk_buffer[i] = 0;
 	}
@@ -1638,6 +1650,9 @@ void mobo_clear_dac_channel(void) {
 		cache_L[i] = 0;
 		cache_R[i] = 0;
 	}
+#endif	
+	
+	
 
 //	gpio_clr_gpio_pin(AVR32_PIN_PX17); // ch3
 }

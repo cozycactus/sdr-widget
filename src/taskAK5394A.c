@@ -285,6 +285,8 @@ void AK5394A_pdca_rx_enable(U32 frequency) {
 		 (frequency == FREQ_88) || (frequency == FREQ_96) ||
 		 (frequency == FREQ_176) || (frequency == FREQ_192) ) {
 		mobo_wait_LRCK_RX_asm(); // Wait for some well-defined action on LRCK pin, asm takes 572-778ns from LRCK fall to trigger fall. C code takes 478-992ns
+		
+		// I2S_POLARITY_CHECK is this always correct??
 	}
 		
 	pdca_enable(PDCA_CHANNEL_SSC_RX);	// Presumably the most timing critical ref. LRCK edge
@@ -308,6 +310,8 @@ void AK5394A_pdca_tx_enable(U32 frequency) {
 		 (frequency == FREQ_88) || (frequency == FREQ_96) ||
 		 (frequency == FREQ_176) || (frequency == FREQ_192) ) {
 		mobo_wait_LRCK_TX_asm(); // Wait for some well-defined action on LRCK pin
+		
+		// Is this always perfect? I2S_POLARITY_CHECK
 	}
 
 	// What is the optimal sequence?
