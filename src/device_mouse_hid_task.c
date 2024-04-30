@@ -434,9 +434,14 @@ void device_mouse_hid_task(void)
 			#ifdef I2S_POLARITY_CHECK
 				else if (a == 'p') {							// Lowercase p
 					uint8_t lrck_counter = 0;
-					for (temp=0; temp<32; temp++) {
-						if ( gpio_get_pin_value(AVR32_PIN_PX27) == gpio_get_pin_value(AVR32_PIN_PX24) ) {
+					temp = 32;
+					while (temp > 0) {
+						if ( ( gpio_get_pin_value(AVR32_PIN_PX27) == gpio_get_pin_value(AVR32_PIN_PX24) ) && ( gpio_get_pin_value(AVR32_PIN_PX24) == gpio_get_pin_value(AVR32_PIN_PX27) ) ) {
 							lrck_counter++;
+							temp--;
+						}
+						else if ( ( gpio_get_pin_value(AVR32_PIN_PX27) != gpio_get_pin_value(AVR32_PIN_PX24) ) && ( gpio_get_pin_value(AVR32_PIN_PX24) != gpio_get_pin_value(AVR32_PIN_PX27) ) ) {
+							temp--;
 						}
 					}
 					print_dbg_char_hex(lrck_counter);

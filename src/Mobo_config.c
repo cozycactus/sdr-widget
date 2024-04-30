@@ -1633,13 +1633,13 @@ void mobo_clear_dac_channel(void) {
 
 #ifdef I2S_POLARITY_CHECK
 	for (i = 0; i < DAC_BUFFER_UNI; i=i+2) {
-		spk_buffer[i] = 0; 
-		spk_buffer[i+1] = -1;		// Pretty close to being in-phase with LRCK
+		spk_buffer[i] = 1; 
+		spk_buffer[i+1] = -2;		// Delayed SDATA should be in-phase with LRCK
 	}
 	
 	for (i = 0; i < SPK_CACHE_MAX_SAMPLES; i++) {
-		cache_L[i] = 0;
-		cache_R[i] = -1;	// Pretty close to being in-phase with LRCK
+		cache_L[i] = 1;
+		cache_R[i] = -2;		// Delayed SDATA should be in-phase with LRCK
 	}
 #else
 	for (i = 0; i < DAC_BUFFER_UNI; i++) {
