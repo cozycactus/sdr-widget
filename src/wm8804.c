@@ -180,7 +180,7 @@ void wm8804_task(void *pvParameters) {
 				// Poll two silence detectors, WM8804 and buffer transfer code
 //				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
 //				if ( (spdif_rx_status.silent == 1) || (0)                                        ) {
-				if ( (spdif_rx_status.silent == 1) && (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) { // Experimental silence detector - need to improve spdif_rx_status.silent  with the song Sevadaliza Human Nature
+				if ( (spdif_rx_status.silent == 1) && (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) { // Experimental silence detector - need to improve spdif_rx_status.silent  with the song Sevadaliza Human Nature 
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
@@ -232,8 +232,6 @@ void wm8804_task(void *pvParameters) {
 					// Count to more than one error?
 					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 					mustgive = 1;
-					
-					print_dbg_char('n');				
 				}
 
 				// Poll interrupt pin
@@ -247,8 +245,6 @@ void wm8804_task(void *pvParameters) {
 						wm8804_pllnew(WM8804_PLL_TOGGLE);
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel. Run up to 5x4 scan attempts
 						mustgive = 1;
-
-						print_dbg_char('o');
 					}
 				}
 				
@@ -262,8 +258,6 @@ void wm8804_task(void *pvParameters) {
 						// wm8804_pllnew(WM8804_PLL_TOGGLE);		// No PLL toggle -> quick to return to present setting
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel to prevent consequences of false detects. Run up to 5x4 scan attempts
 						mustgive = 1;
-						
-						print_dbg_char('p');
 					}
 				}
 						
