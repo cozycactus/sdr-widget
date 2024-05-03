@@ -1235,9 +1235,9 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 
 // Init code is unstable!
 
-	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
+//	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
 //		spdif_rx_status.silent = 1;
-	}
+//	}
 
 
 } // mobo_handle_spdif(void)
