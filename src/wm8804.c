@@ -178,9 +178,9 @@ void wm8804_task(void *pvParameters) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
 				// Poll two silence detectors, WM8804 and buffer transfer code
-//				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
 //				if ( (spdif_rx_status.silent == 1) || (0)                                        ) {
-				if ( (spdif_rx_status.silent == 1) && (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+//				if ( (spdif_rx_status.silent == 1) && (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) { // Experimental silence detector
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
@@ -196,7 +196,7 @@ void wm8804_task(void *pvParameters) {
 	
 
 //				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
-				if ( (0)                           || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+				if ( (0)                           || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {	// Split silence detector - need to improve spdif_rx_status.silent  with the song Sevadaliza Human Nature
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
