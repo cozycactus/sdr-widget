@@ -130,9 +130,9 @@ void wm8804_task(void *pvParameters) {
 	static uint8_t channel;	// Must be static here?
 	uint8_t wm8804_int;
 	uint8_t mustgive = 0;
-	uint8_t silence_counter = 0;					// How long has a channel been silent? Allow 3s for pause, 0.2s for newly locked channel. Also track LED updates
-	uint8_t playing_counter = 0;					// How long has a channel be playing music so that we'll look for pause, not newly locked-on mute?
-	uint16_t poll_counter = 0;
+	int16_t silence_counter = 0;					// How long has a channel been silent? Allow 3s for pause, 0.2s for newly locked channel. Also track LED updates
+	int16_t playing_counter = 0;					// How long has a channel be playing music so that we'll look for pause, not newly locked-on mute?
+	int16_t poll_counter = 0;
 
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();			// Currently happens every 20ms with configTSK_WM8804_PERIOD = 200, every 1.2ms with configTSK_WM8804_PERIOD = 12
@@ -180,9 +180,10 @@ void wm8804_task(void *pvParameters) {
 				// Poll two silence detectors, WM8804 and buffer transfer code
 				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
-//						print_dbg_char('m');
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
+
+						print_dbg_char('m');
 					}
 					else {
 						silence_counter++;							// Must be silent for a bit longer to take action
@@ -208,6 +209,8 @@ void wm8804_task(void *pvParameters) {
 					// Count to more than one error?
 					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 					mustgive = 1;
+					
+					print_dbg_char('n');				
 				}
 
 				// Poll interrupt pin
@@ -221,6 +224,8 @@ void wm8804_task(void *pvParameters) {
 						wm8804_pllnew(WM8804_PLL_TOGGLE);
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel. Run up to 5x4 scan attempts
 						mustgive = 1;
+
+						print_dbg_char('o');
 					}
 				}
 				
@@ -234,6 +239,8 @@ void wm8804_task(void *pvParameters) {
 						// wm8804_pllnew(WM8804_PLL_TOGGLE);		// No PLL toggle -> quick to return to present setting
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel to prevent consequences of false detects. Run up to 5x4 scan attempts
 						mustgive = 1;
+						
+						print_dbg_char('p');
 					}
 				}
 						
