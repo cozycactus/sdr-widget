@@ -1083,7 +1083,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		bool silence_det = TRUE;		// We're looking for first non-zero audio-data
 
 		// Cached if-test
-		bool we_own_cache = ( ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) && (dac_must_clear == DAC_READY) );
+		bool we_own_cache = ( ( (input_select == MOBO_SRC_SPDIF0) ||  (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) && (dac_must_clear == DAC_READY) );
 
 		// Minor time savings over writing to (*xx) every time - probably further improvements when taken inline in uac2_dat
 		U32 temp_num_samples = 0;
@@ -1158,15 +1158,16 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*si_score_high = temp_si_score_high;
 			*si_index_high = temp_si_index_high;
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
+
+			// Report silence to wm8804 subsystem when we own cache
+			if (silence_det) {
+				spdif_rx_status.silent = 1;
+			}
+			else {
+				spdif_rx_status.silent = 0;
+			}
 		}
 
-		// Report silence to wm8804 subsystem
-		if (silence_det) {
-			spdif_rx_status.silent = 1;
-		}
-		else {
-			spdif_rx_status.silent = 0;
-		}
 		
 		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
 
