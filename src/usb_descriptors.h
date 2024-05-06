@@ -480,7 +480,7 @@
   Usb_unicode('4'),\
   Usb_unicode('0'),\
   Usb_unicode('5'),\
-  Usb_unicode('0'),\
+  Usb_unicode('0'),\ 
   Usb_unicode('6'),\
   Usb_unicode('0'),\
   Usb_unicode('0'),\
