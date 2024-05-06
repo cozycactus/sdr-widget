@@ -202,8 +202,9 @@ void wm8804_task(void *pvParameters) {
 					else {
 						playing_counter++;							// Still not entirely sure we're actually playing music
 					}
+					
+					spdif_rx_status.hasmusic = 0;					// The writing process in mobo_handle_spdif() probably runs approx. 80 times for each iteration of this loop. 20ms / 250s
 				}
-				spdif_rx_status.hasmusic = 0;						// The writing process in mobo_handle_spdif() runs approx. 80 times for each iteration of this loop. 20ms / 250s
 								
 				// Poll lost lock pin
 				if (gpio_get_pin_value(WM8804_CSB_PIN) == 1) {	// Lost lock
