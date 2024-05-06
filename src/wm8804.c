@@ -49,7 +49,7 @@ If this project is of interest to you, please let me know! I hope to see you at 
 #include "taskAK5394A.h" // To signal uacX_device_audio_task to enable DMA at init
 
 // Global status variable
-volatile spdif_rx_status_t spdif_rx_status = {0, 1, 0, 0, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
+volatile spdif_rx_status_t spdif_rx_status = {0, 1, 1, 0, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
 	
 // Linkup monitoring variables, available for debug
 volatile uint8_t link_attempts_max = 0;				// Counting up to determine max poll cycles for linkup success
@@ -178,39 +178,17 @@ void wm8804_task(void *pvParameters) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
 				// Poll two silence detectors, WM8804 and buffer transfer code
-//				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
-				if ( (spdif_rx_status.silent == 1) || (0)                                        ) {
-//				if ( (spdif_rx_status.silent == 1) && (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) { // Experimental silence detector - need to improve spdif_rx_status.silent  with the song Sevadaliza Human Nature 
+//				if ( (spdif_rx_status.hasmusic == 0) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+				if ( (spdif_rx_status.hasmusic == 0) || (0)                                        ) {
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
-
 						print_dbg_char('l');
 					}
 					else {
 						silence_counter++;							// Must be silent for a bit longer to take action
 					}
 				} // Silence not detected
-				
-
-	
-/*
-//				if ( (spdif_rx_status.silent == 1) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
-				if ( (0)                           || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {	// Split silence detector - need to improve spdif_rx_status.silent  with the song Sevadaliza Human Nature
-					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
-						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
-						mustgive = 1;
-
-						print_dbg_char('m');
-					}
-					else {
-						silence_counter++;							// Must be silent for a bit longer to take action
-					}
-				} // Silence not detected
-				
-
-*/
-				
 				else {												// Silence not detected
 					if (playing_counter == WM8804_LED_UPDATED) {	// Non-silence detected, LEDs updated => do nothing!
 					}
@@ -225,6 +203,7 @@ void wm8804_task(void *pvParameters) {
 						playing_counter++;							// Still not entirely sure we're actually playing music
 					}
 				}
+				spdif_rx_status.hasmusic = 0;						// The writing process in mobo_handle_spdif() runs approx. 80 times for each iteration of this loop. 20ms / 250s
 								
 				// Poll lost lock pin
 				if (gpio_get_pin_value(WM8804_CSB_PIN) == 1) {	// Lost lock
@@ -310,7 +289,7 @@ void wm8804_task(void *pvParameters) {
 						spdif_rx_status.channel = channel;
 						spdif_rx_status.frequency = freq;
 						spdif_rx_status.powered = 1;			// Written above
-						spdif_rx_status.silent = 0;				// Continuously modified in mobo_handle_spdif() Is it important to write it here?
+//						spdif_rx_status.hasmusic = 1;			// Continuously modified in mobo_handle_spdif() Is it important to write it here?
 						
 						// Setting spdif_rx_status.reliable = 1 only here - is that OK?
 						

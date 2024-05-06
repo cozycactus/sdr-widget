@@ -1068,7 +1068,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 	// NB: For now, spdif_rx_status.reliable = 1 is only set after a mutex take in wm8804.c. Is that correct?
 
 //	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
-//		spdif_rx_status.silent = 1;
+//		spdif_rx_status.hasmusic = 0;
 //	}
 //	else 
 
@@ -1159,12 +1159,14 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*si_index_high = temp_si_index_high;
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 
-			// Report silence to wm8804 subsystem when we own cache
+			// Report (non)silence to wm8804 subsystem when we own cache. This value is updated approx. 80 times as often as it is tested
 			if (silence_det) {
-				spdif_rx_status.silent = 1;
+//				spdif_rx_status.hasmusic = 0;		// Variable is not cleared here but in the reading function in wm8804.c
 			}
 			else {
-				spdif_rx_status.silent = 0;
+				if (spdif_rx_status.hasmusic < 100) { // More than 80 and less than what would fit in int8_t / uint8_t
+					spdif_rx_status.hasmusic++;
+				}
 			}
 		}
 
@@ -1237,7 +1239,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 // Init code is unstable!
 
 //	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
-//		spdif_rx_status.silent = 1;
+//		spdif_rx_status.hasmusic = 0;
 //	}
 
 
