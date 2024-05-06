@@ -73,7 +73,6 @@ typedef struct spdif_rx_status {				// Definition of global variable
 	uint8_t powered;
 	uint8_t muted;
 	uint8_t hasmusic;
-	uint8_t reliable;
 	uint32_t frequency;
 	uint8_t pllmode;
 	uint8_t channel;

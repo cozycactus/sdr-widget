@@ -1063,15 +1063,6 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 	
 	// First try to establish a local, synchronously-sampled local cache
 	local_captured_num_remaining = timer_captured_num_remaining;
-	
-	// Reused test based on .reliable from old code below. What is its purpose? It messes up USB playback if it was started during an spdif playback which was later halted
-	// NB: For now, spdif_rx_status.reliable = 1 is only set after a mutex take in wm8804.c. Is that correct?
-
-//	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
-//		spdif_rx_status.hasmusic = 0;
-//	}
-//	else 
-
 	if (prev_captured_num_remaining != local_captured_num_remaining) {
 //		gpio_set_gpio_pin(AVR32_PIN_PA22); // Indicate start of processing spdif data, ideally once per 250us
 
@@ -1092,9 +1083,6 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		U32 temp_si_index_high = 0;
 		S32 si_score_low = 0x7FFFFFFF;
 		
-		
-		S32 max_sample = 0;
-		
 		i = prev_last_written_ADC_pos;
 		while (i != last_written_ADC_pos) {
 			// Read incoming sample from buffer being filled by DMA
@@ -1102,7 +1090,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			sample_L = audio_buffer[i];
 			sample_R = audio_buffer[i + 1];
 
-
+			// Non-differential silence detector, only fully parse non-zero packets
 			if (silence_det) {
 				if (abs(sample_L) > IS_SILENT) {
 					silence_det = FALSE;
@@ -1111,7 +1099,6 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 					silence_det = FALSE;
 				}
 			}
-
 			
 			// Fill outgoing cache
 			// It is time consuming to test for each stereo sample!
@@ -1155,17 +1142,6 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			prev_diff_value = diff_value;
 		} // while (i != last_written_ADC_pos) 
 
-
-		// Silence detector v.4 reuses energy detection code
-		// L = 0 0 0 256 0 0 0
-		// R = 0 0 0 256 0 0 0
-		// -> si_score_high = 4
-		// It is practically a right-shift by 6 bits
-
-//		if ( (temp_si_score_high + (abs(sample_L) >> 8) + (abs(sample_R) >> 8) ) > IS_SILENT ) {
-//			silence_det = FALSE;
-//		}
-		
 		// Do this once instead of for each sample
 		if (we_own_cache) {
 			*num_samples = temp_num_samples;
@@ -1173,11 +1149,11 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*si_score_high = temp_si_score_high;
 			*si_index_high = temp_si_index_high;
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
+		}
 
-			// Report (non)silence to wm8804 subsystem when we own cache. This value is updated approx. 80 times as often as it is tested
-			if (!silence_det) {
-				spdif_rx_status.hasmusic = 1;		// Variable is only set here. It is cleared here but in the reading function in wm8804.c
-			}
+		// Report (non)silence to wm8804 subsystem. This value is updated approx. 80 times as often as it is tested
+		if (!silence_det) {
+			spdif_rx_status.hasmusic = 1;			// Variable is only set here. It is cleared here but in the reading function in wm8804.c
 		}
 
 		
@@ -1242,16 +1218,6 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		ADC_buf_I2S_IN = INIT_ADC_I2S_st2;	// Move on to init stage 2
 
 	} // end INIT_ADC_I2S
-
-
-// NB: For now, spdif_rx_status.reliable = 1 is only set after a mutex take in wm8804.c. Is that correct?
-
-// Init code is unstable!
-
-//	if (spdif_rx_status.reliable == 0) { // Temporarily unreliable counts as silent and halts processing
-//		spdif_rx_status.hasmusic = 0;
-//	}
-
 
 } // mobo_handle_spdif(void)
 

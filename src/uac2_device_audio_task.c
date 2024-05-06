@@ -596,6 +596,16 @@ void uac2_device_audio_task(void *pvParameters)
 							sample_L = (((U32) (uint8_t)(usb_16_1 >> 8) ) << 24) + (((U32) (uint8_t)(usb_16_0) ) << 16) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 8); //  + sample_HSB; // bBitResolution
 							sample_R = (((U32) (uint8_t)(usb_16_2) ) << 24) + (((U32) (uint8_t)(usb_16_2 >> 8) ) << 16) + (((U32) (uint8_t)(usb_16_1)) << 8); // + sample_HSB; // bBitResolution
 
+							// Non-differential silence detector, only fully parse non-zero packets
+							if (silence_det) {
+								if (abs(sample_L) > IS_SILENT) {
+									silence_det = FALSE;
+								}
+								else if (abs(sample_R) > IS_SILENT) {
+									silence_det = FALSE;
+								}
+							}
+
 							// Finding packet's point of lowest and highest "energy"
 							diff_value = abs( (sample_L >> 8) - (prev_sample_L >> 8) ) + abs( (sample_R >> 8) - (prev_sample_R >> 8) ); // The "energy" going from prev_sample to sample
 							diff_sum = diff_value + prev_diff_value; // Add the energy going from prev_prev_sample to prev_sample. 
@@ -656,6 +666,16 @@ void uac2_device_audio_task(void *pvParameters)
 
 								sample_L = (((U32) (uint8_t)(usb_16_0) ) << 24) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 16);
 								sample_R = (((U32) (uint8_t)(usb_16_1)) << 24) + (((U32) (uint8_t)(usb_16_1 >> 8)) << 16);
+
+								// Non-differential silence detector, only fully parse non-zero packets
+								if (silence_det) {
+									if (abs(sample_L) > IS_SILENT) {
+										silence_det = FALSE;
+									}
+									else if (abs(sample_R) > IS_SILENT) {
+										silence_det = FALSE;
+									}
+								}
 								
 								// Finding packet's point of lowest and highest "energy"
 								diff_value = abs( (sample_L >> 8) - (prev_sample_L >> 8) ) + abs( (sample_R >> 8) - (prev_sample_R >> 8) ); // The "energy" going from prev_sample to sample
@@ -709,15 +729,6 @@ void uac2_device_audio_task(void *pvParameters)
 					#endif // UAC2 ALT 2 for 16-bit audio						
 
 //					gpio_clr_gpio_pin(AVR32_PIN_PX31);		// End copying DAC data from USB OUT to cache
-
-					// Silence detector v.4 reuses energy detection code
-					// L = 0 0 0 256 0 0 0
-					// R = 0 0 0 256 0 0 0
-					// -> si_score_high = 4
-					// It is practically a right-shift by 6 bits
-					if ( (si_score_high + (abs(sample_L) >> 8) + (abs(sample_R) >> 8) ) > IS_SILENT) {
-						silence_det = FALSE;
-					}
 
 					// New site for setting playerStarted and aligning buffers
 					if (!silence_det) {		// There is actual USB audio.

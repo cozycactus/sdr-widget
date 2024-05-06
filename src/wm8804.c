@@ -49,7 +49,7 @@ If this project is of interest to you, please let me know! I hope to see you at 
 #include "taskAK5394A.h" // To signal uacX_device_audio_task to enable DMA at init
 
 // Global status variable
-volatile spdif_rx_status_t spdif_rx_status = {0, 1, 1, 0, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
+volatile spdif_rx_status_t spdif_rx_status = {0, 1, 1, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
 	
 // Linkup monitoring variables, available for debug
 volatile uint8_t link_attempts_max = 0;				// Counting up to determine max poll cycles for linkup success
@@ -178,8 +178,7 @@ void wm8804_task(void *pvParameters) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
 				// Poll two silence detectors, WM8804 and buffer transfer code
-//				if ( (spdif_rx_status.hasmusic == 0) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
-				if ( (spdif_rx_status.hasmusic == 0) || (0)                                        ) {
+				if ( (spdif_rx_status.hasmusic == 0) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
@@ -244,7 +243,6 @@ void wm8804_task(void *pvParameters) {
 				if (mustgive) {
 					wm8804_mute();
 					spdif_rx_status.muted = 1;
-//					spdif_rx_status.reliable = 0;				// Critical for mobo_handle_spdif()
 
 					if (input_select != MOBO_SRC_NONE) {		// Always directly preceding give for RT reasons
 						if (xSemaphoreGive(input_select_semphr) == pdTRUE) {
@@ -290,9 +288,6 @@ void wm8804_task(void *pvParameters) {
 						spdif_rx_status.channel = channel;
 						spdif_rx_status.frequency = freq;
 						spdif_rx_status.powered = 1;			// Written above
-//						spdif_rx_status.hasmusic = 1;			// Continuously modified in mobo_handle_spdif() Is it important to write it here?
-						
-						// Setting spdif_rx_status.reliable = 1 only here - is that OK?
 						
 						// async spdif start: Wait for verified non-zero audio and then take!!
 								
@@ -302,7 +297,6 @@ void wm8804_task(void *pvParameters) {
 								input_select = channel;						// Owning semaphore we may write to master variable input_select and take control of hardware
 								spdif_rx_status.channel = channel;
 								spdif_rx_status.frequency = freq;
-//								spdif_rx_status.reliable = 1;				// Critical for mobo_handle_spdif()
 //								print_dbg_char('\n');						// WM8804 takes
 								print_dbg_char('{');						// WM8804 takes
 
