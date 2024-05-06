@@ -1092,12 +1092,26 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		U32 temp_si_index_high = 0;
 		S32 si_score_low = 0x7FFFFFFF;
 		
+		
+		S32 max_sample = 0;
+		
 		i = prev_last_written_ADC_pos;
 		while (i != last_written_ADC_pos) {
 			// Read incoming sample from buffer being filled by DMA
 			
 			sample_L = audio_buffer[i];
 			sample_R = audio_buffer[i + 1];
+
+
+			if (silence_det) {
+				if (abs(sample_L) > IS_SILENT) {
+					silence_det = FALSE;
+				}
+				else if (abs(sample_R) > IS_SILENT) {
+					silence_det = FALSE;
+				}
+			}
+
 			
 			// Fill outgoing cache
 			// It is time consuming to test for each stereo sample!
@@ -1147,9 +1161,10 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		// R = 0 0 0 256 0 0 0
 		// -> si_score_high = 4
 		// It is practically a right-shift by 6 bits
-		if ( (temp_si_score_high + (abs(sample_L) >> 8) + (abs(sample_R) >> 8) ) > IS_SILENT ) {
-			silence_det = FALSE;
-		}
+
+//		if ( (temp_si_score_high + (abs(sample_L) >> 8) + (abs(sample_R) >> 8) ) > IS_SILENT ) {
+//			silence_det = FALSE;
+//		}
 		
 		// Do this once instead of for each sample
 		if (we_own_cache) {
@@ -1160,13 +1175,8 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 
 			// Report (non)silence to wm8804 subsystem when we own cache. This value is updated approx. 80 times as often as it is tested
-			if (silence_det) {
-//				spdif_rx_status.hasmusic = 0;		// Variable is not cleared here but in the reading function in wm8804.c
-			}
-			else {
-				if (spdif_rx_status.hasmusic < 100) { // More than 80 and less than what would fit in int8_t / uint8_t
-					spdif_rx_status.hasmusic++;
-				}
+			if (!silence_det) {
+				spdif_rx_status.hasmusic = 1;		// Variable is only set here. It is cleared here but in the reading function in wm8804.c
 			}
 		}
 
