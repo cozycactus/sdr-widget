@@ -180,6 +180,11 @@ void uac2_device_audio_task(void *pvParameters)
 // Start new code for skip/insert
 	static bool return_to_nominal = FALSE;		// Tweak frequency feedback system
 	
+#ifdef FEATURE_UNINVERT_LRCK
+	static S32 prev_prev_sample_L = 0;
+	static S32 prev_prev_sample_R = 0;
+#endif
+
 	static S32 prev_sample_L = 0;	// Enable delayed writing to cache, initiated to 0, new value survives to next iteration
 	static S32 prev_sample_R = 0;
 	S32 diff_value = 0;
@@ -598,10 +603,10 @@ void uac2_device_audio_task(void *pvParameters)
 
 							// Non-differential silence detector, only fully parse non-zero packets
 							if (silence_det) {
-								if (abs(sample_L) > IS_SILENT) {
+								if (abs(sample_L) >= IS_SILENT) {
 									silence_det = FALSE;
 								}
-								else if (abs(sample_R) > IS_SILENT) {
+								else if (abs(sample_R) >= IS_SILENT) {
 									silence_det = FALSE;
 								}
 							}
@@ -625,7 +630,11 @@ void uac2_device_audio_task(void *pvParameters)
 							if (usb_spk_mute != 0) {	// usb_spk_mute is heeded as part of volume control subsystem
 								prev_sample_L = 0;
 								prev_sample_R = 0;
-							}
+								#ifdef FEATURE_UNINVERT_LRCK
+									prev_prev_sample_L = 0;
+									prev_prev_sample_R = 0;
+								#endif
+								}
 							else {
 								if (spk_vol_mult_L != VOL_MULT_UNITY) {	// Only touch gain-controlled samples
 									// 32-bit data words volume control
@@ -645,13 +654,24 @@ void uac2_device_audio_task(void *pvParameters)
 							
 							// It is time consuming to test for each stereo sample!
 							if (input_select == MOBO_SRC_UAC2) {					// Only write to cache with the right permissions! Double check permission and num_samples
-								cache_L[i] = prev_sample_L; 
-								cache_R[i] = prev_sample_R;
+								#ifdef FEATURE_UNINVERT_LRCK
+									cache_L[i] = prev_prev_sample_R;
+									cache_R[i] = prev_sample_L;
+								#else
+									cache_L[i] = prev_sample_L; 
+									cache_R[i] = prev_sample_R;
+								#endif
 							} // end input_select == MOBO_SRC_UAC2
 							
 							// Establish history
 							prev_sample_L = sample_L;
 							prev_sample_R = sample_R;
+							
+							#ifdef FEATURE_UNINVERT_LRCK
+								prev_prev_sample_L = prev_sample_L;
+								prev_prev_sample_R = prev_sample_R;
+							#endif
+								
 							prev_diff_value = diff_value;
 						} // end for temp_num_samples
 					} // end if alt setting 1
@@ -669,10 +689,10 @@ void uac2_device_audio_task(void *pvParameters)
 
 								// Non-differential silence detector, only fully parse non-zero packets
 								if (silence_det) {
-									if (abs(sample_L) > IS_SILENT) {
+									if (abs(sample_L) >= IS_SILENT) {
 										silence_det = FALSE;
 									}
-									else if (abs(sample_R) > IS_SILENT) {
+									else if (abs(sample_R) >= IS_SILENT) {
 										silence_det = FALSE;
 									}
 								}
@@ -696,6 +716,10 @@ void uac2_device_audio_task(void *pvParameters)
 								if (usb_spk_mute != 0) {	// usb_spk_mute is heeded as part of volume control subsystem
 									prev_sample_L = 0;
 									prev_sample_R = 0;
+									#ifdef FEATURE_UNINVERT_LRCK
+										prev_prev_sample_L = 0;
+										prev_prev_sample_R = 0;
+									#endif
 								}
 								else {
 									if (spk_vol_mult_L != VOL_MULT_UNITY) {	// Only touch gain-controlled samples
@@ -716,13 +740,24 @@ void uac2_device_audio_task(void *pvParameters)
 								
 								// It is time consuming to test for each stereo sample!
 								if (input_select == MOBO_SRC_UAC2) {					// Only write to cache with the right permissions! Double check permission and num_samples
-									cache_L[i] = prev_sample_L;
-									cache_R[i] = prev_sample_R;
+									#ifdef FEATURE_UNINVERT_LRCK
+										cache_L[i] = prev_prev_sample_R;
+										cache_R[i] = prev_sample_L;
+									#else
+										cache_L[i] = prev_sample_L; 
+										cache_R[i] = prev_sample_R;
+									#endif
 								} // End input_select == MOBO_SRC_UAC2
 							
 								// Establish history
 								prev_sample_L = sample_L;
 								prev_sample_R = sample_R;
+							
+								#ifdef FEATURE_UNINVERT_LRCK
+									prev_prev_sample_L = prev_sample_L;
+									prev_prev_sample_R = prev_sample_R;
+								#endif
+
 								prev_diff_value = diff_value;
 							} // end for temp_num_samples
 						} // end if alt setting 2

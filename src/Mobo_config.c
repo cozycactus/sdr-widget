@@ -1045,6 +1045,12 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 // Reused variables from uac2_dat
 	static S32 prev_sample_L = 0;	// Enable delayed writing to cache, initiated to 0, new value survives to next iteration
 	static S32 prev_sample_R = 0;
+	
+#ifdef FEATURE_UNINVERT_LRCK
+	static S32 prev_prev_sample_L = 0;
+	static S32 prev_prev_sample_R = 0;
+#endif
+	
 	S32 diff_value = 0;
 	S32 diff_sum = 0;
 	static S32 prev_diff_value = 0;	// Initiated to 0, new value survives to next iteration
@@ -1092,10 +1098,10 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 
 			// Non-differential silence detector, only fully parse non-zero packets
 			if (silence_det) {
-				if (abs(sample_L) > IS_SILENT) {
+				if (abs(sample_L) >= IS_SILENT) {
 					silence_det = FALSE;
 				}
-				else if (abs(sample_R) > IS_SILENT) {
+				else if (abs(sample_R) >= IS_SILENT) {
 					silence_det = FALSE;
 				}
 			}
@@ -1117,9 +1123,15 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 						temp_si_score_high = diff_sum;
 						temp_si_index_high = temp_num_samples;
 					}
+
+					#ifdef FEATURE_UNINVERT_LRCK
+						cache_L[temp_num_samples] = prev_prev_sample_R;	// May use (*numsamples) instead of temp_num_samples, but that is slower (66.6us vs 60.6us for a 192ksps packet write)
+						cache_R[temp_num_samples] = prev_sample_L;
+					#else
+						cache_L[temp_num_samples] = prev_sample_L;	// May use (*numsamples) instead of temp_num_samples, but that is slower (66.6us vs 60.6us for a 192ksps packet write)
+						cache_R[temp_num_samples] = prev_sample_R;
+					#endif
 								
-					cache_L[temp_num_samples] = prev_sample_L;	// May use (*numsamples) instead of temp_num_samples, but that is slower (66.6us vs 60.6us for a 192ksps packet write)
-					cache_R[temp_num_samples] = prev_sample_R;
 					
 					temp_num_samples++;
 				} // SPK_CACHE_MAX_SAMPLES
@@ -1139,6 +1151,11 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			// Establish history
 			prev_sample_L = sample_L;
 			prev_sample_R = sample_R;
+							
+			#ifdef FEATURE_UNINVERT_LRCK
+				prev_prev_sample_L = prev_sample_L;
+				prev_prev_sample_R = prev_sample_R;
+			#endif
 			prev_diff_value = diff_value;
 		} // while (i != last_written_ADC_pos) 
 
