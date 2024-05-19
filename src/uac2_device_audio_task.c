@@ -594,8 +594,8 @@ void uac2_device_audio_task(void *pvParameters)
 					temp_si_index_high = 0;			// Location of "highest energy", reset for each iteration
 					silence_det = TRUE;				// We're looking for first non-zero audio-data, updated for each package
 					
-//					#define USB_SILENCE_ABSOLUTE	// Use absolute-sample value for silence detection
-					#define USB_SILENCE_ENERGY		// Reuse energy calculation for silence detection
+					#define USB_SILENCE_ABSOLUTE	// Use absolute-sample value for silence detection
+//					#define USB_SILENCE_ENERGY		// Reuse energy calculation for silence detection
 
 					if (usb_alternate_setting_out == ALT1_AS_INTERFACE_INDEX) {		// Alternate 1 24 bits/sample, 8 bytes per stereo sample
 						temp_num_samples = min(temp_num_samples, SPK_CACHE_MAX_SAMPLES);			// prevent overshoot of cache_L and cache_R

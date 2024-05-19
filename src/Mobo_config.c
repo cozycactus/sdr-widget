@@ -1089,8 +1089,8 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		U32 temp_si_index_high = 0;
 		S32 si_score_low = 0x7FFFFFFF;
 
-//		#define SPDIF_SILENCE_ABSOLUTE		// Use absolute-sample value for silence detection
-		#define SPDIF_SILENCE_ENERGY		// Reuse energy calculation for silence detection
+		#define SPDIF_SILENCE_ABSOLUTE		// Use absolute-sample value for silence detection
+//		#define SPDIF_SILENCE_ENERGY		// Reuse energy calculation for silence detection
 		
 		i = prev_last_written_ADC_pos;
 		while (i != last_written_ADC_pos) {
