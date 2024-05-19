@@ -23,6 +23,9 @@
 # -DFEATURE_ADC_EXPERIMENTAL	Experimental ADC support
 #
 # -DUSB_REDUCED_DEBUG			Reduce debug and use UART only for CPU communication
+# -DFEATURE_UNINVERT_LRCK		Reverse the effect of an inverted LRCK signal on the I2S output
+# -DI2S_POLARITY_CHECK			Output SDATA in phase with LRCK for debugging
+
 
 
 
@@ -51,9 +54,9 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 	-DUSB_STATE_MACHINE_GPIO \
 	-DFEATURE_HID \
 	\
-	-DFEATURE_UNINVERT_LRCK \
-	-DFEATURE_PRODUCT_BOEC1 \
-	-DUSB_REDUCED_DEBUG \
+	-DFEATURE_VOLUME_CTRL \
+	-DI2S_POLARITY_CHECK \
+	-DFEATURE_PRODUCT_HA256 \
 	-DFEATURE_ALT2_16BIT \
 	-DHW_GEN_SPRX
 	

@@ -151,8 +151,12 @@ void uac2_device_audio_task(void *pvParameters)
 	Bool playerStarted = FALSE; // BSB 20150516: changed into global variable
 	int i = 0;
 	S32 num_samples = 0;	// Used only to validate cache contents!
-	S32 temp_num_samples = 0;
 	S32 gap = 0;
+	U32 temp_num_samples = 0;
+	U32 temp_si_index_low = 0;
+	S32 temp_si_score_high = 0;
+	U32 temp_si_index_high = 0;
+	S32 si_score_low = 0x7FFFFFFF;
 
 	#ifdef FEATURE_ADC_EXPERIMENTAL
 		S32 num_samples_adc = 0;
@@ -175,7 +179,7 @@ void uac2_device_audio_task(void *pvParameters)
 	const U8 EP_AUDIO_OUT = ep_audio_out;
 	const U8 EP_AUDIO_OUT_FB = ep_audio_out_fb;
 	uint32_t silence_USB = SILENCE_USB_LIMIT;	// BSB 20150621: detect silence in USB channel, initially assume silence
-	Bool silence_det = 0;
+	Bool silence_det = FALSE;
 
 // Start new code for skip/insert
 	static bool return_to_nominal = FALSE;		// Tweak frequency feedback system
@@ -189,7 +193,6 @@ void uac2_device_audio_task(void *pvParameters)
 	static S32 prev_sample_R = 0;
 	S32 diff_value = 0;
 	S32 diff_sum = 0;
-	S32 si_score_low = 0x7FFFFFFF;
 	U32 si_index_low = 0;
 	S32 si_score_high = 0;
 	static S32 prev_si_score_high = 0;
@@ -586,10 +589,13 @@ void uac2_device_audio_task(void *pvParameters)
 //					gpio_set_gpio_pin(AVR32_PIN_PX31);		// Start copying DAC data from USB OUT to cache 
 
 					si_score_low = 0x7FFFFFFF;		// Highest positive number, reset for each iteration
-					si_index_low = 0;				// Location of "lowest energy", reset for each iteration
-					si_score_high = 0;				// Lowest positive number, reset for each iteration
-					si_index_high = 0;				// Location of "highest energy", reset for each iteration
-					silence_det = TRUE;				// We're looking for first non-zero audio-data
+					temp_si_index_low = 0;			// Location of "lowest energy", reset for each iteration
+					temp_si_score_high = 0;			// Lowest positive number, reset for each iteration
+					temp_si_index_high = 0;			// Location of "highest energy", reset for each iteration
+					silence_det = TRUE;				// We're looking for first non-zero audio-data, updated for each package
+					
+//					#define USB_SILENCE_ABSOLUTE	// Use absolute-sample value for silence detection
+					#define USB_SILENCE_ENERGY		// Reuse energy calculation for silence detection
 
 					if (usb_alternate_setting_out == ALT1_AS_INTERFACE_INDEX) {		// Alternate 1 24 bits/sample, 8 bytes per stereo sample
 						temp_num_samples = min(temp_num_samples, SPK_CACHE_MAX_SAMPLES);			// prevent overshoot of cache_L and cache_R
@@ -601,15 +607,17 @@ void uac2_device_audio_task(void *pvParameters)
 							sample_L = (((U32) (uint8_t)(usb_16_1 >> 8) ) << 24) + (((U32) (uint8_t)(usb_16_0) ) << 16) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 8); //  + sample_HSB; // bBitResolution
 							sample_R = (((U32) (uint8_t)(usb_16_2) ) << 24) + (((U32) (uint8_t)(usb_16_2 >> 8) ) << 16) + (((U32) (uint8_t)(usb_16_1)) << 8); // + sample_HSB; // bBitResolution
 
-							// Non-differential silence detector, only fully parse non-zero packets
-							if (silence_det) {
-								if (abs(sample_L) >= IS_SILENT) {
-									silence_det = FALSE;
+							#ifdef USB_SILENCE_ABSOLUTE	// While processing all samples
+								// Non-differential silence detector v.5, only fully parse non-zero packets
+								if (silence_det) {
+									if (abs(sample_L) >= 0x00020000) {			// Greater than or equal to 2 16-bit LSBs
+										silence_det = FALSE;
+									}
+									else if (abs(sample_R) >= 0x00020000) {		// Greater than or equal to 2 16-bit LSBs
+										silence_det = FALSE;
+									}
 								}
-								else if (abs(sample_R) >= IS_SILENT) {
-									silence_det = FALSE;
-								}
-							}
+							#endif
 
 							// Finding packet's point of lowest and highest "energy"
 							diff_value = abs( (sample_L >> 8) - (prev_sample_L >> 8) ) + abs( (sample_R >> 8) - (prev_sample_R >> 8) ); // The "energy" going from prev_sample to sample
@@ -617,12 +625,12 @@ void uac2_device_audio_task(void *pvParameters)
 							
 							if (diff_sum < si_score_low) {
 								si_score_low = diff_sum;
-								si_index_low = i;
+								temp_si_index_low = i;
 							}
 
-							if (diff_sum > si_score_high) {
-								si_score_high = diff_sum;
-								si_index_high = i;
+							if (diff_sum > temp_si_score_high) {
+								temp_si_score_high = diff_sum;
+								temp_si_index_high = i;
 							}
 
 							// Applying volume control to stored sample
@@ -687,15 +695,17 @@ void uac2_device_audio_task(void *pvParameters)
 								sample_L = (((U32) (uint8_t)(usb_16_0) ) << 24) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 16);
 								sample_R = (((U32) (uint8_t)(usb_16_1)) << 24) + (((U32) (uint8_t)(usb_16_1 >> 8)) << 16);
 
-								// Non-differential silence detector, only fully parse non-zero packets
-								if (silence_det) {
-									if (abs(sample_L) >= IS_SILENT) {
-										silence_det = FALSE;
+								#ifdef USB_SILENCE_ABSOLUTE	// While processing all samples
+									// Non-differential silence detector v.5, only fully parse non-zero packets
+									if (silence_det) {
+										if (abs(sample_L) >= 0x00020000) {			// Greater than or equal to 2 16-bit LSBs
+											silence_det = FALSE;
+										}
+										else if (abs(sample_R) >= 0x00020000) {		// Greater than or equal to 2 16-bit LSBs
+											silence_det = FALSE;
+										}
 									}
-									else if (abs(sample_R) >= IS_SILENT) {
-										silence_det = FALSE;
-									}
-								}
+								#endif
 								
 								// Finding packet's point of lowest and highest "energy"
 								diff_value = abs( (sample_L >> 8) - (prev_sample_L >> 8) ) + abs( (sample_R >> 8) - (prev_sample_R >> 8) ); // The "energy" going from prev_sample to sample
@@ -703,12 +713,12 @@ void uac2_device_audio_task(void *pvParameters)
 							
 								if (diff_sum < si_score_low) {
 									si_score_low = diff_sum;
-									si_index_low = i;
+									temp_si_index_low = i;
 								}
 								
-								if (diff_sum > si_score_high) {
-									si_score_high = diff_sum;
-									si_index_high = i;
+								if (diff_sum > temp_si_score_high) {
+									temp_si_score_high = diff_sum;
+									temp_si_index_high = i;
 								}
 								
 								// Applying volume control to stored sample
@@ -763,6 +773,14 @@ void uac2_device_audio_task(void *pvParameters)
 						} // end if alt setting 2
 					#endif // UAC2 ALT 2 for 16-bit audio						
 
+					#ifdef USB_SILENCE_ENERGY	// After processing all samples
+						// Silence detector v.4 reuses energy detection code
+						if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
+							silence_det = FALSE;
+						}
+					#endif
+
+
 //					gpio_clr_gpio_pin(AVR32_PIN_PX31);		// End copying DAC data from USB OUT to cache
 
 					// New site for setting playerStarted and aligning buffers
@@ -807,16 +825,16 @@ void uac2_device_audio_task(void *pvParameters)
 						#endif
 					} // End silence_det == 0 & MOBO_SRC_NONE
 
-
 					// Validate the data we just put into the cache so that it can be read from there
 					if (input_select == MOBO_SRC_UAC2) {
-						cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 						num_samples = temp_num_samples;
+						si_index_low = temp_si_index_low;
+						si_score_high = temp_si_score_high;
+						si_index_high = temp_si_index_high;
+						cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 					}
 
-
 					// End of writing USB OUT data to cache. Writing takes place at the end of this function
-
 
 					// Detect USB silence. We're counting USB packets. UAC2: 250us, UAC1: 1ms
 					if (silence_det == 1) {

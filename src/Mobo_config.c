@@ -1077,7 +1077,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		// Convert from pdca report to buffer address. _pos always points to left sample in LR stereo pair!
 		mobo_ADC_position_uni(&last_written_ADC_pos, local_captured_num_remaining);
 
-		bool silence_det = TRUE;		// We're looking for first non-zero audio-data
+		bool silence_det = TRUE;		// We're looking for first non-zero audio-data. It is re-calculated for each package
 
 		// Cached if-test
 		bool we_own_cache = ( ( (input_select == MOBO_SRC_SPDIF0) ||  (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) && (dac_must_clear == DAC_READY) );
@@ -1088,6 +1088,9 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		S32 temp_si_score_high = 0;
 		U32 temp_si_index_high = 0;
 		S32 si_score_low = 0x7FFFFFFF;
+
+//		#define SPDIF_SILENCE_ABSOLUTE		// Use absolute-sample value for silence detection
+		#define SPDIF_SILENCE_ENERGY		// Reuse energy calculation for silence detection
 		
 		i = prev_last_written_ADC_pos;
 		while (i != last_written_ADC_pos) {
@@ -1096,16 +1099,18 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			sample_L = audio_buffer[i];
 			sample_R = audio_buffer[i + 1];
 
-			// Non-differential silence detector, only fully parse non-zero packets
-			if (silence_det) {
-				if (abs(sample_L) >= IS_SILENT) {
-					silence_det = FALSE;
+			#ifdef SPDIF_SILENCE_ABSOLUTE	// While processing all samples
+				// Non-differential silence detector v.5, only fully parse non-zero packets
+				if (silence_det) {
+					if (abs(sample_L) >= 0x00020000) {			// Greater than or equal to 2 16-bit LSBs
+						silence_det = FALSE;
+					}
+					else if (abs(sample_R) >= 0x00020000) {		// Greater than or equal to 2 16-bit LSBs
+						silence_det = FALSE;
+					}
 				}
-				else if (abs(sample_R) >= IS_SILENT) {
-					silence_det = FALSE;
-				}
-			}
-			
+			#endif
+
 			// Fill outgoing cache
 			// It is time consuming to test for each stereo sample!
 			if (we_own_cache) {					// Only write to cache and num_samples with the right permissions! And only bother with enerby math if it's considered by calling function
@@ -1131,8 +1136,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 						cache_L[temp_num_samples] = prev_sample_L;	// May use (*numsamples) instead of temp_num_samples, but that is slower (66.6us vs 60.6us for a 192ksps packet write)
 						cache_R[temp_num_samples] = prev_sample_R;
 					#endif
-								
-					
+
 					temp_num_samples++;
 				} // SPK_CACHE_MAX_SAMPLES
 				else {
@@ -1159,6 +1163,13 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			prev_diff_value = diff_value;
 		} // while (i != last_written_ADC_pos) 
 
+		#ifdef SPDIF_SILENCE_ENERGY	// After processing all samples
+			// Silence detector v.4 reuses energy detection code
+			if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
+				silence_det = FALSE;
+			}
+		#endif
+
 		// Do this once instead of for each sample
 		if (we_own_cache) {
 			*num_samples = temp_num_samples;
@@ -1167,11 +1178,13 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*si_index_high = temp_si_index_high;
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 		}
-
+		
 		// Report (non)silence to wm8804 subsystem. This value is updated approx. 80 times as often as it is tested
 		if (!silence_det) {
-			spdif_rx_status.hasmusic = 1;			// Variable is only set here. It is cleared here but in the reading function in wm8804.c
+			spdif_rx_status.hasmusic = 1;			// Variable is only set here. It is not cleared here but in the reading function in wm8804.c
 		}
+		
+		// FIX: introduce count of silent and non-silent packages
 
 		
 		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
@@ -1179,7 +1192,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 //		gpio_clr_gpio_pin(AVR32_PIN_PA22); // Indicate end of processing spdif data, ideally once per 250us
 		
 		
-		// Puting untested init code here.... "øøø" æææ
+		// Puting untested init code here....  æææ
 		// Can we 
 		if ( ( (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) || (input_select == MOBO_SRC_SPDIF0) ) ) {
 			if (ADC_buf_I2S_IN == INIT_ADC_I2S_st2) {
