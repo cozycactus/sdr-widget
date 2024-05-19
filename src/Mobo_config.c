@@ -1177,14 +1177,25 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			*si_index_high = temp_si_index_high;
 			*cache_holds_silence = silence_det;		// Use this to determine how to use contents of cache
 		}
-		
+
+		// Detect SPDIF silence. We're counting SPDIF packets of 250us
+		if (silence_det == 1) {
+			if (!SPDIF_IS_SILENT()) {
+				spdif_rx_status.silence_SPDIF ++;
+			}
+		}
+		else { // stereo sample is non-zero
+			spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_INIT;		// SPDIF interface is not silent!
+		}
+
+/*		
 		// Report (non)silence to wm8804 subsystem. This value is updated approx. 80 times as often as it is tested
 		if (!silence_det) {
 			spdif_rx_status.hasmusic = 1;			// Variable is only set here. It is not cleared here but in the reading function in wm8804.c
 		}
 		
 		// FIX: introduce count of silent and non-silent packages
-
+*/
 		
 		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
 

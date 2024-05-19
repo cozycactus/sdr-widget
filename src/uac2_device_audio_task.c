@@ -835,11 +835,13 @@ void uac2_device_audio_task(void *pvParameters)
 
 					// Detect USB silence. We're counting USB packets. UAC2: 250us, UAC1: 1ms
 					if (silence_det == 1) {
-						if (!USB_IS_SILENT())
+						if (!USB_IS_SILENT()) {
 							silence_USB ++;
+						}
 					}
-					else // stereo sample is non-zero
+					else {	// stereo sample is non-zero
 						silence_USB = SILENCE_USB_INIT;			// USB interface is not silent!
+					}
 
 					Usb_ack_out_received_free(EP_AUDIO_OUT);
 
@@ -887,7 +889,7 @@ void uac2_device_audio_task(void *pvParameters)
 		else { // ( (usb_alternate_setting_out >= 1) && (usb_ch_swap == USB_CH_NOSWAP) )
 			/* SPDIF reduced */
 #ifdef HW_GEN_SPRX	// With WM8805/WM8804 input, USB subsystem will be running off a completely wacko MCLK!
-			if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
+			if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
 				// Do nothing at this stage
 			}
 			else {

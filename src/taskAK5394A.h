@@ -124,6 +124,10 @@ Short buffers give less system latency and poorer synch state machine performanc
 #define SILENCE_USB_INIT	0
 #define USB_IS_SILENT() (silence_USB >= SILENCE_USB_LIMIT)
 
+#define SILENCE_SPDIF_LIMIT	12000 				// We're counting SPDIF packets of 250us. Value of 12000 means 3s
+#define SILENCE_SPDIF_INIT	0
+#define SPDIF_IS_SILENT() (silence_SPDIF >= SILENCE_SPDIF_LIMIT)
+
 
 //extern const gpio_map_t SSC_GPIO_MAP;
 //extern const pdca_channel_options_t PDCA_OPTIONS;

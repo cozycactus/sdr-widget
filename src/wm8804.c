@@ -555,14 +555,12 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 
 	// If given input is not alive, terminate
 	mobo_SPRX_input(input_sel);			// Hardware MUX control
-	vTaskDelay(1);						// How long time does this take? 1 -> 0.1ms - permit time to turn on detection circuit. Input selector code doubles as power enable
+	vTaskDelay(1);						// How long time does this take? 1 -> 0.1ms - permit time to turn on detection circuit. Input selector code doubles as power enable starting with PCBA rev. E
 
 	if ( !(wm8804_live_detect()) ) {
-	//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
+		//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
 		mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	
-
 		mobo_SPRX_input(MOBO_SRC_SPDIF0);	// Disable power to input circuits until another one is enabled
-
 		return (FREQ_INVALID);
 	}
 	// If given input is alive, do things
