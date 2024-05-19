@@ -553,16 +553,20 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 // FIX: remove R116
 // If this all works, change code for fourth digital input. Rewrite variables to match schematic
 
-// If given input is not alive, terminate
-mobo_SPRX_input(input_sel);			// Hardware MUX control
+	// If given input is not alive, terminate
+	mobo_SPRX_input(input_sel);			// Hardware MUX control
+	vTaskDelay(1);						// How long time does this take? 1 -> 0.1ms - permit time to turn on detection circuit. Input selector code doubles as power enable
 
-if ( !(wm8804_live_detect()) ) {
-//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
-	mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	
-	return (FREQ_INVALID);
-}
-// If given input is alive, do things
-else {
+	if ( !(wm8804_live_detect()) ) {
+	//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
+		mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	
+
+		mobo_SPRX_input(MOBO_SRC_SPDIF0);	// Disable power to input circuits until another one is enabled
+
+		return (FREQ_INVALID);
+	}
+	// If given input is alive, do things
+	else {
 		if (wm8804_mclk_out(WM8804_MCLK_TEST) == WM8804_MCLK_ENABLE) {
 			// With CLKOUT
 			wm8804_write_byte(0x08, 0x30);			// 7:0 CLK2, 6:0 auto error handling enable, 5:1 zeros@error, 4:1 CLKOUT enable, 3:0 CLK1 out, 2-0:0 no RX mux in WM8804

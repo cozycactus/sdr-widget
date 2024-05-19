@@ -579,12 +579,9 @@ void uac2_device_audio_task(void *pvParameters)
 					// .. prior to for(num_samples) Hence 1st sample in a package is skipped or inserted
 					FB_error_acc = 0;
 
-					// Site of old USB skip/insert code
-
 					uint16_t usb_16_0;
 					uint16_t usb_16_1;
-					uint16_t usb_16_2;
-					
+					uint16_t usb_16_2;					
 
 //					gpio_set_gpio_pin(AVR32_PIN_PX31);		// Start copying DAC data from USB OUT to cache 
 

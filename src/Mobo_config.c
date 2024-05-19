@@ -616,7 +616,6 @@ void mobo_SPRX_input(uint8_t input_sel) {
 	}
 	
 	taskEXIT_CRITICAL();
-
 }
 
 #endif // RXmod hardware controls
