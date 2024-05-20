@@ -193,6 +193,9 @@ void wm8804_task(void *pvParameters) {
 					}
 					else if (playing_counter == WM8804_DETECT_MUSIC) {	// Music detected! 100ms of music reception must take place before 3s of pause count as silence. Did this break the Human Nature song??
 						silence_counter = 0;						// Must now wait for along pause to start scanning again
+
+						// Speculative!
+						spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_INIT; 
 						
 						// Update LEDs here, after music was detected. Mobo_led_select only triggers HW update when given new config
 						mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
@@ -249,7 +252,7 @@ void wm8804_task(void *pvParameters) {
 	//						Added to pdca disable code, keep it here for good measure
 							mobo_stop_spdif_tc();					// Disable spdif receive timer/counter
 							mobo_clear_dac_channel();				// Leave the DAC buffer empty as we check out
-							spdif_rx_status.silence_USB = SILENCE_USB_INIT; 
+							spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_INIT; 
 							print_dbg_char('}');					// WM8804 gives
 							print_dbg_char('\n');					// WM8804 gives
 
@@ -331,7 +334,7 @@ void wm8804_task(void *pvParameters) {
 								// Enable audio, configure clocks (and report), but only if needed
 								wm8804_unmute();							// No longer including LED change on this TAKE event
 							
-								spdif_rx_status.silence_USB = SILENCE_SPDIF_LIMIT - SILENCE_SPDIF_SCANNING; // Detector counts up to SILENCE_SPDIF_LIMIT during 200ms of linking time
+								spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_LIMIT - SILENCE_SPDIF_SCANNING; // Detector counts up to SILENCE_SPDIF_LIMIT during 200ms of linking time
 							}
 							else {
 								print_dbg_char('*');
