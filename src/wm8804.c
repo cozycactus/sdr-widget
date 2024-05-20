@@ -132,6 +132,7 @@ void wm8804_task(void *pvParameters) {
 	uint8_t wm8804_int;
 	uint8_t mustgive = 0;
 	int16_t poll_counter = 0;
+	bool wm8804_must_update_LED = FALSE;
 
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();			// Currently happens every 20ms with configTSK_WM8804_PERIOD = 200, every 1.2ms with configTSK_WM8804_PERIOD = 12
@@ -169,10 +170,10 @@ void wm8804_task(void *pvParameters) {
 			}
 		}
 				
-		// Consider what is going on with WM8804
+		// USB does NOT have control. So consider what is going on with WM8804
 		else {
 
-			// Playing music from WM8804 - is everything OK?
+			// (Trying to be) playing music from WM8804 - is everything OK?
 			if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_TOSLINK1) || (input_select == MOBO_SRC_TOSLINK0) ) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
@@ -184,9 +185,13 @@ void wm8804_task(void *pvParameters) {
 					print_dbg_char('l');
 				} // Silence not detected
 				else {												// Silence not detected
-					mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
+					
+					// NB: This line used to have a qualifier in old code with WM8804_DETECT_MUSIC
+					if (wm8804_must_update_LED) {
+						mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
+						wm8804_must_update_LED = FALSE;
+					}
 				}
-				
 								
 				// Poll lost lock pin
 				if (gpio_get_pin_value(WM8804_CSB_PIN) == 1) {	// Lost lock
@@ -255,7 +260,6 @@ void wm8804_task(void *pvParameters) {
 				if (spdif_rx_status.powered == 0) {
 					wm8804_init();								// WM8804 was probably put to sleep before this. Hence re-init
 					spdif_rx_status.powered = 1;
-//					spdif_rx_status.muted = 1;					// I2S is still controlled by USB which should have zeroed it.
 				}
 
 				// RXMODFIX: Newly enabled WM8804 takes much longer time to lock on to audio stream!
@@ -278,7 +282,6 @@ void wm8804_task(void *pvParameters) {
 								input_select = channel;						// Owning semaphore we may write to master variable input_select and take control of hardware
 								spdif_rx_status.channel = channel;
 								spdif_rx_status.frequency = freq;
-//								print_dbg_char('\n');						// WM8804 takes
 								print_dbg_char('{');						// WM8804 takes
 
 								// Trying this as only setup site in wm8804 code...
@@ -287,6 +290,7 @@ void wm8804_task(void *pvParameters) {
 								samples_per_package_min = (spdif_rx_status.frequency >> 12) - (spdif_rx_status.frequency >> 14); // 250us worth of music +- some slack
 								samples_per_package_max = (spdif_rx_status.frequency >> 12) + (spdif_rx_status.frequency >> 14);
 								must_init_xo = TRUE;
+								wm8804_must_update_LED = TRUE;
 //								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
 //								print_dbg_char('Z');
 								// End only site of setup code
