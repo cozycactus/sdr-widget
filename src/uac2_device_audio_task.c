@@ -808,7 +808,7 @@ void uac2_device_audio_task(void *pvParameters)
 											print_cpu_char(CPU_CHAR_UAC2_C);	// USB audio Class 2 on front USB-C plug
 										}
 
-										mobo_led_select(spk_current_freq.frequency, input_select);
+//										mobo_led_select(spk_current_freq.frequency, input_select);
 										// mobo_i2s_enable(MOBO_I2S_ENABLE);		// Hard-unmute of I2S pin
 									#endif
 								}												// Hopefully, this code won't be called repeatedly. Would there be time??
@@ -1198,6 +1198,7 @@ void uac2_device_audio_task(void *pvParameters)
 						if ( (input_select == MOBO_SRC_SPDIF0) || (input_select == MOBO_SRC_SPDIF1) || (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) ) {
 							mobo_xo_select(spdif_rx_status.frequency, input_select);
 							mobo_clock_division(spdif_rx_status.frequency);
+							mobo_led_select(spdif_rx_status.frequency, input_select);
 						}
 						else if (input_select == MOBO_SRC_UAC2) {	// Only broken feedback system ever wrote to this one
 					#else
@@ -1205,6 +1206,7 @@ void uac2_device_audio_task(void *pvParameters)
 					#endif
 							mobo_xo_select(spk_current_freq.frequency, input_select);
 							mobo_clock_division(spk_current_freq.frequency);
+							mobo_led_select(spk_current_freq.frequency, input_select);
 						}
 
 					must_init_xo = FALSE;
