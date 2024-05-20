@@ -834,7 +834,7 @@ void uac2_device_audio_task(void *pvParameters)
 					// End of writing USB OUT data to cache. Writing takes place at the end of this function
 
 					// Detect USB silence. We're counting USB packets. UAC2: 250us, UAC1: 1ms
-					if (silence_det == 1) {
+					if (silence_det) {
 						if (!USB_IS_SILENT()) {
 							silence_USB ++;
 						}
@@ -969,6 +969,8 @@ void uac2_device_audio_task(void *pvParameters)
 				
 				mobo_clear_dac_channel();
 				print_dbg_char('q');
+
+				silence_USB = SILENCE_USB_LIMIT;				// Indicate USB silence NB, it was recently introduced here for completeness, not for a particular need
 				
 				if (input_select == MOBO_SRC_UAC2) {			// We must own input_select before we can give it away!
 					// If playing from USB on new hardware, give away control at this stage to permit toslink scanning

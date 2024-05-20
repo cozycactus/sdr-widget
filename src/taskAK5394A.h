@@ -113,20 +113,21 @@ Short buffers give less system latency and poorer synch state machine performanc
 #define INIT_ADC_USB_st2	-4		// Must initialize the buffer pointer used for the I2S toward USB
 
 #ifdef FEATURE_ADC_EXPERIMENTAL
-	#define I2S_CONSUMER_NONE	0b00000000		// None
-	#define I2S_CONSUMER_USB	0b00000001		// USB is consuming I2S input data
-	#define I2S_CONSUMER_DAC	0b00000010		// DAC output is consuming I2S input data
+	#define I2S_CONSUMER_NONE	0b00000000	// None
+	#define I2S_CONSUMER_USB	0b00000001	// USB is consuming I2S input data
+	#define I2S_CONSUMER_DAC	0b00000010	// DAC output is consuming I2S input data
 #endif
 
 
 // Values for silence (32-bit)
-#define SILENCE_USB_LIMIT	12000 				// We're counting USB packets. UAC2: 250us, UAC1: 1ms. Value of 12000 means 3s
-#define SILENCE_USB_INIT	0
+#define SILENCE_USB_LIMIT		12000 		// We're counting USB packets. UAC2: 250us, UAC1: 1ms. Value of 12000 means 3s
+#define SILENCE_USB_INIT		0
 #define USB_IS_SILENT() (silence_USB >= SILENCE_USB_LIMIT)
 
-#define SILENCE_SPDIF_LIMIT	12000 				// We're counting SPDIF packets of 250us. Value of 12000 means 3s
-#define SILENCE_SPDIF_INIT	0
-#define SPDIF_IS_SILENT() (silence_SPDIF >= SILENCE_SPDIF_LIMIT)
+#define SILENCE_SPDIF_LIMIT		12000 		// We're counting SPDIF packets of 250us. Value of 12000 means 3s
+#define SILENCE_SPDIF_LINKING	800 		// We're counting SPDIF packets of 250us. Value of 800 means 200ms. Derived from WM8804_SILENCE_LINKING
+#define SILENCE_SPDIF_INIT		0
+#define SPDIF_IS_SILENT() (spdif_rx_status.silence_SPDIF >= SILENCE_SPDIF_LIMIT)
 
 
 //extern const gpio_map_t SSC_GPIO_MAP;

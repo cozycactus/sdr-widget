@@ -1179,7 +1179,7 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		}
 
 		// Detect SPDIF silence. We're counting SPDIF packets of 250us
-		if (silence_det == 1) {
+		if (silence_det) {
 			if (!SPDIF_IS_SILENT()) {
 				spdif_rx_status.silence_SPDIF ++;
 			}
@@ -1188,20 +1188,11 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 			spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_INIT;		// SPDIF interface is not silent!
 		}
 
-/*		
-		// Report (non)silence to wm8804 subsystem. This value is updated approx. 80 times as often as it is tested
-		if (!silence_det) {
-			spdif_rx_status.hasmusic = 1;			// Variable is only set here. It is not cleared here but in the reading function in wm8804.c
-		}
-		
-		// FIX: introduce count of silent and non-silent packages
-*/
-		
+	
 		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
 
 //		gpio_clr_gpio_pin(AVR32_PIN_PA22); // Indicate end of processing spdif data, ideally once per 250us
-		
-		
+
 		// Puting untested init code here....  æææ
 		// Can we 
 		if ( ( (input_select == MOBO_SRC_TOSLINK0) || (input_select == MOBO_SRC_TOSLINK1) || (input_select == MOBO_SRC_SPDIF0) ) ) {

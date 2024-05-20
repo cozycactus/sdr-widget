@@ -49,7 +49,8 @@ If this project is of interest to you, please let me know! I hope to see you at 
 #include "taskAK5394A.h" // To signal uacX_device_audio_task to enable DMA at init
 
 // Global status variable
-volatile spdif_rx_status_t spdif_rx_status = {0, 1, 1, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
+//volatile spdif_rx_status_t spdif_rx_status = {0, 1, SILENCE_SPDIF_LIMIT, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
+volatile spdif_rx_status_t spdif_rx_status = {0, SILENCE_SPDIF_LIMIT, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
 	
 // Linkup monitoring variables, available for debug
 volatile uint8_t link_attempts_max = 0;				// Counting up to determine max poll cycles for linkup success
@@ -130,8 +131,6 @@ void wm8804_task(void *pvParameters) {
 	static uint8_t channel;	// Must be static here?
 	uint8_t wm8804_int;
 	uint8_t mustgive = 0;
-	int16_t silence_counter = 0;					// How long has a channel been silent? Allow 3s for pause, 0.2s for newly locked channel. Also track LED updates
-	int16_t playing_counter = 0;					// How long has a channel be playing music so that we'll look for pause, not newly locked-on mute?
 	int16_t poll_counter = 0;
 
 	portTickType xLastWakeTime;
@@ -178,7 +177,8 @@ void wm8804_task(void *pvParameters) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
 				// Poll two silence detectors, WM8804 and buffer transfer code
-				if ( (spdif_rx_status.hasmusic == 0) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+//				if ( (SPDIF_IS_SILENT()) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
+				if ( (SPDIF_IS_SILENT()) || (0)                                        ) {
 					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
 						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 						mustgive = 1;
@@ -191,7 +191,7 @@ void wm8804_task(void *pvParameters) {
 				else {												// Silence not detected
 					if (playing_counter == WM8804_LED_UPDATED) {	// Non-silence detected, LEDs updated => do nothing!
 					}
-					else if (playing_counter == WM8804_DETECT_MUSIC) {	// Music detected!
+					else if (playing_counter == WM8804_DETECT_MUSIC) {	// Music detected! 100ms of music reception must take place before 3s of pause count as silence. Did this break the Human Nature song??
 						silence_counter = 0;						// Must now wait for along pause to start scanning again
 						
 						// Update LEDs here, after music was detected. Mobo_led_select only triggers HW update when given new config
@@ -202,8 +202,9 @@ void wm8804_task(void *pvParameters) {
 						playing_counter++;							// Still not entirely sure we're actually playing music
 					}
 					
-					spdif_rx_status.hasmusic = 0;					// The writing process in mobo_handle_spdif() probably runs approx. 80 times for each iteration of this loop. 20ms / 250s
 				}
+				
+				
 								
 				// Poll lost lock pin
 				if (gpio_get_pin_value(WM8804_CSB_PIN) == 1) {	// Lost lock
@@ -242,15 +243,13 @@ void wm8804_task(void *pvParameters) {
 				// Give away control?
 				if (mustgive) {
 					wm8804_mute();
-					spdif_rx_status.muted = 1;
 
 					if (input_select != MOBO_SRC_NONE) {		// Always directly preceding give for RT reasons
 						if (xSemaphoreGive(input_select_semphr) == pdTRUE) {
 	//						Added to pdca disable code, keep it here for good measure
 							mobo_stop_spdif_tc();					// Disable spdif receive timer/counter
 							mobo_clear_dac_channel();				// Leave the DAC buffer empty as we check out
-							playing_counter = 0;					// No music being heard at the moment FIX: isn't this assuming the give() below will work?
-							silence_counter = 0;					// For good measure, pause not yet detected
+							spdif_rx_status.silence_USB = SILENCE_USB_INIT; 
 							print_dbg_char('}');					// WM8804 gives
 							print_dbg_char('\n');					// WM8804 gives
 
@@ -274,7 +273,7 @@ void wm8804_task(void *pvParameters) {
 				if (spdif_rx_status.powered == 0) {
 					wm8804_init();								// WM8804 was probably put to sleep before this. Hence re-init
 					spdif_rx_status.powered = 1;
-					spdif_rx_status.muted = 1;					// I2S is still controlled by USB which should have zeroed it.
+//					spdif_rx_status.muted = 1;					// I2S is still controlled by USB which should have zeroed it.
 				}
 
 				// RXMODFIX: Newly enabled WM8804 takes much longer time to lock on to audio stream!
@@ -332,8 +331,7 @@ void wm8804_task(void *pvParameters) {
 								// Enable audio, configure clocks (and report), but only if needed
 								wm8804_unmute();							// No longer including LED change on this TAKE event
 							
-								spdif_rx_status.muted = 0;
-								silence_counter = WM8804_SILENCE_PLAYING - WM8804_SILENCE_LINKING; // Detector counts up to WM8804_SILENCE_PLAYING
+								spdif_rx_status.silence_USB = SILENCE_SPDIF_LIMIT - SILENCE_SPDIF_SCANNING; // Detector counts up to SILENCE_SPDIF_LIMIT during 200ms of linking time
 							}
 							else {
 								print_dbg_char('*');

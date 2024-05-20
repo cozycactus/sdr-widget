@@ -66,13 +66,13 @@
 // æææ periods!
 #define WM8804_DETECT_MUSIC			5			// Was:15 20ms*5 = 100ms of music reception must take place before 3s of pause count as silence
 #define WM8804_LED_UPDATED			0xFF		// Significantly more than WM8804_DETECT_MUSIC !
-#define WM8804_SILENCE_PLAYING		150			// 20ms*150 = 3s of pause needed in a previously playing channel to resume searching
-#define WM8804_SILENCE_LINKING		10			// 10ms*20 = 200ms of pause needed in recently linked channel to resume searching
+//#define WM8804_SILENCE_PLAYING		150			// 20ms*150 = 3s of pause needed in a previously playing channel to resume searching
+//#define WM8804_SILENCE_LINKING		10			// 10ms*20 = 200ms of pause needed in recently linked channel to resume searching
 
 typedef struct spdif_rx_status {				// Definition of global variable
 	uint8_t powered;
-	uint8_t muted;
-	uint8_t hasmusic;
+//	uint8_t muted;
+	uint32_t silence_SPDIF;
 	uint32_t frequency;
 	uint8_t pllmode;
 	uint8_t channel;
