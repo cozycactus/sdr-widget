@@ -132,7 +132,7 @@ void wm8804_task(void *pvParameters) {
 	uint8_t wm8804_int;
 	uint8_t mustgive = 0;
 	int16_t poll_counter = 0;
-	bool wm8804_must_update_LED = FALSE;
+	uint8_t wm8804_LED_counter = WM8804_LED_UPDATED_RST;		// Don't touch the LED. This is the reset condition which needs longer acquisition time
 
 	portTickType xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();			// Currently happens every 20ms with configTSK_WM8804_PERIOD = 200, every 1.2ms with configTSK_WM8804_PERIOD = 12
@@ -184,12 +184,14 @@ void wm8804_task(void *pvParameters) {
 					mustgive = 1;
 					print_dbg_char('l');
 				} // Silence not detected
-				else {												// Silence not detected
-					
+				else {											// Silence not detected = music detected
 					// NB: This line used to have a qualifier in old code with WM8804_DETECT_MUSIC
-					if (wm8804_must_update_LED) {
+					if (wm8804_LED_counter == WM8804_LED_MUST_UPDATE) {
 						mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
-						wm8804_must_update_LED = FALSE;
+						wm8804_LED_counter = WM8804_LED_UPDATED;
+					}
+					else if (wm8804_LED_counter < WM8804_LED_UPDATED_RST) {			// If it's not in a park position
+						wm8804_LED_counter--;					// Only update the LEDs on the nth execution of this chunk
 					}
 				}
 								
@@ -290,9 +292,12 @@ void wm8804_task(void *pvParameters) {
 								samples_per_package_min = (spdif_rx_status.frequency >> 12) - (spdif_rx_status.frequency >> 14); // 250us worth of music +- some slack
 								samples_per_package_max = (spdif_rx_status.frequency >> 12) + (spdif_rx_status.frequency >> 14);
 								must_init_xo = TRUE;
-								wm8804_must_update_LED = TRUE;
-//								must_init_spk_index = TRUE;					// New frequency setting means resync DAC DMA
-//								print_dbg_char('Z');
+								if (wm8804_LED_counter == WM8804_LED_UPDATED_RST) {		// Slow response when receiver is freshly reset
+									wm8804_LED_counter = WM8804_LED_DETECT_MUSIC_RST;	// Start counting down music detections to when it's OK to update the front LED
+								}
+								else {													// Fast response when receiver has been on for some time
+									wm8804_LED_counter = WM8804_LED_DETECT_MUSIC;		// Start counting down music detections to when it's OK to update the front LED
+								}
 								// End only site of setup code
 
 								// Report to cpu and debug terminal

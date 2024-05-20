@@ -63,11 +63,13 @@
 #define WM8804_MCLK_DISABLE 0					// WM8804 disables MCLK output
 #define WM8804_MCLK_TEST	2					// WM8804 MCLK status is recalled
 
-// æææ periods!
-//#define WM8804_DETECT_MUSIC			5			// Was:15 20ms*5 = 100ms of music reception must take place before 3s of pause count as silence
-//#define WM8804_LED_UPDATED			0xFF		// Significantly more than WM8804_DETECT_MUSIC !
-//#define WM8804_SILENCE_PLAYING		150			// 20ms*150 = 3s of pause needed in a previously playing channel to resume searching
-//#define WM8804_SILENCE_LINKING		10			// 10ms*20 = 200ms of pause needed in recently linked channel to resume searching
+// 20ms*15 = 300ms of music reception must take place before LED is updated. At 13 it blinks. At 14 it is steady. 15 is with a tiny margin. Test with connected SPDIF source(s) that output 0. 
+// At 20 it doesn't blink at reset. 23 is with margin
+#define WM8804_LED_DETECT_MUSIC		15			
+#define WM8804_LED_DETECT_MUSIC_RST	23
+#define WM8804_LED_UPDATED			0xFF		// State machine park position, significantly more than WM8804_LED_DETECT_MUSIC
+#define WM8804_LED_UPDATED_RST		0xFE		// State machine park position at reset, significantly more than WM8804_LED_DETECT_MUSIC
+#define WM8804_LED_MUST_UPDATE		0			// Counting down
 
 typedef struct spdif_rx_status {				// Definition of global variable
 	uint8_t powered;
