@@ -179,34 +179,13 @@ void wm8804_task(void *pvParameters) {
 				// Poll two silence detectors, WM8804 and buffer transfer code
 //				if ( (SPDIF_IS_SILENT()) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
 				if ( (SPDIF_IS_SILENT()) || (0)                                        ) {
-					if (silence_counter >= WM8804_SILENCE_PLAYING) {	// Source is paused, moving on
-						scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
-						mustgive = 1;
-						print_dbg_char('l');
-					}
-					else {
-						silence_counter++;							// Must be silent for a bit longer to take action
-					}
+					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
+					mustgive = 1;
+					print_dbg_char('l');
 				} // Silence not detected
 				else {												// Silence not detected
-					if (playing_counter == WM8804_LED_UPDATED) {	// Non-silence detected, LEDs updated => do nothing!
-					}
-					else if (playing_counter == WM8804_DETECT_MUSIC) {	// Music detected! 100ms of music reception must take place before 3s of pause count as silence. Did this break the Human Nature song??
-						silence_counter = 0;						// Must now wait for along pause to start scanning again
-
-						// Speculative!
-						spdif_rx_status.silence_SPDIF = SILENCE_SPDIF_INIT; 
-						
-						// Update LEDs here, after music was detected. Mobo_led_select only triggers HW update when given new config
-						mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
-						playing_counter = WM8804_LED_UPDATED;
-					}
-					else {
-						playing_counter++;							// Still not entirely sure we're actually playing music
-					}
-					
+					mobo_led_select(spdif_rx_status.frequency, input_select);	// User interface channel indicator - Moved from TAKE event to detection of non-silence
 				}
-				
 				
 								
 				// Poll lost lock pin
