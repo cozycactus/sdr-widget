@@ -79,7 +79,7 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 #	-DFEATURE_ALT2_16BIT \
 #	-DHW_GEN_SPRX
 
-# Boenicke (SPRX) after "\" NB: check register 0x08 / R8 of WM8804 to enable regenerated MCLK when that is needed
+# Boenicke (SPRX) after "\" NB: check register 0x08 / R8 of WM8804 to enable regenerated MCLK when that is needed 
 #	-DFEATURE_UNINVERT_LRCK \
 #	-DFEATURE_PRODUCT_BOEC1 \
 #	-DUSB_REDUCED_DEBUG \
