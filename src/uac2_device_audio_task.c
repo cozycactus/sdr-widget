@@ -591,9 +591,6 @@ void uac2_device_audio_task(void *pvParameters)
 					temp_si_index_high = 0;			// Location of "highest energy", reset for each iteration
 					silence_det = TRUE;				// We're looking for first non-zero audio-data, updated for each package
 					
-//					#define USB_SILENCE_ABSOLUTE	// Use absolute-sample value for silence detection
-//					#define USB_SILENCE_ENERGY		// Reuse energy calculation for silence detection
-
 					if (usb_alternate_setting_out == ALT1_AS_INTERFACE_INDEX) {		// Alternate 1 24 bits/sample, 8 bytes per stereo sample
 						temp_num_samples = min(temp_num_samples, SPK_CACHE_MAX_SAMPLES);			// prevent overshoot of cache_L and cache_R
 						for (i = 0; i < temp_num_samples; i++) {
@@ -605,8 +602,6 @@ void uac2_device_audio_task(void *pvParameters)
 							sample_L = (((U32) (uint8_t)(usb_16_1 >> 8) ) << 24) + (((U32) (uint8_t)(usb_16_0) ) << 16) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 8); //  + sample_HSB; // bBitResolution
 							sample_R = (((U32) (uint8_t)(usb_16_2) ) << 24) + (((U32) (uint8_t)(usb_16_2 >> 8) ) << 16) + (((U32) (uint8_t)(usb_16_1)) << 8); // + sample_HSB; // bBitResolution
 
-//							#ifdef USB_SILENCE_ABSOLUTE	// While processing all samples
-
 							// Non-differential silence detector v.5, only fully parse non-zero packets
 							if (silence_det) {
 								if (abs(sample_L) >= 0x00020000) {			// Greater than or equal to 2 16-bit LSBs
@@ -616,8 +611,6 @@ void uac2_device_audio_task(void *pvParameters)
 									silence_det = FALSE;
 								}
 							}
-
-//							#endif
 							
 							if (input_select == MOBO_SRC_UAC2) {					// Only write to cache with the right permissions! Only care with samples when we can put them somewhere
 								// Finding packet's point of lowest and highest "energy"
@@ -694,8 +687,6 @@ void uac2_device_audio_task(void *pvParameters)
 								sample_L = (((U32) (uint8_t)(usb_16_0) ) << 24) + (((U32) (uint8_t)(usb_16_0 >> 8) ) << 16);
 								sample_R = (((U32) (uint8_t)(usb_16_1)) << 24) + (((U32) (uint8_t)(usb_16_1 >> 8)) << 16);
 
-//								#ifdef USB_SILENCE_ABSOLUTE	// While processing all samples
-
 								// Non-differential silence detector v.5, only fully parse non-zero packets
 								if (silence_det) {
 									if (abs(sample_L) >= 0x00020000) {			// Greater than or equal to 2 16-bit LSBs
@@ -705,8 +696,6 @@ void uac2_device_audio_task(void *pvParameters)
 										silence_det = FALSE;
 									}
 								}
-
-//								#endif
 	
 								if (input_select == MOBO_SRC_UAC2) {					// Only write to cache with the right permissions! Only care with samples when we can put them somewhere
 									// Finding packet's point of lowest and highest "energy"
@@ -774,24 +763,22 @@ void uac2_device_audio_task(void *pvParameters)
 					#endif // UAC2 ALT 2 for 16-bit audio						
 
 /*
-					#ifdef USB_SILENCE_ENERGY	// After processing all samples
-						// Silence detector v.4 reuses energy detection code
-						if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
-							silence_det = FALSE;
-						}
-					#endif
+					// Potential replacement of above code: Non-differential silence detector v.5, only fully parse non-zero packets
+					// Requires temp_si_score_high to be calculated even though that input is not selected
+					// Silence detector v.4 reuses energy detection code
+					if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
+						silence_det = FALSE;
+					}
 */
 
 //					gpio_clr_gpio_pin(AVR32_PIN_PX31);		// End copying DAC data from USB OUT to cache
 
 					// New site for setting playerStarted and aligning buffers
 					if (!silence_det) {		// There is actual USB audio.
-//						#ifdef HW_GEN_SPRX		// With WM8805/WM8804 present, handle semaphores
 						#if ( (defined HW_GEN_SPRX) || (defined HW_GEN_AB1X) )	// For USB playback, handle semaphores
 							if (input_select == MOBO_SRC_NONE) {				// Always directly preceding take for RT reasons
 								if (xSemaphoreTake(input_select_semphr, 10) == pdTRUE) {		// Re-take of taken semaphore returns false
 									input_select = MOBO_SRC_UAC2;				// Claim input_select ASAP so that WM won't take it
-//									print_dbg_char('\n');						// USB takes
 									print_dbg_char('[');						// USB takes
 									playerStarted = TRUE;						// Is it better off here?
 									

@@ -1088,17 +1088,12 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		U32 temp_si_index_high = 0;
 		S32 si_score_low = 0x7FFFFFFF;
 
-//		#define SPDIF_SILENCE_ABSOLUTE		// Use absolute-sample value for silence detection
-//		#define SPDIF_SILENCE_ENERGY		// Reuse energy calculation for silence detection
-		
 		i = prev_last_written_ADC_pos;
 		while (i != last_written_ADC_pos) {
 			// Read incoming sample from buffer being filled by DMA
 			
 			sample_L = audio_buffer[i];
 			sample_R = audio_buffer[i + 1];
-
-//			#ifdef SPDIF_SILENCE_ABSOLUTE	// While processing all samples
 
 			// Non-differential silence detector v.5, only fully parse non-zero packets
 			if (silence_det) {
@@ -1110,10 +1105,8 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 				}
 			}
 
-//			#endif
-
-			// Fill outgoing cache
-			// It is time consuming to test for each stereo sample!
+			// Fill outgoing cache and gather energy data for sample skip/insert
+			// FIX: Only gather energy data when really needed - may save some current on that
 			if (we_own_cache) {					// Only write to cache and num_samples with the right permissions! And only bother with enerby math if it's considered by calling function
 				// Finding packet's point of lowest and highest "energy"
 				diff_value = abs( (sample_L >> 8) - (prev_sample_L >> 8) ) + abs( (sample_R >> 8) - (prev_sample_R >> 8) ); // The "energy" going from prev_sample to sample
@@ -1165,12 +1158,12 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		} // while (i != last_written_ADC_pos) 
 
 /*
-		#ifdef SPDIF_SILENCE_ENERGY	// After processing all samples
-			// Silence detector v.4 reuses energy detection code
-			if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
-				silence_det = FALSE;
-			}
-		#endif
+		// Potential replacement of above code: Non-differential silence detector v.5, only fully parse non-zero packets
+		// Requires temp_si_score_high to be calculated even though that input is not selected
+		// Silence detector v.4 reuses energy detection code
+		if ( (temp_si_score_high + (abs(sample_L) >> 2) + (abs(sample_R) >> 2) ) > 0x00010000 ) {
+			silence_det = FALSE;
+		}
 */
 		// Do this once instead of for each sample
 		if (we_own_cache) {
@@ -1192,9 +1185,10 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		}
 
 	
-		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
 
 //		gpio_clr_gpio_pin(AVR32_PIN_PA22); // Indicate end of processing spdif data, ideally once per 250us
+
+		// Establish history - What to do at player start? Should it be continuously updated at idle? What about spdif source toggle?
 
 		// Puting untested init code here....  æææ
 		// Can we 
@@ -1212,22 +1206,9 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 
 	// End new code for timer/counter indicated packet processing
 
-	// Next:
-	// + Processing one packet at a time
-	// + Replicate "energy" code and sample delay from uac2_dat where it writes to cache
-	// + Zero detection here
-	// - New gap calculation, uac2_dat
-	// - New s/i need calculation, uac2_dat
-	// + Write through cache, init in uac2_dat
-	// - Analysis of a lot of old variables, spdif_rx_status.reliable, usb_buffer_toggle etc. etc. 
-	// - Thorough verification, particularly on source changes to/from USB that was initiated while the other source was active
-	// - How much of the code from here to the end of the function is actually needed? What must be replicated above?
-
 	if (ADC_buf_I2S_IN == INIT_ADC_I2S) {		// INIT code needs reviewing!!
 		// Clear incoming SPDIF before enabling pdca to keep filling it - moved to pdca rx enable code
 		// mobo_clear_adc_channel();
-
-// Start of new code
 
 		// What is a valid starting point for ADC buffer readout? wm8804 code supposedly just started the pdca for us to be here
 		local_captured_num_remaining = pdca_channel->tcr;
@@ -1244,13 +1225,8 @@ void mobo_handle_spdif(U32 *si_index_low, S32 *si_score_high, U32 *si_index_high
 		prev_captured_num_remaining = local_captured_num_remaining;
 		prev_last_written_ADC_pos = last_written_ADC_pos;
 		
-// End of new code
-
-// Begin old code		
-
-		// Forward state machine
+		// Forward state machine - needed? ææææ
 		ADC_buf_I2S_IN = INIT_ADC_I2S_st2;	// Move on to init stage 2
-
 	} // end INIT_ADC_I2S
 
 } // mobo_handle_spdif(void)
