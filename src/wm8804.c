@@ -49,7 +49,6 @@ If this project is of interest to you, please let me know! I hope to see you at 
 #include "taskAK5394A.h" // To signal uacX_device_audio_task to enable DMA at init
 
 // Global status variable
-//volatile spdif_rx_status_t spdif_rx_status = {0, 1, SILENCE_SPDIF_LIMIT, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
 volatile spdif_rx_status_t spdif_rx_status = {0, SILENCE_SPDIF_LIMIT, FREQ_TIMEOUT, WM8804_PLL_NONE, MOBO_SRC_NONE, MOBO_SRC_SPDIF0};
 	
 // Linkup monitoring variables, available for debug
@@ -177,8 +176,8 @@ void wm8804_task(void *pvParameters) {
 				mustgive = 0;									// Not ready to give up playing audio just yet
 						
 				// Poll two silence detectors, WM8804 and buffer transfer code
-//				if ( (SPDIF_IS_SILENT()) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {
-				if ( (SPDIF_IS_SILENT()) || (0)                                        ) {
+				if ( (SPDIF_IS_SILENT()) || (gpio_get_pin_value(WM8804_ZERO_PIN) == 1) ) {	// Either own SW based test and RX chip's zero detect
+//				if ( (SPDIF_IS_SILENT()) || (0)                                        ) {	// Only own SW based test
 					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 					mustgive = 1;
 					print_dbg_char('l');
