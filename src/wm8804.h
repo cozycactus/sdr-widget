@@ -57,7 +57,7 @@
 #define WM8804_CLK_SUCCESS	1					// Successful setting of internal clock division
 #define WM8804_CLK_PLLMISS  2					// Mismatch between detected frequency and PLL configuration
 #define WM8804_SCAN_ONE		0x10				// Scan only one channel
-#define WM8804_SCAN_FROM_PRESENT	0x20		// Start scanning from presented channel
+#define WM8804_SCAN_FROM_PRESENT	0x20		// Start scanning from present channel
 #define WM8804_SCAN_FROM_NEXT		0x30		// Start scanning from next channel in list
 #define WM8804_MCLK_ENABLE	1					// WM8804 enables MCLK output
 #define WM8804_MCLK_DISABLE 0					// WM8804 disables MCLK output

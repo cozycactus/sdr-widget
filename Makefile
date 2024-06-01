@@ -25,6 +25,8 @@
 # -DUSB_REDUCED_DEBUG			Reduce debug and use UART only for CPU communication
 # -DFEATURE_UNINVERT_LRCK		Reverse the effect of an inverted LRCK signal on the I2S output
 # -DI2S_POLARITY_CHECK			Output SDATA in phase with LRCK for debugging
+# -DBOOT_SIGNAL_LED				Use front LED to indicate reboot
+# -DLOOSE_SIGNAL_LED			Use front LED to indicate SPDIF signal loss
 
 
 
@@ -54,6 +56,7 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 	-DUSB_STATE_MACHINE_GPIO \
 	-DFEATURE_HID \
 	\
+	-DBOOT_SIGNAL_LED \
 	-DI2S_POLARITY_CHECK \
 	-DFEATURE_PRODUCT_HA256 \
 	-DFEATURE_ALT2_16BIT \
@@ -74,6 +77,7 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 # Henry Audio USB DAC 256 (SPRX) after "\" 
 ##	-DFEATURE_VOLUME_CTRL \
 ##	-DI2S_POLARITY_CHECK \
+#	-DBOOT_SIGNAL_LED \
 #	-DFEATURE_PRODUCT_HA256 \
 #	-DFEATURE_ALT2_16BIT \
 #	-DHW_GEN_SPRX

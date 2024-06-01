@@ -125,7 +125,8 @@ uint8_t wm8804_mclk_out(uint8_t mode) {
  
 // The config task itself
 void wm8804_task(void *pvParameters) {
-	static uint8_t scanmode = WM8804_SCAN_FROM_NEXT + 0x05;		// Start scanning from next channel. Run up to 5x4 scan attempts
+//	static uint8_t scanmode = WM8804_SCAN_FROM_NEXT + 0x05;		// Start scanning from next channel. Run up to 5x4 scan attempts
+	static uint8_t scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;		// Start scanning from the last known good (?) channel. Run up to 5x4 scan attempts
 	uint32_t freq;
 	static uint8_t channel;	// Must be static here?
 	uint8_t wm8804_int;
@@ -180,7 +181,15 @@ void wm8804_task(void *pvParameters) {
 //				if ( (SPDIF_IS_SILENT()) || (0)                                        ) {	// Only own SW based test
 					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 					mustgive = 1;
-					print_dbg_char('l');
+
+					#ifdef LOOSE_SIGNAL_LED									// Indicate startup with WHITE-RED-BLUE-(WHITE)
+						mobo_led(FLED_RED);
+						vTaskDelay(1000);
+						mobo_led(FLED_WHITE);
+						vTaskDelay(1000);
+						mobo_led(FLED_RED);
+						vTaskDelay(1000);
+					#endif
 				} // Silence not detected
 
 				// Poll lost lock pin
@@ -188,19 +197,34 @@ void wm8804_task(void *pvParameters) {
 					// Count to more than one error?
 					scanmode = WM8804_SCAN_FROM_NEXT + 0x05;	// Start scanning from next channel. Run up to 5x4 scan attempts
 					mustgive = 1;
+					
+					#ifdef LOOSE_SIGNAL_LED
+						mobo_led(FLED_RED);
+						vTaskDelay(1000);
+						mobo_led(FLED_GREEN);
+						vTaskDelay(1000);
+						mobo_led(FLED_RED);
+						vTaskDelay(1000);
+					#endif
 				}
 
 				// Poll interrupt pin
 				if  (gpio_get_pin_value(WM8804_INT_N_PIN) == 0) {
 					wm8804_int = wm8804_read_byte(0x0B);		// Read and clear interrupts
 							
-//					print_dbg_char('!');
-//					print_dbg_char_hex(wm8804_int);				// Report interrupts
-
 					if (wm8804_int & 0x08) {					// Transmit error bit -> Try same channel next, with inverted PLL setting
 						wm8804_pllnew(WM8804_PLL_TOGGLE);
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel. Run up to 5x4 scan attempts
 						mustgive = 1;
+
+						#ifdef LOOSE_SIGNAL_LED
+							mobo_led(FLED_RED);
+							vTaskDelay(1000);
+							mobo_led(FLED_BLUE);
+							vTaskDelay(1000);
+							mobo_led(FLED_RED);
+							vTaskDelay(1000);
+						#endif
 					}
 				}
 				
@@ -210,10 +234,18 @@ void wm8804_task(void *pvParameters) {
 
 					// If srd() returned a valid frequency that is different from the one we believe we're at, do something!					
 					if ( ( (freq == FREQ_44) || (freq == FREQ_48) || (freq == FREQ_88) || (freq == FREQ_96) || (freq == FREQ_176) || (freq == FREQ_192) ) && (freq != spdif_rx_status.frequency) ) {
-//						print_dbg_char('?');					// Sample rate mismatch!
 						// wm8804_pllnew(WM8804_PLL_TOGGLE);		// No PLL toggle -> quick to return to present setting
 						scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;	// Start scanning from same channel to prevent consequences of false detects. Run up to 5x4 scan attempts
 						mustgive = 1;
+
+						#ifdef LOOSE_SIGNAL_LED
+							mobo_led(FLED_RED);
+							vTaskDelay(1000);
+							mobo_led(FLED_CYAN);
+							vTaskDelay(1000);
+							mobo_led(FLED_RED);
+							vTaskDelay(1000);
+						#endif
 					}
 				}
 						
@@ -351,7 +383,6 @@ void wm8804_init(void) {
 
 	wm8804_write_byte(0x17, 0x0C);	// 3:0 GPO0=ZEROFLAG (=SPIO_00_SPO0, PX54, WM8804_ZERO_PIN=WM8804_SWIFMODE_PIN) // WM8804 ported
 
-
 	wm8804_write_byte(0x0A, 0b11100100);	// REC_FREQ:mask (broken in wm!), DEEMPH:ignored, CPY:ignored, NON_AUDIO:active // WM8804 same
 											// TRANS_ERR:active, CSUD:ignored, INVALID:active, UNLOCK:active
 
@@ -407,20 +438,20 @@ void wm8804_sleep(void) {
 // All hardware must support strap from U1:13 to U6:CP via R117 on rev. B and onwards. Default on Rev. E and onwards
 // This used to be code switch HW_GEN_SPRX_PATCH_01
 uint8_t wm8804_live_detect(void) {
-	#define WM8804_SPDIF_LIVE_COUNT	0x20			// Detection takes about 50µs
+	#define WM8804_SPDIF_LIVE_COUNT	0x20				// Detection takes about 50µs - ESD test: increase this number?
 	uint8_t counter = WM8804_SPDIF_LIVE_COUNT;
 	uint8_t chx = 0;
 
 	// Time consumption of polling vs. 3-pulse period on slowest 44.1 ksps input. Must count for more than a 3-pulse period!
-	gpio_set_gpio_pin(AVR32_PIN_PB04);			// Count enable
+	gpio_set_gpio_pin(AVR32_PIN_PB04);					// Count enable
 
-	// Poll SPDIF/TOSLINK data signal a number of times. Only bother with one of them in shared counter
+	// Poll SPDIF/TOSLINK data signal SPDIF_RX_CNT a number of times. Only bother with one of them in shared counter
 	while (counter--) {
 		if (gpio_get_pin_value(AVR32_PIN_PX16) == 1) {	// PCB patch from MUX output to net SPDIF0_TO_MCU / input MOBO_SRC_SPDIF0
 			chx++;
 		}
 	}
-	gpio_clr_gpio_pin(AVR32_PIN_PB04);			// Count disable
+	gpio_clr_gpio_pin(AVR32_PIN_PB04);					// Count disable
 
 	// Report Live / Dead as binary code
 	// A static SPDIF signal means the counter is either at 0 or at full value
@@ -531,7 +562,7 @@ uint32_t wm8804_inputnew(uint8_t input_sel) {
 	if ( !(wm8804_live_detect()) ) {
 		//	Set all frequencies of input_sel to NORMAL = we know nothing about this input's rate relative to own XOs
 		mobo_rate_storage(0, input_sel, SI_NORMAL, RATE_CH_INIT);	
-		mobo_SPRX_input(MOBO_SRC_SPDIF0);	// Disable power to input circuits until another one is enabled
+		mobo_SPRX_input(MOBO_SRC_NONE);	// Disable power to input circuits until another one is enabled. Was: MOBO_SRC_SPDIF0
 		return (FREQ_INVALID);
 	}
 	// If given input is alive, do things

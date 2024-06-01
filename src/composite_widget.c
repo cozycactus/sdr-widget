@@ -345,7 +345,7 @@ wm8804_reset(WM8804_RESET_START);							// Early hardware reset of WM8805 becaus
 #endif
 
 
-	// Set CPU and PBA clock
+	// Set CPU and PBA clock for fast operation
 	if( PM_FREQ_STATUS_FAIL==pm_configure_clocks(&pm_freq_param) )
 		return 42;
 
@@ -379,6 +379,18 @@ wm8804_reset(WM8804_RESET_START);							// Early hardware reset of WM8805 becaus
 	print_dbg_char('p');
 
 #if (defined HW_GEN_SPRX)
+
+	#ifdef BOOT_SIGNAL_LED									// Indicate startup with WHITE-RED-BLUE-(WHITE)
+		mobo_led(FLED_RED);
+		cpu_delay_ms(200, FCPU_HZ);
+		mobo_led(FLED_WHITE);
+		cpu_delay_ms(200, FCPU_HZ);
+		mobo_led(FLED_BLUE);
+		cpu_delay_ms(200, FCPU_HZ);
+		mobo_led(FLED_DARK);
+		cpu_delay_ms(200, FCPU_HZ);
+	#endif
+
 	mobo_led_select(FREQ_44, MOBO_SRC_NONE);				// Front RGB LED, default indication of 44.1kHz and scanning
 	
 //	wm8805_reset(WM8805_RESET_START);						// Early hardware reset of WM8805 because GPIO is interpreted for config
