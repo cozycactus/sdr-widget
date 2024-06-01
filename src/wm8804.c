@@ -125,8 +125,8 @@ uint8_t wm8804_mclk_out(uint8_t mode) {
  
 // The config task itself
 void wm8804_task(void *pvParameters) {
-//	static uint8_t scanmode = WM8804_SCAN_FROM_NEXT + 0x05;		// Start scanning from next channel. Run up to 5x4 scan attempts
-	static uint8_t scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;		// Start scanning from the last known good (?) channel. Run up to 5x4 scan attempts
+	static uint8_t scanmode = WM8804_SCAN_FROM_NEXT + 0x05;		// Start scanning from next channel. Run up to 5x4 scan attempts
+//	static uint8_t scanmode = WM8804_SCAN_FROM_PRESENT + 0x05;		// Start scanning from the last known good (?) channel. Run up to 5x4 scan attempts
 	uint32_t freq;
 	static uint8_t channel;	// Must be static here?
 	uint8_t wm8804_int;
