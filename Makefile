@@ -1,6 +1,6 @@
 
 # These defaults are compiled into code, not necessarily forced
-# into flash. To force them into flash, reboot with 
+# into flash. To force them into flash, reboot with  
 # feature_quirk_ptest set in flash, which will lead to flash being
 # overwritten with defaults
 #

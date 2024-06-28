@@ -667,8 +667,8 @@ void uac2_device_audio_task(void *pvParameters)
 								prev_sample_R = sample_R;
 							
 								#ifdef FEATURE_UNINVERT_LRCK
-									prev_prev_sample_L = prev_sample_L;
-									prev_prev_sample_R = prev_sample_R;
+									prev_prev_sample_L = prev_sample_L; 
+									prev_prev_sample_R = prev_sample_R; 
 								#endif
 								
 								prev_diff_value = diff_value;
