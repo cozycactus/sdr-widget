@@ -2,5 +2,14 @@
 # Change this to fit your local installation, so that the
 # cross compiler/assembler could find your header files.
 #
-CFLAGS+= -I/opt/atmel-headers
-ASFLAGS+= -I/opt/atmel-headers
+AVR32_TOOLCHAIN ?= /opt/avr32-tools
+ATMEL_HEADERS ?= $(AVR32_TOOLCHAIN)/atmel-headers/atmel-headers-6.1.3.1475
+
+CFLAGS+= -I$(ATMEL_HEADERS)
+ASFLAGS+= -I$(ATMEL_HEADERS)
+
+USER_OBJS+= ./src/newlib_compat.o
+
+src/newlib_compat.o: ../src/newlib_compat.c
+	@echo Compile $(CFLAGS) $<
+	@avr32-gcc $(CFLAGS) -O2 -fdata-sections -Wall -c -fmessage-length=0 -ffunction-sections -o"$@" "$<"
