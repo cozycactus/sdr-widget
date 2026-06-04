@@ -39,6 +39,8 @@ const char usage[] = {
 
 int verbose = 0;
 
+int finish(int return_value);
+
 /*
 ** features
 */

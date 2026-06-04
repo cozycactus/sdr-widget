@@ -27,6 +27,7 @@ C_SRCS += \
 ../src/hpsdr_usb_descriptors.c \
 ../src/hpsdr_usb_specific_request.c \
 ../src/image.c \
+../src/newlib_syscalls.c \
 ../src/rotary_encoder.c \
 ../src/taskAK5394A.c \
 ../src/taskEXERCISE.c \
@@ -73,6 +74,7 @@ OBJS += \
 ./src/hpsdr_usb_descriptors.o \
 ./src/hpsdr_usb_specific_request.o \
 ./src/image.o \
+./src/newlib_syscalls.o \
 ./src/rotary_encoder.o \
 ./src/taskAK5394A.o \
 ./src/taskEXERCISE.o \
@@ -120,6 +122,7 @@ C_DEPS += \
 ./src/hpsdr_usb_descriptors.d \
 ./src/hpsdr_usb_specific_request.d \
 ./src/image.d \
+./src/newlib_syscalls.d \
 ./src/rotary_encoder.d \
 ./src/taskAK5394A.d \
 ./src/taskEXERCISE.d \
@@ -147,5 +150,4 @@ C_DEPS += \
 src/%.o: ../src/%.c
 	@echo Compile $(CFLAGS) $<
 	@avr32-gcc $(CFLAGS) -DBOARD=SDRwdgtLite -DFREERTOS_USED -I../src/SOFTWARE_FRAMEWORK/DRIVERS/SSC/I2S -I../src/SOFTWARE_FRAMEWORK/DRIVERS/PDCA -I../src/SOFTWARE_FRAMEWORK/DRIVERS/TWIM -I../src/SOFTWARE_FRAMEWORK/UTILS/DEBUG -I../src/SOFTWARE_FRAMEWORK/SERVICES/USB/CLASS/AUDIO -I../src/SOFTWARE_FRAMEWORK/SERVICES/USB/CLASS/CDC -I../src/SOFTWARE_FRAMEWORK/SERVICES/FREERTOS/Source/portable/GCC/AVR32_UC3 -I../src/SOFTWARE_FRAMEWORK/SERVICES/FREERTOS/Source/include -I../src/SOFTWARE_FRAMEWORK/SERVICES/USB/CLASS/HID -I../src/SOFTWARE_FRAMEWORK/SERVICES/USB -I../src/CONFIG -I../src/SOFTWARE_FRAMEWORK/DRIVERS/USBB/ENUM/DEVICE -I../src/SOFTWARE_FRAMEWORK/DRIVERS/USBB/ENUM -I../src/SOFTWARE_FRAMEWORK/DRIVERS/USBB -I../src/SOFTWARE_FRAMEWORK/DRIVERS/USART -I../src/SOFTWARE_FRAMEWORK/DRIVERS/TC -I../src/SOFTWARE_FRAMEWORK/DRIVERS/WDT -I../src/SOFTWARE_FRAMEWORK/DRIVERS/CPU/CYCLE_COUNTER -I../src/SOFTWARE_FRAMEWORK/DRIVERS/EIC -I../src/SOFTWARE_FRAMEWORK/DRIVERS/RTC -I../src/SOFTWARE_FRAMEWORK/DRIVERS/PM -I../src/SOFTWARE_FRAMEWORK/DRIVERS/GPIO -I../src/SOFTWARE_FRAMEWORK/DRIVERS/FLASHC -I../src/SOFTWARE_FRAMEWORK/UTILS/LIBS/NEWLIB_ADDONS/INCLUDE -I../src/SOFTWARE_FRAMEWORK/UTILS/PREPROCESSOR -I../src/SOFTWARE_FRAMEWORK/UTILS -I../src/SOFTWARE_FRAMEWORK/DRIVERS/INTC -I../src/SOFTWARE_FRAMEWORK/BOARDS -I../src -O2 -fdata-sections -Wall -c -fmessage-length=0 -mpart=uc3a3256 -ffunction-sections -masm-addr-pseudos -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o"$@" "$<"
-
 
