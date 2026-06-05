@@ -6,6 +6,31 @@
 
 RM := rm -rf
 
+AVR32_COMPILER ?= gcc
+AVR32_GCC ?= avr32-gcc
+AVR32_CLANG ?= clang
+AVR32_SYSROOT ?= $(patsubst %/bin,%/avr32,$(AVR32BIN))
+LINKFLAGS ?= -mpart=uc3a3256
+
+AVR32_CC := $(AVR32_GCC)
+AVR32_AS := $(AVR32_GCC)
+AVR32_LD := $(AVR32_GCC)
+AVR32_CCFLAGS :=
+AVR32_ASFLAGS_EXTRA :=
+AVR32_AS_DEBUG_FLAG := -Wa,-g
+AVR32_LDFLAGS :=
+
+ifeq ($(AVR32_COMPILER),clang)
+AVR32_CC := $(AVR32_CLANG)
+AVR32_AS := $(AVR32_CLANG)
+AVR32_LD := $(AVR32_CLANG)
+AVR32_TARGET_FLAGS := --target=avr32 --sysroot=$(AVR32_SYSROOT) -B$(AVR32BIN)
+AVR32_CCFLAGS := $(AVR32_TARGET_FLAGS) -fgnu89-inline -Wno-expansion-to-defined
+AVR32_ASFLAGS_EXTRA := $(AVR32_TARGET_FLAGS)
+AVR32_AS_DEBUG_FLAG :=
+AVR32_LDFLAGS := $(AVR32_TARGET_FLAGS) -fuse-ld=lld
+endif
+
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include subdir.mk
@@ -52,10 +77,10 @@ all: widget.elf
 # Tool invocations
 widget.elf: $(OBJS) $(USER_OBJS)
 	@echo Link $@
-	@avr32-gcc -nostartfiles -Wl,--gc-sections -Wl,-e,_trampoline -mpart=uc3a3256 -Wl,--gc-sections --rodata-writable -Wl,--direct-data -o"widget.elf" $(OBJS) $(USER_OBJS) $(LIBS)
+	@$(AVR32_LD) $(AVR32_LDFLAGS) -nostartfiles -Wl,--gc-sections -Wl,-e,_trampoline $(LINKFLAGS) -Wl,--gc-sections --rodata-writable -Wl,--direct-data -o"widget.elf" $(OBJS) $(USER_OBJS) $(LIBS)
 # Other Targets
 clean:
-	-$(RM) $(OBJS)$(C_DEPS)$(EXECUTABLES) widget.elf
+	-$(RM) $(OBJS)$(USER_OBJS)$(C_DEPS)$(EXECUTABLES) widget.elf
 
 .PHONY: all clean dependents
 .SECONDARY:

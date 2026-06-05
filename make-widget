@@ -4,8 +4,9 @@
 # it manually means compilation default features are not set. You 
 # must edit Makefile (at project root) to set compilation defaults.
 #
-# This file tries to set AVR32BIN to a directory containing avr32-gcc.
-# it then includes it in the path and runs make in the Release folder.
+# This file tries to set AVR32BIN to a directory containing avr32-gcc and
+# related AVR32 binutils. It then includes it in the path and runs make in
+# the Release folder.
 #
 # You must edit this file if your AVR32 tools are installed but not 
 # found. If you have not installed AVR32 tools, fetch them at 
@@ -40,7 +41,21 @@ if [ -d "$d" ]
 then
     PATH=${AVR32BIN}:$PATH
     export PATH
-    cd Release && make all
+    AVR32_COMPILER=${AVR32_COMPILER:-gcc}
+    if [ "$AVR32_COMPILER" = "clang" ]
+    then
+        AVR32_CLANG=${AVR32_CLANG:-clang}
+        AVR32_SYSROOT=${AVR32_SYSROOT:-$(cd "${AVR32BIN}/.." && pwd)/avr32}
+        export AVR32_CLANG AVR32_SYSROOT AVR32_COMPILER
+        if ! command -v "$AVR32_CLANG" >/dev/null 2>&1
+        then
+            echo "Could not find AVR32_CLANG executable: $AVR32_CLANG"
+            exit 1
+        fi
+        cd Release && make all AVR32_COMPILER="$AVR32_COMPILER" AVR32BIN="$AVR32BIN" AVR32_SYSROOT="$AVR32_SYSROOT" AVR32_CLANG="$AVR32_CLANG"
+    else
+        cd Release && make all AVR32BIN="$AVR32BIN"
+    fi
 else
     echo "Could not find AVR32BIN directory"
 fi

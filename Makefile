@@ -63,6 +63,7 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 	-DFEATURE_SPDIF_CMD \
 	-DHW_GEN_SPRX
 	
+AVR32_CLANG ?= clang
 
 # Floormotion after "\"
 #	-DFEATURE_PRODUCT_FMADC \
@@ -104,6 +105,10 @@ AUDIO_WIDGET_DEFAULTS=$(PARTNAME)\
 audio-widget::
 	rm -f Release/widget.elf Release/src/features.o
 	CFLAGS="$(AUDIO_WIDGET_DEFAULTS)" ASFLAGS="$(PARTNAME)" ./make-widget
+
+audio-widget-clang::
+	cd Release && make clean
+	CFLAGS="$(AUDIO_WIDGET_DEFAULTS)" ASFLAGS="$(PARTNAME)" LINKFLAGS="$(PARTNAME)" AVR32_COMPILER=clang AVR32_CLANG="$(AVR32_CLANG)" ./make-widget
 
 clean::
 	rm -f widget-control widget-control.exe
