@@ -755,80 +755,80 @@ uint32_t mobo_srd_asm2(void) {
 		// If bit is 0, branch to loop while 0. If bit was 1, continue to loop while 1
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"brne	S3				\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+		"brne	S3%=				\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 
 		// Wait while bit is 1, then count two half periods
-		"S0:					\n\t"	// Loop while PA05 is 1
+		"S0%=:					\n\t"	// Loop while PA05 is 1
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"brne	S0_done			\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+		"brne	S0_done%=			\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S0				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S0_done:				\n\t"
+		"brne	S0%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S0_done%=:				\n\t"
 
 		"mfsr	r10, 264		\n\t"	// Load 1st cycle counter into r10
 
-		"S1:					\n\t"	// Loop while PA05 is 0
+		"S1%=:					\n\t"	// Loop while PA05 is 0
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"breq	S1_done			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+		"breq	S1_done%=			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S1				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S1_done:				\n\t"
+		"brne	S1%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S1_done%=:				\n\t"
 
-		"S2:					\n\t"	// Loop while PA05 is 1
+		"S2%=:					\n\t"	// Loop while PA05 is 1
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"brne	S2_done			\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+		"brne	S2_done%=			\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S2				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S2_done:				\n\t"
-		"rjmp	SRETURN__		\n\t"
+		"brne	S2%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S2_done%=:				\n\t"
+		"rjmp	SRETURN__%=		\n\t"
 
 
 
 		// Wait while bit is 0, then count two half periods
-		"S3:					\n\t"	// Loop while PA05 is 0
+		"S3%=:					\n\t"	// Loop while PA05 is 0
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"breq	S3_done			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+		"breq	S3_done%=			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S3				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S3_done:				\n\t"
+		"brne	S3%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S3_done%=:				\n\t"
 
 		"mfsr	r10, 264		\n\t"	// Load 1st cycle counter into r10
 
-		"S4:					\n\t"	// Loop while PA05 is 1
+		"S4%=:					\n\t"	// Loop while PA05 is 1
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"brne	S4_done			\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+		"brne	S4_done%=			\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S4				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S4_done:				\n\t"
+		"brne	S4%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S4_done%=:				\n\t"
 
-		"S5:					\n\t"	// Loop while PA05 is 0
+		"S5%=:					\n\t"	// Loop while PA05 is 0
 		"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 		"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-		"breq	S5_done			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+		"breq	S5_done%=			\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 		"sub	%0,	1			\n\t"	// Count down
-		"brne	S5				\n\t"	// Not done counting down
-		"rjmp	SCOUNTD			\n\t"	// Countdown reached
-		"S5_done:				\n\t"
-		"rjmp	SRETURN__		\n\t"
+		"brne	S5%=				\n\t"	// Not done counting down
+		"rjmp	SCOUNTD%=			\n\t"	// Countdown reached
+		"S5_done%=:				\n\t"
+		"rjmp	SRETURN__%=		\n\t"
 
 
-		"SRETURN__:				\n\t"
+		"SRETURN__%=:				\n\t"
 
 		"mfsr	%0, 264			\n\t"	// Load 2nd cycle counter into r11
 		"sub	%0, r10			\n\t"	// Return difference from 1st to 2nd cycle counter
 
 
-		"SCOUNTD:				\n\t"	// Countdown reached, %0 is 0
+		"SCOUNTD%=:				\n\t"	// Countdown reached, %0 is 0
 
 		//		"csrf	16				\n\t"	// Enable global interrupt
 		:	"=r" (timeout)				// One output register
@@ -914,44 +914,44 @@ uint32_t mobo_wait_LRCK_RX_asm(void) {
 	"mov	r9,		-61440	\n\t"	// Immediate load, set up pointer to PA05, recompile C for other IO pin, do once
 
 /*
-	"S0x:					\n\t"	// Loop while PA05 is 1
+	"S0x%=:					\n\t"	// Loop while PA05 is 1
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"brne	S0x_done		\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+	"brne	S0x_done%=		\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S0x				\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_RX		\n\t"	// Countdown reached
-	"S0x_done:				\n\t"
+	"brne	S0x%=				\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_RX%=		\n\t"	// Countdown reached
+	"S0x_done%=:				\n\t"
 */
 
-	"S1x:					\n\t"	// Loop while PA05 is 0
+	"S1x%=:					\n\t"	// Loop while PA05 is 0
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"breq	S1x_done		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+	"breq	S1x_done%=		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S1x				\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_RX		\n\t"	// Countdown reached
-	"S1x_done:				\n\t"
+	"brne	S1x%=				\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_RX%=		\n\t"	// Countdown reached
+	"S1x_done%=:				\n\t"
 
-	"S2x:					\n\t"	// Loop while PA05 is 1
+	"S2x%=:					\n\t"	// Loop while PA05 is 1
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"brne	S2x_done		\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+	"brne	S2x_done%=		\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S2x				\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_RX		\n\t"	// Countdown reached
-	"S2x_done:				\n\t"
+	"brne	S2x%=				\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_RX%=		\n\t"	// Countdown reached
+	"S2x_done%=:				\n\t"
 
-	"S3x:					\n\t"	// Loop while PA05 is 0
+	"S3x%=:					\n\t"	// Loop while PA05 is 0
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PA05 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	5		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"breq	S3x_done		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+	"breq	S3x_done%=		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S3x				\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_RX		\n\t"	// Countdown reached
-	"S3x_done:				\n\t"
+	"brne	S3x%=				\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_RX%=		\n\t"	// Countdown reached
+	"S3x_done%=:				\n\t"
 
-	"SCOUNTD_RX:			\n\t"	// Countdown reached, %0 is 0
+	"SCOUNTD_RX%=:			\n\t"	// Countdown reached, %0 is 0
 
 	//		"csrf	16				\n\t"	// Enable global interrupt
 	:	"=r" (timeout)				// One output register
@@ -981,44 +981,44 @@ uint32_t mobo_wait_LRCK_TX_asm(void) {
 	"mov	r9,		-60928	\n\t"	// Immediate load, set up pointer to PX27, recompile C for other IO pin, do once
 
 /*
-	"S10x:					\n\t"	// Loop while PX27 is 1
+	"S10x%=:					\n\t"	// Loop while PX27 is 1
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PX27 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	14		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"brne	S10x_done		\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+	"brne	S10x_done%=		\n\t"	// Branch if %0 bit 11 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S10x			\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_TX		\n\t"	// Countdown reached
-	"S10x_done:				\n\t"
+	"brne	S10x%=			\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_TX%=		\n\t"	// Countdown reached
+	"S10x_done%=:				\n\t"
 */
 
-	"S11x:					\n\t"	// Loop while PX27 is 0
+	"S11x%=:					\n\t"	// Loop while PX27 is 0
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PX27 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	14		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"breq	S11x_done		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+	"breq	S11x_done%=		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S11x			\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_TX		\n\t"	// Countdown reached
-	"S11x_done:				\n\t"
+	"brne	S11x%=			\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_TX%=		\n\t"	// Countdown reached
+	"S11x_done%=:				\n\t"
 
-	"S12x:					\n\t"	// Loop while PX27 is 1
+	"S12x%=:					\n\t"	// Loop while PX27 is 1
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PX27 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	14		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"brne	S12x_done		\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
+	"brne	S12x_done%=		\n\t"	// Branch if %0 bit 4 was 0 (bit was 0, Z becomes 0 i.e. not equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S12x			\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_TX		\n\t"	// Countdown reached
-	"S12x_done:				\n\t"
+	"brne	S12x%=			\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_TX%=		\n\t"	// Countdown reached
+	"S12x_done%=:				\n\t"
 
-	"S13x:					\n\t"	// Loop while PX27 is 0
+	"S13x%=:					\n\t"	// Loop while PX27 is 0
 	"ld.w	r8, 	r9[96]	\n\t"	// Load PX27 (and surroundings?) into r8, 		recompile C for other IO pin
 	"bld	r8, 	14		\n\t"	// Bit load to Z and C, similar to above line,	recompile c for other IO pin
-	"breq	S13x_done		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
+	"breq	S13x_done%=		\n\t"	// Branch if %0 bit 4 was 1 (bit was 1, Z becomes 1 i.e. equal)
 	"sub	%0,	1			\n\t"	// Count down
-	"brne	S13x			\n\t"	// Not done counting down
-	"rjmp	SCOUNTD_TX		\n\t"	// Countdown reached
-	"S13x_done:				\n\t"
+	"brne	S13x%=			\n\t"	// Not done counting down
+	"rjmp	SCOUNTD_TX%=		\n\t"	// Countdown reached
+	"S13x_done%=:				\n\t"
 
-	"SCOUNTD_TX:			\n\t"	// Countdown reached, %0 is 0
+	"SCOUNTD_TX%=:			\n\t"	// Countdown reached, %0 is 0
 
 	//		"csrf	16				\n\t"	// Enable global interrupt
 	:	"=r" (timeout)				// One output register
