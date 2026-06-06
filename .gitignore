@@ -8,3 +8,4 @@
 *.d
 *.elf
 widget-control
+ports/same70-xplained/build/
