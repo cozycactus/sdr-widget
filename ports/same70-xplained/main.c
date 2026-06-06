@@ -91,16 +91,6 @@ static volatile uint32_t rx_tail;
 static char console_line[CONSOLE_LINE_MAX];
 static uint32_t console_line_len;
 
-static void delay_ms(uint32_t ms)
-{
-	uint32_t start = system_ms;
-
-	while ((system_ms - start) < ms) {
-		same70_usb_poll();
-		console_poll();
-	}
-}
-
 static void led_init(void)
 {
 	PIO_PER(PIOC_BASE) = LED0_PC8;
@@ -499,6 +489,9 @@ void SysTick_Handler(void)
 
 int main(void)
 {
+	uint32_t last_blink_ms;
+	uint32_t led_state = 0u;
+
 	WDT_MR = WDT_WDDIS;
 	same70_clock_init();
 	PMC_PCER0 = (1u << ID_PIOC);
@@ -511,17 +504,21 @@ int main(void)
 	same70_usb_attach();
 	usart1_write("USBHS target port auto-attach enabled\r\n");
 	console_prompt();
+	last_blink_ms = system_ms;
 
 	for (;;) {
 		same70_usb_poll();
-		led_on();
-		usart1_write("tick ");
-		usart1_write_u32(tick_count++);
-		usart1_write("\r\n");
-		delay_ms(500u);
-		same70_usb_poll();
-
-		led_off();
-		delay_ms(500u);
+		console_poll();
+		if ((system_ms - last_blink_ms) >= 500u) {
+			last_blink_ms = system_ms;
+			if (led_state == 0u) {
+				led_on();
+				led_state = 1u;
+			} else {
+				led_off();
+				led_state = 0u;
+				tick_count++;
+			}
+		}
 	}
 }

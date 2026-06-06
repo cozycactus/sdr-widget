@@ -29,7 +29,8 @@ ports/same70-xplained
 
 Verified firmware features:
 
-- Green user LED heartbeat on PC8, active-low.
+- Green user LED heartbeat on PC8, active-low. The foreground loop is quiet
+  after boot so blocking 9600-baud status writes do not interrupt USB polling.
 - EDBG virtual COM status console on USART1 at 9600 8N1.
 - USART1 RX is interrupt-driven with a small software ring buffer.
 - Main clock is the external 12 MHz crystal with PLLA at 300 MHz CPU and
@@ -52,11 +53,11 @@ Verified firmware features:
   silence when macOS opens the streaming alternate settings.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board. Latest host-side stream-probe output
-  was `started=1 callbacks=0 input_bytes=0 output_bytes=0`, while serial
-  counters after two consecutive probe runs showed USB stream traffic:
-  `peak_alt=0x0000000c`, `audio ... out=402/115776 fb=2/8
-  in=5361/1543968 err=6`, `under=6`, and `stall=0`. Current
-  `alt=0x00000000` after CoreAudio closed the streams.
+  was `started=1 callbacks=188 input_bytes=770048 output_bytes=770048` on
+  each of two consecutive runs. Serial counters after those runs showed
+  `peak_alt=0x0000000c`, `audio ... out=4036/1162368 fb=2/8
+  in=4089/1177632 err=0`, `under=0`, and `stall=0`. Current `alt=0x00000000`
+  after CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -71,11 +72,11 @@ Verified firmware features:
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
   maximum. IN underflow counting now ignores inactive alternate settings; the
-  last verification saw six active IN underflows after two consecutive
+  last verification saw zero active IN underflows after two consecutive
   stream-probe runs. Endpoint 4 feedback IN and endpoint 5 audio IN are refilled
   from USBHS RWALL/NBUSYBK state, and diagnostics report `fb_busy=<last>/<max>`
   plus `in_busy=<last>/<max>`.
-- Console commands: `?`, `help`, `status`, `usb`, `usb init`, `usb attach`,
+- Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`, `usb attach`,
   `usb detach`.
 
 Known SAME70/board quirks:
@@ -155,6 +156,6 @@ Typical feature output:
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The next practical
 SAME70 milestone is moving from placeholder streams toward useful audio data:
-reduce the remaining IN underflows or map the original SDR Widget audio
-pipeline onto SAME70 peripherals if matching hardware is available. Add real
-feature storage in SAME70 flash only if persistence matters for the next test.
+map the original SDR Widget audio pipeline onto SAME70 peripherals if matching
+hardware is available. Add real feature storage in SAME70 flash only if
+persistence matters for the next test.

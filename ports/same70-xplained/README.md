@@ -7,7 +7,9 @@ Cortex-M7 SAME70-class MCU.
 
 Current milestones:
 
-- Green user LED heartbeat on PC8. The LED is active-low.
+- Green user LED heartbeat on PC8. The LED is active-low, and the foreground
+  loop stays quiet after boot so USB polling is not paused by periodic
+  9600-baud status writes.
 - Status console through the EDBG virtual COM port on USART1 at 9600 8N1. On
   the tested macOS host the port enumerates as `/dev/cu.usbmodem1462302`.
 - Main clock from the external 12 MHz crystal, with PLLA at 300 MHz CPU,
@@ -52,11 +54,13 @@ After flashing, open the EDBG virtual COM port at 9600 8N1:
 screen /dev/cu.usbmodem1462302 9600
 ```
 
-Expected output:
+Expected boot output:
 
 ```text
-tick 3
-tick 4
+SAME70 Xplained SDR Widget bring-up
+USART1 via EDBG VCOM: 9600 8N1 status output
+USBHS target port auto-attach enabled
+>
 ```
 
 Console commands:
@@ -124,10 +128,9 @@ audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=
 ```
 
 Latest measured two-run check on the connected board: host output was
-`started=1 callbacks=0 input_bytes=0 output_bytes=0`, while serial `usb`
-reported `out=402/115776 fb=2/8 in=5361/1543968 err=6`,
-`under=6`, `fb_busy=2/2`, `in_busy=2/2`, `peak_alt=0x0000000c`, and
-`stall=0`.
+`started=1 callbacks=188 input_bytes=770048 output_bytes=770048` on each run,
+while serial `usb` reported `out=4036/1162368 fb=2/8 in=4089/1177632 err=0`,
+`under=0`, `fb_busy=2/2`, `in_busy=2/2`, `peak_alt=0x0000000c`, and `stall=0`.
 
 ## Porting Notes
 
@@ -150,9 +153,9 @@ inactive. Short OUT packets are expected because the observed 288-byte audio
 packets are below the 294-byte endpoint maximum. Feedback and audio IN refills
 now use USBHS RWALL/NBUSYBK state so the firmware can keep up to two banks
 queued; the serial `usb` command reports those depths as `fb_busy=<last>/<max>`
-and `in_busy=<last>/<max>`. The latest placeholder stream check still sees six
-active IN underflows after two consecutive probe runs. This is not yet the real
-SDR Widget audio pipeline.
+and `in_busy=<last>/<max>`. The latest placeholder stream check saw zero active
+IN underflows after two consecutive probe runs. This is not yet the real SDR
+Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
 to SAME70 flash.
