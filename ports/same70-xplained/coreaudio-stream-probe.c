@@ -2,6 +2,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,7 +13,36 @@ typedef struct {
 	uint32_t callbacks;
 	uint64_t input_bytes;
 	uint64_t output_bytes;
+	uint64_t input_checksum;
+	uint64_t output_checksum;
+	uint64_t input_nonzero;
+	uint64_t output_nonzero;
+	uint8_t pattern;
 } io_state_t;
+
+static void update_checksum(uint64_t *checksum, uint64_t *nonzero,
+	const uint8_t *data, UInt32 length)
+{
+	UInt32 index;
+
+	for (index = 0u; index < length; index++) {
+		*checksum = (*checksum * 33u) ^ data[index];
+		if (data[index] != 0u) {
+			(*nonzero)++;
+		}
+	}
+}
+
+static void fill_output_pattern(io_state_t *state, uint8_t *data, UInt32 length)
+{
+	UInt32 index;
+
+	for (index = 0u; index < length; index++) {
+		state->pattern = (uint8_t)(state->pattern + 17u);
+		data[index] = state->pattern;
+	}
+	update_checksum(&state->output_checksum, &state->output_nonzero, data, length);
+}
 
 static void print_osstatus(const char *label, OSStatus status)
 {
@@ -178,12 +208,20 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 	if (input_data != NULL) {
 		for (index = 0u; index < input_data->mNumberBuffers; index++) {
 			state->input_bytes += input_data->mBuffers[index].mDataByteSize;
+			if (input_data->mBuffers[index].mData != NULL) {
+				update_checksum(&state->input_checksum,
+					&state->input_nonzero,
+					(const uint8_t *)input_data->mBuffers[index].mData,
+					input_data->mBuffers[index].mDataByteSize);
+			}
 		}
 	}
 	if (output_data != NULL) {
 		for (index = 0u; index < output_data->mNumberBuffers; index++) {
 			if (output_data->mBuffers[index].mData != NULL) {
-				memset(output_data->mBuffers[index].mData, 0, output_data->mBuffers[index].mDataByteSize);
+				fill_output_pattern(state,
+					(uint8_t *)output_data->mBuffers[index].mData,
+					output_data->mBuffers[index].mDataByteSize);
 				state->output_bytes += output_data->mBuffers[index].mDataByteSize;
 			}
 		}
@@ -220,10 +258,15 @@ static int run_hal_probe(AudioDeviceID device)
 	CFRunLoopRunInMode(kCFRunLoopDefaultMode, PROBE_SECONDS, false);
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
-	printf("started=1 callbacks=%u input_bytes=%llu output_bytes=%llu\n",
+	printf("started=1 callbacks=%u input_bytes=%llu output_bytes=%llu "
+		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
 		state.callbacks,
 		(unsigned long long)state.input_bytes,
-		(unsigned long long)state.output_bytes);
+		(unsigned long long)state.output_bytes,
+		(unsigned long long)state.input_nonzero,
+		(unsigned long long)state.output_nonzero,
+		(unsigned long long)state.input_checksum,
+		(unsigned long long)state.output_checksum);
 	return 1;
 }
 

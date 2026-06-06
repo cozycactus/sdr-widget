@@ -324,6 +324,15 @@ static void console_usb_status(void)
 	usart1_write("/");
 	usart1_write_u32(status.audio_in_busy_max);
 	usart1_write("\r\n");
+	usart1_write("audio loop=");
+	usart1_write_u32(status.audio_loopback_level);
+	usart1_write("/");
+	usart1_write_u32(status.audio_loopback_peak);
+	usart1_write(" drop=");
+	usart1_write_u32(status.audio_loopback_drop_bytes);
+	usart1_write(" silence=");
+	usart1_write_u32(status.audio_loopback_silence_bytes);
+	usart1_write("\r\n");
 	console_write_hex_field("last", status.last_setup0);
 	console_write_hex_field("wValue", status.last_wvalue);
 	console_write_hex_field("wIndex", status.last_windex);

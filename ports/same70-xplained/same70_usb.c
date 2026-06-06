@@ -172,6 +172,7 @@
 #define USB_AUDIO_IN_EP  5u
 #define AUDIO_OUT_MAX_BYTES 294u
 #define AUDIO_IN_PACKET_BYTES 288u
+#define AUDIO_LOOPBACK_BUFFER_BYTES 8192u
 
 typedef enum {
 	EP0_STATE_IDLE = 0,
@@ -412,6 +413,13 @@ static uint32_t audio_short_count;
 static uint32_t audio_crc_count;
 static uint32_t audio_overflow_count;
 static uint32_t audio_underflow_count;
+static uint8_t audio_loopback_buffer[AUDIO_LOOPBACK_BUFFER_BYTES];
+static uint32_t audio_loopback_read;
+static uint32_t audio_loopback_write;
+static uint32_t audio_loopback_level;
+static uint32_t audio_loopback_peak;
+static uint32_t audio_loopback_drop_bytes;
+static uint32_t audio_loopback_silence_bytes;
 static uint32_t usb_address;
 static uint32_t usb_configuration;
 static uint8_t interface_alternate[USB_INTERFACE_COUNT];
@@ -623,14 +631,58 @@ static void configure_audio_endpoints(void)
 
 static void clear_iso_status(uint32_t ep, uint32_t isr);
 
+static void reset_audio_loopback_buffer(void)
+{
+	audio_loopback_read = 0u;
+	audio_loopback_write = 0u;
+	audio_loopback_level = 0u;
+}
+
+static void audio_loopback_push(uint8_t value)
+{
+	if (audio_loopback_level >= AUDIO_LOOPBACK_BUFFER_BYTES) {
+		audio_loopback_drop_bytes++;
+		return;
+	}
+
+	audio_loopback_buffer[audio_loopback_write] = value;
+	audio_loopback_write++;
+	if (audio_loopback_write >= AUDIO_LOOPBACK_BUFFER_BYTES) {
+		audio_loopback_write = 0u;
+	}
+	audio_loopback_level++;
+	if (audio_loopback_level > audio_loopback_peak) {
+		audio_loopback_peak = audio_loopback_level;
+	}
+}
+
+static uint32_t audio_loopback_pop(uint8_t *value)
+{
+	if (audio_loopback_level == 0u) {
+		*value = 0u;
+		audio_loopback_silence_bytes++;
+		return 0u;
+	}
+
+	*value = audio_loopback_buffer[audio_loopback_read];
+	audio_loopback_read++;
+	if (audio_loopback_read >= AUDIO_LOOPBACK_BUFFER_BYTES) {
+		audio_loopback_read = 0u;
+	}
+	audio_loopback_level--;
+	return 1u;
+}
+
 static void reset_audio_interface_data_toggle(uint32_t interface)
 {
 	if (interface == 2u) {
+		reset_audio_loopback_buffer();
 		USBHS_DEVEPTIER(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIER_RSTDTS;
 		USBHS_DEVEPTIER(USB_AUDIO_FB_EP) = USBHS_DEVEPTIER_RSTDTS;
 		clear_iso_status(USB_AUDIO_OUT_EP, USBHS_DEVEPTISR(USB_AUDIO_OUT_EP));
 		clear_iso_status(USB_AUDIO_FB_EP, USBHS_DEVEPTISR(USB_AUDIO_FB_EP));
 	} else if (interface == 3u) {
+		reset_audio_loopback_buffer();
 		USBHS_DEVEPTIER(USB_AUDIO_IN_EP) = USBHS_DEVEPTIER_RSTDTS;
 		clear_iso_status(USB_AUDIO_IN_EP, USBHS_DEVEPTISR(USB_AUDIO_IN_EP));
 	}
@@ -708,13 +760,15 @@ static void write_endpoint_packet(uint32_t ep, const uint8_t *data, uint32_t len
 	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
 }
 
-static void write_endpoint_zero_packet(uint32_t ep, uint32_t length)
+static void write_endpoint_loopback_packet(uint32_t ep, uint32_t length)
 {
 	volatile uint8_t *fifo = USBHS_EP_FIFO(ep);
 	uint32_t index;
+	uint8_t value;
 
 	for (index = 0u; index < length; index++) {
-		fifo[index] = 0u;
+		(void)audio_loopback_pop(&value);
+		fifo[index] = value;
 	}
 
 	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
@@ -802,7 +856,7 @@ static void poll_audio_out(void)
 
 	bytes = min_u32(endpoint_byte_count(isr), AUDIO_OUT_MAX_BYTES);
 	for (index = 0u; index < bytes; index++) {
-		(void)fifo[index];
+		audio_loopback_push(fifo[index]);
 	}
 
 	USBHS_DEVEPTICR(USB_AUDIO_OUT_EP) = USBHS_DEVEPTICR_RXOUTIC;
@@ -865,7 +919,7 @@ static void poll_audio_in(void)
 		if (((isr & USBHS_DEVEPTISR_RWALL) == 0u) || (busy >= 2u)) {
 			break;
 		}
-		write_endpoint_zero_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
+		write_endpoint_loopback_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
 		audio_in_count++;
 		audio_in_bytes += AUDIO_IN_PACKET_BYTES;
 	}
@@ -1417,6 +1471,10 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->audio_crc_count = audio_crc_count;
 	status->audio_overflow_count = audio_overflow_count;
 	status->audio_underflow_count = audio_underflow_count;
+	status->audio_loopback_level = audio_loopback_level;
+	status->audio_loopback_peak = audio_loopback_peak;
+	status->audio_loopback_drop_bytes = audio_loopback_drop_bytes;
+	status->audio_loopback_silence_bytes = audio_loopback_silence_bytes;
 	status->descriptor_count = usb_descriptor_count;
 	status->set_address_count = usb_set_address_count;
 	status->set_configuration_count = usb_set_configuration_count;

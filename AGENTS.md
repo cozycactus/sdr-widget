@@ -48,16 +48,19 @@ Verified firmware features:
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. Verified serial status shows
   `audio cfg=1 cfgok=0x00000038 ...`.
-- Placeholder streaming handlers are present: endpoint 3 drains output packets,
-  endpoint 4 returns fixed 48 kHz high-speed feedback, and endpoint 5 sends
-  silence when macOS opens the streaming alternate settings.
+- USB audio loopback handlers are present: endpoint 3 stores output packets in
+  a small byte ring, endpoint 4 returns fixed 48 kHz high-speed feedback, and
+  endpoint 5 sends queued loopback bytes with silence fill only when the ring
+  runs dry.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board. Latest host-side stream-probe output
-  was `started=1 callbacks=188 input_bytes=770048 output_bytes=770048` on
-  each of two consecutive runs. Serial counters after those runs showed
+  was `started=1 callbacks=188 input_bytes=770048 output_bytes=770048` with
+  `input_nonzero=329571 output_nonzero=767040` on each of two consecutive runs
+  with the nonzero output-pattern probe. Serial counters after those runs showed
   `peak_alt=0x0000000c`, `audio ... out=4036/1162368 fb=2/8
-  in=4089/1177632 err=0`, `under=0`, and `stall=0`. Current `alt=0x00000000`
-  after CoreAudio closed the streams.
+  in=4088/1177344 err=0`, `under=0`, `stall=0`, and
+  `audio loop=0/288 drop=0 silence=14976`. Current `alt=0x00000000` after
+  CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -65,9 +68,10 @@ Verified firmware features:
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is currently a volatile RAM
   compatibility table, not persistent SAME70 flash storage.
-- The HAL stream probe opens the widget and drives SET_INTERFACE/endpoint
-  traffic, but IOProc callbacks are currently inconsistent with this
-  placeholder firmware.
+- The HAL stream probe opens the widget, drives SET_INTERFACE/endpoint traffic,
+  writes a nonzero output pattern, and verifies nonzero input bytes through the
+  loopback path. Serial `usb` counters remain the source of truth for hardware
+  endpoint state.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -75,7 +79,8 @@ Verified firmware features:
   last verification saw zero active IN underflows after two consecutive
   stream-probe runs. Endpoint 4 feedback IN and endpoint 5 audio IN are refilled
   from USBHS RWALL/NBUSYBK state, and diagnostics report `fb_busy=<last>/<max>`
-  plus `in_busy=<last>/<max>`.
+  plus `in_busy=<last>/<max>`. Loopback diagnostics report current/peak ring
+  fill, dropped OUT bytes, and inserted silence bytes.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`, `usb attach`,
   `usb detach`.
 
@@ -130,6 +135,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes>
 ```
 
 Verified host checks:
@@ -155,7 +161,8 @@ Typical feature output:
 
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The next practical
-SAME70 milestone is moving from placeholder streams toward useful audio data:
+SAME70 milestone is moving from USB loopback toward useful audio data:
 map the original SDR Widget audio pipeline onto SAME70 peripherals if matching
-hardware is available. Add real feature storage in SAME70 flash only if
+hardware is available, or add board-level test signal generation if no codec
+hardware is attached. Add real feature storage in SAME70 flash only if
 persistence matters for the next test.
