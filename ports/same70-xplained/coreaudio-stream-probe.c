@@ -10,6 +10,8 @@
 #define DEFAULT_DEVICE_NAME "Yoyodyne SDR-Widget"
 #define DEFAULT_PROBE_SECONDS 2.0
 #define MAX_PROBE_SECONDS 120.0
+#define DEFAULT_PROBE_RUNS 1u
+#define MAX_PROBE_RUNS 100u
 #define PCM24_SCALE 8388608.0f
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
 #define CAPTURE_SAMPLE_MARGIN 65536u
@@ -44,6 +46,13 @@ typedef struct {
 	int32_t first_expected;
 	int32_t first_actual;
 } verify_result_t;
+
+typedef struct {
+	uint32_t passed;
+	uint32_t failed;
+	uint64_t compared;
+	uint64_t mismatches;
+} probe_summary_t;
 
 static void update_checksum(uint64_t *checksum, uint64_t *nonzero,
 	const uint8_t *data, UInt32 length)
@@ -212,7 +221,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -229,6 +238,22 @@ static int parse_seconds(const char *text, double *seconds)
 	}
 
 	*seconds = value;
+	return 1;
+}
+
+static int parse_u32_range(const char *text, uint32_t min_value, uint32_t max_value, uint32_t *value)
+{
+	char *end = NULL;
+	unsigned long parsed;
+
+	errno = 0;
+	parsed = strtoul(text, &end, 10);
+	if ((errno != 0) || (end == text) || (*end != '\0') ||
+	    (parsed < (unsigned long)min_value) || (parsed > (unsigned long)max_value)) {
+		return 0;
+	}
+
+	*value = (uint32_t)parsed;
 	return 1;
 }
 
@@ -430,7 +455,7 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID proc_id,
 	AudioObjectPropertyScope scope);
 
-static int run_hal_probe(AudioDeviceID device, double seconds)
+static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t run, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -446,6 +471,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 		fprintf(stderr, "sample capture allocation failed\n");
 		free(state.input_samples);
 		free(state.output_samples);
+		summary->failed++;
 		return 0;
 	}
 
@@ -454,6 +480,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 		print_osstatus("AudioDeviceCreateIOProcID", status);
 		free(state.input_samples);
 		free(state.output_samples);
+		summary->failed++;
 		return 0;
 	}
 
@@ -465,6 +492,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 		AudioDeviceDestroyIOProcID(device, proc_id);
 		free(state.input_samples);
 		free(state.output_samples);
+		summary->failed++;
 		return 0;
 	}
 
@@ -472,8 +500,9 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
 	verify = verify_loopback(&state);
-	printf("started=1 seconds=%.3f callbacks=%u input_bytes=%llu output_bytes=%llu "
+	printf("run=%u started=1 seconds=%.3f callbacks=%u input_bytes=%llu output_bytes=%llu "
 		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
+		run,
 		seconds,
 		state.callbacks,
 		(unsigned long long)state.input_bytes,
@@ -482,9 +511,10 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 		(unsigned long long)state.output_nonzero,
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
-	printf("verify=%s aligned=%u input_offset_samples=%u compared_samples=%u "
+	printf("run=%u verify=%s aligned=%u input_offset_samples=%u compared_samples=%u "
 		"mismatches=%u first_mismatch=%u expected=%d actual=%d "
 		"input_samples=%u output_samples=%u input_overflow=%u output_overflow=%u\n",
+		run,
 		verify.passed ? "pass" : "fail",
 		verify.aligned,
 		verify.input_offset,
@@ -497,6 +527,13 @@ static int run_hal_probe(AudioDeviceID device, double seconds)
 		state.output_sample_count,
 		state.input_sample_overflow,
 		state.output_sample_overflow);
+	if (verify.passed) {
+		summary->passed++;
+	} else {
+		summary->failed++;
+	}
+	summary->compared += verify.compared;
+	summary->mismatches += verify.mismatches;
 	free(state.input_samples);
 	free(state.output_samples);
 	return verify.passed ? 1 : 0;
@@ -547,13 +584,23 @@ int main(int argc, char **argv)
 {
 	const char *device_name = DEFAULT_DEVICE_NAME;
 	double seconds = DEFAULT_PROBE_SECONDS;
+	uint32_t runs = DEFAULT_PROBE_RUNS;
 	AudioDeviceID device = kAudioObjectUnknown;
+	probe_summary_t summary;
 	int index;
+	uint32_t run;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	for (index = 1; index < argc; index++) {
 		if (strcmp(argv[index], "--seconds") == 0) {
 			if (((index + 1) >= argc) || !parse_seconds(argv[index + 1], &seconds)) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			index++;
+		} else if (strcmp(argv[index], "--runs") == 0) {
+			if (((index + 1) >= argc) ||
+			    !parse_u32_range(argv[index + 1], 1u, MAX_PROBE_RUNS, &runs)) {
 				print_usage(argv[0]);
 				return 1;
 			}
@@ -581,5 +628,15 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return run_hal_probe(device, seconds) ? 0 : 1;
+	memset(&summary, 0, sizeof(summary));
+	for (run = 1u; run <= runs; run++) {
+		(void)run_hal_probe(device, seconds, run, &summary);
+	}
+	printf("summary runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
+		runs,
+		summary.passed,
+		summary.failed,
+		(unsigned long long)summary.compared,
+		(unsigned long long)summary.mismatches);
+	return (summary.failed == 0u) ? 0 : 1;
 }
