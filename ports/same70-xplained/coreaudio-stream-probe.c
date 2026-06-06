@@ -1,5 +1,6 @@
 #include <CoreAudio/CoreAudio.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -7,9 +8,11 @@
 #include <string.h>
 
 #define DEFAULT_DEVICE_NAME "Yoyodyne SDR-Widget"
-#define PROBE_SECONDS 2.0
+#define DEFAULT_PROBE_SECONDS 2.0
+#define MAX_PROBE_SECONDS 120.0
 #define PCM24_SCALE 8388608.0f
-#define MAX_CAPTURE_SAMPLES 1048576u
+#define CAPTURE_SAMPLES_PER_SECOND 128000u
+#define CAPTURE_SAMPLE_MARGIN 65536u
 #define ALIGN_WINDOW_SAMPLES 128u
 #define VERIFY_MIN_SAMPLES 4096u
 
@@ -24,6 +27,7 @@ typedef struct {
 	uint32_t sample_lcg;
 	int32_t *input_samples;
 	int32_t *output_samples;
+	uint32_t capture_sample_capacity;
 	uint32_t input_sample_count;
 	uint32_t output_sample_count;
 	uint32_t input_sample_overflow;
@@ -89,7 +93,7 @@ static int32_t float_to_pcm24(float sample)
 
 static void append_input_sample(io_state_t *state, int32_t sample)
 {
-	if (state->input_sample_count >= MAX_CAPTURE_SAMPLES) {
+	if (state->input_sample_count >= state->capture_sample_capacity) {
 		state->input_sample_overflow++;
 		return;
 	}
@@ -99,7 +103,7 @@ static void append_input_sample(io_state_t *state, int32_t sample)
 
 static void append_output_sample(io_state_t *state, int32_t sample)
 {
-	if (state->output_sample_count >= MAX_CAPTURE_SAMPLES) {
+	if (state->output_sample_count >= state->capture_sample_capacity) {
 		state->output_sample_overflow++;
 		return;
 	}
@@ -204,6 +208,39 @@ static verify_result_t verify_loopback(const io_state_t *state)
 static void print_osstatus(const char *label, OSStatus status)
 {
 	fprintf(stderr, "%s failed: %d (0x%08x)\n", label, (int)status, (unsigned int)status);
+}
+
+static void print_usage(const char *program)
+{
+	fprintf(stderr, "usage: %s [--seconds N] [--device NAME]\n", program);
+	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
+}
+
+static int parse_seconds(const char *text, double *seconds)
+{
+	char *end = NULL;
+	double value;
+
+	errno = 0;
+	value = strtod(text, &end);
+	if ((errno != 0) || (end == text) || (*end != '\0') ||
+	    (value <= 0.0) || (value > MAX_PROBE_SECONDS)) {
+		return 0;
+	}
+
+	*seconds = value;
+	return 1;
+}
+
+static uint32_t capture_capacity_for_duration(double seconds)
+{
+	double capacity = (seconds * (double)CAPTURE_SAMPLES_PER_SECOND) + (double)CAPTURE_SAMPLE_MARGIN;
+
+	if (capacity > (double)UINT32_MAX) {
+		return UINT32_MAX;
+	}
+
+	return (uint32_t)capacity;
 }
 
 static uint32_t channel_count(AudioDeviceID device, AudioObjectPropertyScope scope)
@@ -393,7 +430,7 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID proc_id,
 	AudioObjectPropertyScope scope);
 
-static int run_hal_probe(AudioDeviceID device)
+static int run_hal_probe(AudioDeviceID device, double seconds)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -402,8 +439,9 @@ static int run_hal_probe(AudioDeviceID device)
 
 	memset(&state, 0, sizeof(state));
 	state.sample_lcg = 0x12345678u;
-	state.input_samples = (int32_t *)calloc(MAX_CAPTURE_SAMPLES, sizeof(int32_t));
-	state.output_samples = (int32_t *)calloc(MAX_CAPTURE_SAMPLES, sizeof(int32_t));
+	state.capture_sample_capacity = capture_capacity_for_duration(seconds);
+	state.input_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
+	state.output_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
 	if ((state.input_samples == NULL) || (state.output_samples == NULL)) {
 		fprintf(stderr, "sample capture allocation failed\n");
 		free(state.input_samples);
@@ -430,12 +468,13 @@ static int run_hal_probe(AudioDeviceID device)
 		return 0;
 	}
 
-	CFRunLoopRunInMode(kCFRunLoopDefaultMode, PROBE_SECONDS, false);
+	CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
 	verify = verify_loopback(&state);
-	printf("started=1 callbacks=%u input_bytes=%llu output_bytes=%llu "
+	printf("started=1 seconds=%.3f callbacks=%u input_bytes=%llu output_bytes=%llu "
 		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
+		seconds,
 		state.callbacks,
 		(unsigned long long)state.input_bytes,
 		(unsigned long long)state.output_bytes,
@@ -507,11 +546,34 @@ static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID pro
 int main(int argc, char **argv)
 {
 	const char *device_name = DEFAULT_DEVICE_NAME;
+	double seconds = DEFAULT_PROBE_SECONDS;
 	AudioDeviceID device = kAudioObjectUnknown;
+	int index;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
-	if (argc > 1) {
-		device_name = argv[1];
+	for (index = 1; index < argc; index++) {
+		if (strcmp(argv[index], "--seconds") == 0) {
+			if (((index + 1) >= argc) || !parse_seconds(argv[index + 1], &seconds)) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			index++;
+		} else if (strcmp(argv[index], "--device") == 0) {
+			if ((index + 1) >= argc) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			device_name = argv[index + 1];
+			index++;
+		} else if ((strcmp(argv[index], "-h") == 0) || (strcmp(argv[index], "--help") == 0)) {
+			print_usage(argv[0]);
+			return 0;
+		} else if (argv[index][0] == '-') {
+			print_usage(argv[0]);
+			return 1;
+		} else {
+			device_name = argv[index];
+		}
 	}
 
 	if (!find_device(device_name, &device)) {
@@ -519,5 +581,5 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	return run_hal_probe(device) ? 0 : 1;
+	return run_hal_probe(device, seconds) ? 0 : 1;
 }

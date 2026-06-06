@@ -107,6 +107,7 @@ Host checks:
 ./widget-control -r
 system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 ```
 
 Typical `widget-control` feature output:
@@ -125,7 +126,7 @@ sample stream is bit-perfect. The serial `usb` counters remain the source of
 truth for USBHS endpoint state.
 
 ```text
-started=1 callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
+started=1 seconds=<n> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 verify=<pass|fail> aligned=<0|1> input_offset_samples=<n> compared_samples=<n> mismatches=<n> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
@@ -133,12 +134,12 @@ audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=
 audio loop=<level>/<peak> drop=<bytes> silence=<bytes>
 ```
 
-Latest measured two-run check on the connected board: host output was
-`started=1 callbacks=188 input_bytes=770048 output_bytes=770048` with
-`verify=pass aligned=1 input_offset_samples=2488 compared_samples=190024
-mismatches=0` on each run, while serial `usb` reported
-`out=4036/1162368 fb=2/8 in=4088/1177344 err=0`, `under=0`, `fb_busy=2/2`,
-`in_busy=2/2`, `audio loop=0/288 drop=0 silence=14976`,
+Latest measured check on the connected board: a 10-second host run reported
+`started=1 seconds=10.000 callbacks=938 input_bytes=3842048
+output_bytes=3842048` with `verify=pass aligned=1 input_offset_samples=2488
+compared_samples=958024 mismatches=0`, while serial `usb` reported
+`out=10024/2886912 fb=2/8 in=10051/2894688 err=0`, `under=0`,
+`fb_busy=2/2`, `in_busy=2/2`, `audio loop=0/288 drop=0 silence=7776`,
 `peak_alt=0x0000000c`, and `stall=0`.
 
 ## Porting Notes
@@ -165,8 +166,8 @@ Short OUT packets are expected because the observed 288-byte audio packets are
 below the 294-byte endpoint maximum. Feedback and audio IN refills now use
 USBHS RWALL/NBUSYBK state so the firmware can keep up to two banks queued; the
 serial `usb` command reports those depths as `fb_busy=<last>/<max>` and
-`in_busy=<last>/<max>`. The latest loopback stream check saw zero active IN
-underflows and zero dropped loopback bytes after two consecutive probe runs.
+`in_busy=<last>/<max>`. The latest 10-second loopback stream check saw zero
+active IN underflows and zero dropped loopback bytes.
 This is not yet the real SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted

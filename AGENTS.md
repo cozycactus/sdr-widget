@@ -54,14 +54,13 @@ Verified firmware features:
   runs dry.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board. Latest host-side stream-probe output
-  was `started=1 callbacks=188 input_bytes=770048 output_bytes=770048` with
-  `verify=pass aligned=1 input_offset_samples=2488 compared_samples=190024
-  mismatches=0` on each of two consecutive runs with the PCM24 verifier. Serial
-  counters after those runs showed
-  `peak_alt=0x0000000c`, `audio ... out=4036/1162368 fb=2/8
-  in=4088/1177344 err=0`, `under=0`, `stall=0`, and
-  `audio loop=0/288 drop=0 silence=14976`. Current `alt=0x00000000` after
-  CoreAudio closed the streams.
+  was `started=1 seconds=10.000 callbacks=938 input_bytes=3842048
+  output_bytes=3842048` with `verify=pass aligned=1
+  input_offset_samples=2488 compared_samples=958024 mismatches=0` from the
+  PCM24 verifier. Serial counters after that run showed `peak_alt=0x0000000c`,
+  `audio ... out=10024/2886912 fb=2/8 in=10051/2894688 err=0`, `under=0`,
+  `stall=0`, and `audio loop=0/288 drop=0 silence=7776`. Current
+  `alt=0x00000000` after CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -151,6 +150,7 @@ Verified host checks:
 ./widget-control -r
 system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 ```
 
 Typical feature output:

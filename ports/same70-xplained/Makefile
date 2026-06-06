@@ -7,6 +7,7 @@ HOST_CC ?= clang
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/same70-blinky
 STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
+STREAM_PROBE_ARGS ?=
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -53,7 +54,7 @@ $(STREAM_PROBE): coreaudio-stream-probe.c | $(BUILD_DIR)
 	$(HOST_CC) -Wall -Wextra -std=c11 $< -o $@ -framework CoreAudio -framework CoreFoundation
 
 stream-probe: $(STREAM_PROBE)
-	$(STREAM_PROBE)
+	$(STREAM_PROBE) $(STREAM_PROBE_ARGS)
 
 probe:
 	openocd -f board/atmel_same70_xplained.cfg -c "init; targets; flash info 0; shutdown"
