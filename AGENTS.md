@@ -44,6 +44,17 @@ Verified firmware features:
 - Endpoint 0 handles standard enumeration, interface alternate-setting
   requests, SDR Widget vendor feature requests, and basic UAC1 mute/volume and
   sample-rate control requests.
+- USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
+  configured when the host sets configuration 1. Verified serial status shows
+  `audio cfg=1 cfgok=0x00000038 ... err=0`.
+- Placeholder streaming handlers are present: endpoint 3 drains output packets,
+  endpoint 4 returns fixed 48 kHz high-speed feedback, and endpoint 5 sends
+  silence when macOS opens the streaming alternate settings.
+- The macOS CoreAudio HAL stream probe target has verified USB-level active
+  streaming against the connected board. Latest serial check after the probe:
+  `callbacks=171 input_bytes=700416 output_bytes=700416`, `peak_alt=0x0000000c`,
+  `audio ... out=1885 fb=2 in=1961 err=0`, and `stall=0`. Current
+  `alt=0x00000000` after CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -51,9 +62,8 @@ Verified firmware features:
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is currently a volatile RAM
   compatibility table, not persistent SAME70 flash storage.
-- Audio streaming endpoints are descriptor-visible only; endpoint 3 OUT,
-  endpoint 4 feedback IN, and endpoint 5 audio IN are not yet configured for
-  real isochronous traffic.
+- The HAL stream probe now produces IOProc callbacks after explicitly enabling
+  IOProc stream usage for the widget input/output streams.
 - Console commands: `?`, `help`, `status`, `usb`, `usb init`, `usb attach`,
   `usb detach`.
 
@@ -105,7 +115,8 @@ usb init=1 attached=1
 pmc_sr=0x0103ff4b pmc_usb=0x00000901 pcsr1=0x00000004
 ctrl=0x02008000 sr=0x00005c03 devctrl=0x0000009d
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
-ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1
+ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
+audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n> fb=<n> in=<n> err=0
 ```
 
 Verified host checks:
@@ -118,6 +129,7 @@ Verified host checks:
 ./widget-control -l
 ./widget-control -r
 system_profiler SPAudioDataType
+make -C ports/same70-xplained stream-probe
 ```
 
 Typical feature output:
@@ -130,8 +142,8 @@ Typical feature output:
 
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The next practical
-SAME70 milestone is moving beyond descriptor/control compatibility: configure
-USBHS endpoints 3, 4, and 5 for isochronous traffic, produce safe placeholder
-audio/feedback data, then map the original SDR Widget audio pipeline onto
-SAME70 peripherals if matching hardware is available. Add real feature storage
-in SAME70 flash only if persistence matters for the next test.
+SAME70 milestone is moving from placeholder streams toward useful audio data:
+improve feedback/input servicing if needed, then map the original SDR Widget
+audio pipeline onto SAME70 peripherals if matching hardware is available. Add
+real feature storage in SAME70 flash only if persistence matters for the next
+test.

@@ -2,9 +2,11 @@ TOOLCHAIN ?= arm-none-eabi-
 CC := $(TOOLCHAIN)gcc
 OBJCOPY := $(TOOLCHAIN)objcopy
 SIZE := $(TOOLCHAIN)size
+HOST_CC ?= clang
 
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/same70-blinky
+STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -30,7 +32,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe
+.PHONY: all clean flash probe stream-probe
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -46,6 +48,12 @@ $(TARGET).elf: $(OBJS) linker.ld
 
 $(TARGET).bin: $(TARGET).elf
 	$(OBJCOPY) -O binary $< $@
+
+$(STREAM_PROBE): coreaudio-stream-probe.c | $(BUILD_DIR)
+	$(HOST_CC) -Wall -Wextra -std=c11 $< -o $@ -framework CoreAudio -framework CoreFoundation
+
+stream-probe: $(STREAM_PROBE)
+	$(STREAM_PROBE)
 
 probe:
 	openocd -f board/atmel_same70_xplained.cfg -c "init; targets; flash info 0; shutdown"

@@ -17,6 +17,10 @@ Current milestones:
 - UAC1 SDR Widget composite descriptor on endpoint 0. macOS lists
   `Yoyodyne SDR-Widget` as a USB audio device with 2 input channels, 2 output
   channels, and 48 kHz current sample rate.
+- USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
+  configured when the host sets configuration 1. The current handlers drain
+  output packets, return fixed 48 kHz feedback, and send silence for input
+  packets when macOS opens the streaming alternate settings.
 - DG8SAQ/vendor feature control compatibility for the existing
   `widget-control` host tool.
 
@@ -81,7 +85,8 @@ Expected USB status after macOS enumeration:
 ```text
 usb init=1 attached=1
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
-ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1
+ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
+audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n> fb=<n> in=<n> err=0
 ```
 
 Host checks:
@@ -94,12 +99,24 @@ Host checks:
 ./widget-control -l
 ./widget-control -r
 system_profiler SPAudioDataType
+make -C ports/same70-xplained stream-probe
 ```
 
 Typical `widget-control` feature output:
 
 ```text
 10 37 widget uac1_dg8saq normal normal ak5394a cs4344 hd44780 500ms
+```
+
+The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
+opens the `Yoyodyne SDR-Widget` device directly. It should leave the serial
+`usb` counters with nonzero audio packet counts and a peak alternate-setting
+mask showing playback and capture streams were opened:
+
+```text
+callbacks=<n> input_bytes=<n> output_bytes=<n>
+ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
+audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n> fb=<n> in=<n> err=0
 ```
 
 ## Porting Notes
@@ -111,9 +128,12 @@ Those need SAME70 equivalents before the full application can run here.
 The USBHS bring-up code is intentionally tiny and separate from the original
 AVR32 USBB driver. It currently proves clocks, device mode, endpoint 0
 enumeration, DG8SAQ feature requests, and basic UAC1 class-control requests.
-Audio streaming endpoints are descriptor-visible only; endpoint 3 OUT,
-endpoint 4 feedback IN, and endpoint 5 audio IN are not yet configured for real
-isochronous traffic.
+Audio streaming endpoints are now hardware-configured and placeholder-serviced:
+endpoint 3 OUT drains received packets, endpoint 4 feedback IN reports the
+fixed 48 kHz high-speed feedback value, and endpoint 5 audio IN sends silence.
+The macOS HAL stream probe has verified USB-level SET_INTERFACE traffic and
+nonzero IOProc callbacks, input/output byte counts, and OUT/IN packet counters.
+This is not yet the real SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
 to SAME70 flash.

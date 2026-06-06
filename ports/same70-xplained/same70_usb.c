@@ -62,12 +62,19 @@
 #define USBHS_DEVIER_EORSTES   (1u << 3)
 #define USBHS_DEVIER_PEP0      (1u << 12)
 
-#define USBHS_DEVEPT_EPEN0     (1u << 0)
-#define USBHS_DEVEPT_EPRST0    (1u << 16)
+#define USBHS_DEVEPT_EPEN(ep)  (1u << (ep))
+#define USBHS_DEVEPT_EPRST(ep) (1u << (16u + (ep)))
+#define USBHS_DEVEPT_EPEN0     USBHS_DEVEPT_EPEN(0u)
+#define USBHS_DEVEPT_EPRST0    USBHS_DEVEPT_EPRST(0u)
 #define USBHS_DEVEPTCFG_ALLOC  (1u << 1)
 #define USBHS_DEVEPTCFG_1_BANK (0u << 2)
+#define USBHS_DEVEPTCFG_2_BANK (1u << 2)
+#define USBHS_DEVEPTCFG_8B     (0u << 4)
 #define USBHS_DEVEPTCFG_64B    (3u << 4)
+#define USBHS_DEVEPTCFG_512B   (6u << 4)
+#define USBHS_DEVEPTCFG_IN     (1u << 8)
 #define USBHS_DEVEPTCFG_CTRL   (0u << 11)
+#define USBHS_DEVEPTCFG_ISO    (1u << 11)
 
 #define USBHS_DEVEPTISR_TXINI  (1u << 0)
 #define USBHS_DEVEPTISR_RXOUTI (1u << 1)
@@ -142,6 +149,11 @@
 
 #define EP0_SIZE 64u
 #define USB_INTERFACE_COUNT 4u
+#define USB_AUDIO_OUT_EP 3u
+#define USB_AUDIO_FB_EP  4u
+#define USB_AUDIO_IN_EP  5u
+#define AUDIO_OUT_MAX_BYTES 294u
+#define AUDIO_IN_PACKET_BYTES 288u
 
 typedef enum {
 	EP0_STATE_IDLE = 0,
@@ -347,6 +359,7 @@ static const uint8_t audio_volume_current[] = { 0x00, 0x00 };
 static const uint8_t audio_volume_min[] = { 0x00, 0x80 };
 static const uint8_t audio_volume_max[] = { 0xff, 0x7f };
 static const uint8_t audio_volume_res[] = { 0x0a, 0x00 };
+static const uint8_t audio_feedback_48k_hs[] = { 0x00, 0x00, 0x06, 0x00 };
 
 static uint32_t usb_initialized;
 static uint32_t usb_attached;
@@ -358,6 +371,16 @@ static uint32_t usb_stall_count;
 static uint32_t usb_descriptor_count;
 static uint32_t usb_set_address_count;
 static uint32_t usb_set_configuration_count;
+static uint32_t usb_set_interface_count;
+static uint32_t audio_set_interface_count;
+static uint32_t interface_alternate_peak_mask;
+static uint32_t last_set_interface_index;
+static uint32_t last_set_interface_value;
+static uint32_t audio_config_count;
+static uint32_t audio_out_count;
+static uint32_t audio_feedback_count;
+static uint32_t audio_in_count;
+static uint32_t audio_error_count;
 static uint32_t usb_address;
 static uint32_t usb_configuration;
 static uint8_t interface_alternate[USB_INTERFACE_COUNT];
@@ -453,6 +476,25 @@ static void clear_interface_alternates(void)
 	}
 }
 
+static uint32_t interface_alternate_mask(void)
+{
+	uint32_t mask = 0u;
+	uint32_t index;
+
+	for (index = 0u; index < USB_INTERFACE_COUNT; index++) {
+		if (interface_alternate[index] != 0u) {
+			mask |= 1u << index;
+		}
+	}
+
+	return mask;
+}
+
+static void update_interface_alternate_peak(void)
+{
+	interface_alternate_peak_mask |= interface_alternate_mask();
+}
+
 static void clear_ep0_state(void)
 {
 	ep0_state = EP0_STATE_IDLE;
@@ -475,6 +517,87 @@ static void configure_ep0(void)
 	USBHS_DEVEPTIER(0u) = USBHS_DEVEPTIER_RSTDTS | USBHS_DEVEPTIER_RXSTPES | USBHS_DEVEPTIER_RXOUTES;
 	USBHS_DEVEPTIDR(0u) = USBHS_DEVEPTIDR_STALLRQC;
 	clear_ep0_state();
+}
+
+static void reset_endpoint(uint32_t ep)
+{
+	uint32_t enabled = USBHS_DEVEPT & 0xffffu;
+
+	USBHS_DEVEPT = enabled | USBHS_DEVEPT_EPRST(ep);
+	USBHS_DEVEPT = enabled & ~USBHS_DEVEPT_EPEN(ep);
+}
+
+static void configure_audio_endpoint(uint32_t ep, uint32_t direction, uint32_t size)
+{
+	reset_endpoint(ep);
+	USBHS_DEVEPTCFG(ep) =
+		USBHS_DEVEPTCFG_ALLOC |
+		USBHS_DEVEPTCFG_2_BANK |
+		size |
+		direction |
+		USBHS_DEVEPTCFG_ISO;
+	USBHS_DEVEPT |= USBHS_DEVEPT_EPEN(ep);
+	USBHS_DEVEPTIER(ep) = USBHS_DEVEPTIER_RSTDTS;
+	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_STALLRQC;
+}
+
+static void disable_audio_endpoints(void)
+{
+	reset_endpoint(USB_AUDIO_OUT_EP);
+	reset_endpoint(USB_AUDIO_FB_EP);
+	reset_endpoint(USB_AUDIO_IN_EP);
+	USBHS_DEVEPTCFG(USB_AUDIO_OUT_EP) = 0u;
+	USBHS_DEVEPTCFG(USB_AUDIO_FB_EP) = 0u;
+	USBHS_DEVEPTCFG(USB_AUDIO_IN_EP) = 0u;
+}
+
+static uint32_t audio_cfgok_mask(void)
+{
+	uint32_t mask = 0u;
+
+	if ((USBHS_DEVEPTISR(USB_AUDIO_OUT_EP) & USBHS_DEVEPTISR_CFGOK) != 0u) {
+		mask |= USBHS_DEVEPT_EPEN(USB_AUDIO_OUT_EP);
+	}
+	if ((USBHS_DEVEPTISR(USB_AUDIO_FB_EP) & USBHS_DEVEPTISR_CFGOK) != 0u) {
+		mask |= USBHS_DEVEPT_EPEN(USB_AUDIO_FB_EP);
+	}
+	if ((USBHS_DEVEPTISR(USB_AUDIO_IN_EP) & USBHS_DEVEPTISR_CFGOK) != 0u) {
+		mask |= USBHS_DEVEPT_EPEN(USB_AUDIO_IN_EP);
+	}
+
+	return mask;
+}
+
+static void configure_audio_endpoints(void)
+{
+	uint32_t expected =
+		USBHS_DEVEPT_EPEN(USB_AUDIO_OUT_EP) |
+		USBHS_DEVEPT_EPEN(USB_AUDIO_FB_EP) |
+		USBHS_DEVEPT_EPEN(USB_AUDIO_IN_EP);
+	uint32_t timeout = 1000u;
+
+	configure_audio_endpoint(USB_AUDIO_OUT_EP, 0u, USBHS_DEVEPTCFG_512B);
+	configure_audio_endpoint(USB_AUDIO_FB_EP, USBHS_DEVEPTCFG_IN, USBHS_DEVEPTCFG_8B);
+	configure_audio_endpoint(USB_AUDIO_IN_EP, USBHS_DEVEPTCFG_IN, USBHS_DEVEPTCFG_512B);
+	audio_config_count++;
+
+	while ((audio_cfgok_mask() != expected) && (timeout != 0u)) {
+		timeout--;
+	}
+
+	if (audio_cfgok_mask() != expected) {
+		audio_error_count++;
+	}
+}
+
+static void reset_audio_interface_data_toggle(uint32_t interface)
+{
+	if (interface == 2u) {
+		USBHS_DEVEPTIER(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIER_RSTDTS;
+		USBHS_DEVEPTIER(USB_AUDIO_FB_EP) = USBHS_DEVEPTIER_RSTDTS;
+	} else if (interface == 3u) {
+		USBHS_DEVEPTIER(USB_AUDIO_IN_EP) = USBHS_DEVEPTIER_RSTDTS;
+	}
 }
 
 static void ep0_write_packet(const uint8_t *data, uint32_t length)
@@ -534,6 +657,80 @@ static void ep0_stall(void)
 	ep0_tx_remaining = 0u;
 	pending_address_valid = 0u;
 	usb_stall_count++;
+}
+
+static void write_endpoint_packet(uint32_t ep, const uint8_t *data, uint32_t length)
+{
+	volatile uint8_t *fifo = USBHS_EP_FIFO(ep);
+	uint32_t index;
+
+	for (index = 0u; index < length; index++) {
+		fifo[index] = data[index];
+	}
+
+	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
+	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
+}
+
+static void write_endpoint_zero_packet(uint32_t ep, uint32_t length)
+{
+	volatile uint8_t *fifo = USBHS_EP_FIFO(ep);
+	uint32_t index;
+
+	for (index = 0u; index < length; index++) {
+		fifo[index] = 0u;
+	}
+
+	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
+	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
+}
+
+static void poll_audio_out(void)
+{
+	volatile uint8_t *fifo = USBHS_EP_FIFO(USB_AUDIO_OUT_EP);
+	uint32_t index;
+
+	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
+	    ((USBHS_DEVEPTISR(USB_AUDIO_OUT_EP) & USBHS_DEVEPTISR_RXOUTI) == 0u)) {
+		return;
+	}
+
+	for (index = 0u; index < AUDIO_OUT_MAX_BYTES; index++) {
+		(void)fifo[index];
+	}
+
+	USBHS_DEVEPTICR(USB_AUDIO_OUT_EP) = USBHS_DEVEPTICR_RXOUTIC;
+	USBHS_DEVEPTIDR(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIDR_FIFOCONC;
+	audio_out_count++;
+}
+
+static void poll_audio_feedback(void)
+{
+	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
+	    ((USBHS_DEVEPTISR(USB_AUDIO_FB_EP) & USBHS_DEVEPTISR_TXINI) == 0u)) {
+		return;
+	}
+
+	write_endpoint_packet(USB_AUDIO_FB_EP, audio_feedback_48k_hs, sizeof(audio_feedback_48k_hs));
+	audio_feedback_count++;
+}
+
+static void poll_audio_in(void)
+{
+	if ((usb_configuration == 0u) || (interface_alternate[3] == 0u) ||
+	    ((USBHS_DEVEPTISR(USB_AUDIO_IN_EP) & USBHS_DEVEPTISR_TXINI) == 0u)) {
+		return;
+	}
+
+	write_endpoint_zero_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
+	audio_in_count++;
+}
+
+static void poll_audio_endpoints(void)
+{
+	poll_audio_out();
+	poll_audio_feedback();
+	poll_audio_in();
 }
 
 static uint32_t select_descriptor(uint8_t type, uint8_t index, const uint8_t **data, uint32_t *length)
@@ -833,6 +1030,12 @@ static void handle_setup(const usb_setup_t *setup)
 		}
 		usb_configuration = setup->value;
 		clear_interface_alternates();
+		interface_alternate_peak_mask = 0u;
+		if (usb_configuration == 0u) {
+			disable_audio_endpoints();
+		} else {
+			configure_audio_endpoints();
+		}
 		usb_set_configuration_count++;
 		ep0_start_status_in();
 		break;
@@ -867,6 +1070,14 @@ static void handle_setup(const usb_setup_t *setup)
 			return;
 		}
 		interface_alternate[setup->index] = (uint8_t)setup->value;
+		update_interface_alternate_peak();
+		usb_set_interface_count++;
+		last_set_interface_index = setup->index;
+		last_set_interface_value = setup->value;
+		if (setup->index >= 2u) {
+			audio_set_interface_count++;
+			reset_audio_interface_data_toggle(setup->index);
+		}
 		ep0_start_status_in();
 		break;
 	case USB_REQ_CLEAR_FEATURE:
@@ -962,6 +1173,9 @@ void same70_usb_poll(void)
 		USBHS_DEVICR = USBHS_DEVICR_EORSTC;
 		set_usb_address(0u);
 		usb_configuration = 0u;
+		clear_interface_alternates();
+		interface_alternate_peak_mask = 0u;
+		disable_audio_endpoints();
 		configure_ep0();
 	}
 
@@ -997,6 +1211,8 @@ void same70_usb_poll(void)
 			}
 		}
 	}
+
+	poll_audio_endpoints();
 }
 
 void same70_usb_get_status(same70_usb_status_t *status)
@@ -1014,14 +1230,32 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->ep0cfg = USBHS_DEVEPTCFG(0u);
 	status->ep0isr = USBHS_DEVEPTISR(0u);
 	status->ep0imr = USBHS_DEVEPTIMR(0u);
+	status->ep3cfg = USBHS_DEVEPTCFG(USB_AUDIO_OUT_EP);
+	status->ep3isr = USBHS_DEVEPTISR(USB_AUDIO_OUT_EP);
+	status->ep4cfg = USBHS_DEVEPTCFG(USB_AUDIO_FB_EP);
+	status->ep4isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
+	status->ep5cfg = USBHS_DEVEPTCFG(USB_AUDIO_IN_EP);
+	status->ep5isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
 	status->reset_count = usb_reset_count;
 	status->setup_count = usb_setup_count;
 	status->tx_count = usb_tx_count;
 	status->rxout_count = usb_rxout_count;
 	status->stall_count = usb_stall_count;
+	status->audio_config_count = audio_config_count;
+	status->audio_cfgok_mask = audio_cfgok_mask();
+	status->audio_out_count = audio_out_count;
+	status->audio_feedback_count = audio_feedback_count;
+	status->audio_in_count = audio_in_count;
+	status->audio_error_count = audio_error_count;
 	status->descriptor_count = usb_descriptor_count;
 	status->set_address_count = usb_set_address_count;
 	status->set_configuration_count = usb_set_configuration_count;
+	status->set_interface_count = usb_set_interface_count;
+	status->audio_set_interface_count = audio_set_interface_count;
+	status->interface_alternate_mask = interface_alternate_mask();
+	status->interface_alternate_peak_mask = interface_alternate_peak_mask;
+	status->last_set_interface_index = last_set_interface_index;
+	status->last_set_interface_value = last_set_interface_value;
 	status->address = usb_address;
 	status->configuration = usb_configuration;
 	status->ep0_state = (uint32_t)ep0_state;
