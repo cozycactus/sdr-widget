@@ -31,9 +31,18 @@ typedef struct {
 	uint32_t audio_config_count;
 	uint32_t audio_cfgok_mask;
 	uint32_t audio_out_count;
+	uint32_t audio_out_bytes;
+	uint32_t audio_out_last_bytes;
+	uint32_t audio_out_max_bytes;
 	uint32_t audio_feedback_count;
+	uint32_t audio_feedback_bytes;
 	uint32_t audio_in_count;
+	uint32_t audio_in_bytes;
 	uint32_t audio_error_count;
+	uint32_t audio_short_count;
+	uint32_t audio_crc_count;
+	uint32_t audio_overflow_count;
+	uint32_t audio_underflow_count;
 	uint32_t descriptor_count;
 	uint32_t set_address_count;
 	uint32_t set_configuration_count;

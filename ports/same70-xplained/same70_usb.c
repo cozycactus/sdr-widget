@@ -79,11 +79,26 @@
 #define USBHS_DEVEPTISR_TXINI  (1u << 0)
 #define USBHS_DEVEPTISR_RXOUTI (1u << 1)
 #define USBHS_DEVEPTISR_RXSTPI (1u << 2)
+#define USBHS_DEVEPTISR_UNDERFI (1u << 2)
+#define USBHS_DEVEPTISR_HBISOINERRI (1u << 3)
+#define USBHS_DEVEPTISR_HBISOFLUSHI (1u << 4)
+#define USBHS_DEVEPTISR_OVERFI (1u << 5)
+#define USBHS_DEVEPTISR_CRCERRI (1u << 6)
+#define USBHS_DEVEPTISR_SHORTPACKETI (1u << 7)
+#define USBHS_DEVEPTISR_ERRORTRANS (1u << 10)
+#define USBHS_DEVEPTISR_BYCT_MASK (0x7ffu << 20)
+#define USBHS_DEVEPTISR_BYCT_SHIFT 20u
 #define USBHS_DEVEPTISR_CFGOK  (1u << 18)
 
 #define USBHS_DEVEPTICR_TXINIC  (1u << 0)
 #define USBHS_DEVEPTICR_RXOUTIC (1u << 1)
 #define USBHS_DEVEPTICR_RXSTPIC (1u << 2)
+#define USBHS_DEVEPTICR_UNDERFIC (1u << 2)
+#define USBHS_DEVEPTICR_HBISOINERRIC (1u << 3)
+#define USBHS_DEVEPTICR_HBISOFLUSHIC (1u << 4)
+#define USBHS_DEVEPTICR_OVERFIC (1u << 5)
+#define USBHS_DEVEPTICR_CRCERRIC (1u << 6)
+#define USBHS_DEVEPTICR_SHORTPACKETIC (1u << 7)
 
 #define USBHS_DEVEPTIER_RXSTPES  (1u << 2)
 #define USBHS_DEVEPTIER_RXOUTES  (1u << 1)
@@ -378,9 +393,18 @@ static uint32_t last_set_interface_index;
 static uint32_t last_set_interface_value;
 static uint32_t audio_config_count;
 static uint32_t audio_out_count;
+static uint32_t audio_out_bytes;
+static uint32_t audio_out_last_bytes;
+static uint32_t audio_out_max_bytes;
 static uint32_t audio_feedback_count;
+static uint32_t audio_feedback_bytes;
 static uint32_t audio_in_count;
+static uint32_t audio_in_bytes;
 static uint32_t audio_error_count;
+static uint32_t audio_short_count;
+static uint32_t audio_crc_count;
+static uint32_t audio_overflow_count;
+static uint32_t audio_underflow_count;
 static uint32_t usb_address;
 static uint32_t usb_configuration;
 static uint8_t interface_alternate[USB_INTERFACE_COUNT];
@@ -685,45 +709,120 @@ static void write_endpoint_zero_packet(uint32_t ep, uint32_t length)
 	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
 }
 
+static uint32_t endpoint_byte_count(uint32_t isr)
+{
+	return (isr & USBHS_DEVEPTISR_BYCT_MASK) >> USBHS_DEVEPTISR_BYCT_SHIFT;
+}
+
+static void count_iso_status(uint32_t ep, uint32_t isr)
+{
+	uint32_t clear = 0u;
+
+	if ((isr & USBHS_DEVEPTISR_SHORTPACKETI) != 0u) {
+		audio_short_count++;
+		clear |= USBHS_DEVEPTICR_SHORTPACKETIC;
+	}
+	if ((isr & USBHS_DEVEPTISR_CRCERRI) != 0u) {
+		audio_crc_count++;
+		audio_error_count++;
+		clear |= USBHS_DEVEPTICR_CRCERRIC;
+	}
+	if ((isr & USBHS_DEVEPTISR_OVERFI) != 0u) {
+		audio_overflow_count++;
+		audio_error_count++;
+		clear |= USBHS_DEVEPTICR_OVERFIC;
+	}
+	if ((isr & USBHS_DEVEPTISR_HBISOFLUSHI) != 0u) {
+		audio_error_count++;
+		clear |= USBHS_DEVEPTICR_HBISOFLUSHIC;
+	}
+	if ((isr & USBHS_DEVEPTISR_HBISOINERRI) != 0u) {
+		audio_error_count++;
+		clear |= USBHS_DEVEPTICR_HBISOINERRIC;
+	}
+	if ((isr & USBHS_DEVEPTISR_UNDERFI) != 0u) {
+		audio_underflow_count++;
+		audio_error_count++;
+		clear |= USBHS_DEVEPTICR_UNDERFIC;
+	}
+
+	if (clear != 0u) {
+		USBHS_DEVEPTICR(ep) = clear;
+	}
+}
+
 static void poll_audio_out(void)
 {
 	volatile uint8_t *fifo = USBHS_EP_FIFO(USB_AUDIO_OUT_EP);
+	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_OUT_EP);
+	uint32_t bytes;
 	uint32_t index;
 
+	count_iso_status(USB_AUDIO_OUT_EP, isr);
 	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
-	    ((USBHS_DEVEPTISR(USB_AUDIO_OUT_EP) & USBHS_DEVEPTISR_RXOUTI) == 0u)) {
+	    ((isr & USBHS_DEVEPTISR_RXOUTI) == 0u)) {
 		return;
 	}
 
-	for (index = 0u; index < AUDIO_OUT_MAX_BYTES; index++) {
+	bytes = min_u32(endpoint_byte_count(isr), AUDIO_OUT_MAX_BYTES);
+	for (index = 0u; index < bytes; index++) {
 		(void)fifo[index];
 	}
 
 	USBHS_DEVEPTICR(USB_AUDIO_OUT_EP) = USBHS_DEVEPTICR_RXOUTIC;
 	USBHS_DEVEPTIDR(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIDR_FIFOCONC;
 	audio_out_count++;
+	audio_out_bytes += bytes;
+	audio_out_last_bytes = bytes;
+	if (bytes > audio_out_max_bytes) {
+		audio_out_max_bytes = bytes;
+	}
 }
 
 static void poll_audio_feedback(void)
 {
+	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
+	uint32_t attempts;
+
+	count_iso_status(USB_AUDIO_FB_EP, isr);
 	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
-	    ((USBHS_DEVEPTISR(USB_AUDIO_FB_EP) & USBHS_DEVEPTISR_TXINI) == 0u)) {
+	    ((isr & USBHS_DEVEPTISR_TXINI) == 0u)) {
 		return;
 	}
 
-	write_endpoint_packet(USB_AUDIO_FB_EP, audio_feedback_48k_hs, sizeof(audio_feedback_48k_hs));
-	audio_feedback_count++;
+	for (attempts = 0u; attempts < 2u; attempts++) {
+		isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
+		count_iso_status(USB_AUDIO_FB_EP, isr);
+		if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
+			break;
+		}
+		write_endpoint_packet(USB_AUDIO_FB_EP, audio_feedback_48k_hs, sizeof(audio_feedback_48k_hs));
+		audio_feedback_count++;
+		audio_feedback_bytes += sizeof(audio_feedback_48k_hs);
+	}
 }
 
 static void poll_audio_in(void)
 {
+	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
+	uint32_t attempts;
+
+	count_iso_status(USB_AUDIO_IN_EP, isr);
 	if ((usb_configuration == 0u) || (interface_alternate[3] == 0u) ||
-	    ((USBHS_DEVEPTISR(USB_AUDIO_IN_EP) & USBHS_DEVEPTISR_TXINI) == 0u)) {
+	    ((isr & USBHS_DEVEPTISR_TXINI) == 0u)) {
 		return;
 	}
 
-	write_endpoint_zero_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
-	audio_in_count++;
+	for (attempts = 0u; attempts < 2u; attempts++) {
+		isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
+		count_iso_status(USB_AUDIO_IN_EP, isr);
+		if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
+			break;
+		}
+		write_endpoint_zero_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
+		audio_in_count++;
+		audio_in_bytes += AUDIO_IN_PACKET_BYTES;
+	}
 }
 
 static void poll_audio_endpoints(void)
@@ -731,6 +830,15 @@ static void poll_audio_endpoints(void)
 	poll_audio_out();
 	poll_audio_feedback();
 	poll_audio_in();
+}
+
+static void prime_audio_interface(uint32_t interface)
+{
+	if (interface == 2u) {
+		poll_audio_feedback();
+	} else if (interface == 3u) {
+		poll_audio_in();
+	}
 }
 
 static uint32_t select_descriptor(uint8_t type, uint8_t index, const uint8_t **data, uint32_t *length)
@@ -1077,6 +1185,9 @@ static void handle_setup(const usb_setup_t *setup)
 		if (setup->index >= 2u) {
 			audio_set_interface_count++;
 			reset_audio_interface_data_toggle(setup->index);
+			if (setup->value != 0u) {
+				prime_audio_interface(setup->index);
+			}
 		}
 		ep0_start_status_in();
 		break;
@@ -1244,9 +1355,18 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->audio_config_count = audio_config_count;
 	status->audio_cfgok_mask = audio_cfgok_mask();
 	status->audio_out_count = audio_out_count;
+	status->audio_out_bytes = audio_out_bytes;
+	status->audio_out_last_bytes = audio_out_last_bytes;
+	status->audio_out_max_bytes = audio_out_max_bytes;
 	status->audio_feedback_count = audio_feedback_count;
+	status->audio_feedback_bytes = audio_feedback_bytes;
 	status->audio_in_count = audio_in_count;
+	status->audio_in_bytes = audio_in_bytes;
 	status->audio_error_count = audio_error_count;
+	status->audio_short_count = audio_short_count;
+	status->audio_crc_count = audio_crc_count;
+	status->audio_overflow_count = audio_overflow_count;
+	status->audio_underflow_count = audio_underflow_count;
 	status->descriptor_count = usb_descriptor_count;
 	status->set_address_count = usb_set_address_count;
 	status->set_configuration_count = usb_set_configuration_count;

@@ -86,7 +86,8 @@ Expected USB status after macOS enumeration:
 usb init=1 attached=1
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
-audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n> fb=<n> in=<n> err=0
+audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
+audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n>
 ```
 
 Host checks:
@@ -111,12 +112,15 @@ Typical `widget-control` feature output:
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It should leave the serial
 `usb` counters with nonzero audio packet counts and a peak alternate-setting
-mask showing playback and capture streams were opened:
+mask showing playback and capture streams were opened. The host-side IOProc
+callback counters may be zero on this placeholder firmware; the serial `usb`
+counters are the source of truth for USB-level stream activity.
 
 ```text
-callbacks=<n> input_bytes=<n> output_bytes=<n>
+started=1 callbacks=<n> input_bytes=<n> output_bytes=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
-audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n> fb=<n> in=<n> err=0
+audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
+audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n>
 ```
 
 ## Porting Notes
@@ -132,8 +136,11 @@ Audio streaming endpoints are now hardware-configured and placeholder-serviced:
 endpoint 3 OUT drains received packets, endpoint 4 feedback IN reports the
 fixed 48 kHz high-speed feedback value, and endpoint 5 audio IN sends silence.
 The macOS HAL stream probe has verified USB-level SET_INTERFACE traffic and
-nonzero IOProc callbacks, input/output byte counts, and OUT/IN packet counters.
-This is not yet the real SDR Widget audio pipeline.
+nonzero OUT/IN packet counters. The firmware now reads the USBHS isochronous
+BYCT field for actual OUT byte accounting and reports short/CRC/overflow/
+underflow diagnostics. Short OUT packets are expected because the observed
+288-byte audio packets are below the 294-byte endpoint maximum. This is not yet
+the real SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
 to SAME70 flash.

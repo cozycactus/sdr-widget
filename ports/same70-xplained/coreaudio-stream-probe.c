@@ -1,9 +1,9 @@
 #include <CoreAudio/CoreAudio.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 
 #define DEFAULT_DEVICE_NAME "Yoyodyne SDR-Widget"
 #define PROBE_SECONDS 2.0
@@ -142,7 +142,7 @@ static int find_device(const char *needle, AudioDeviceID *device)
 		}
 
 		if (cfstring_get(name, name_text, sizeof(name_text)) && (strstr(name_text, needle) != NULL)) {
-				*device = devices[index];
+			*device = devices[index];
 			printf("device=%s input_channels=%u output_channels=%u input_streams=%u output_streams=%u\n",
 				name_text,
 				channel_count(devices[index], kAudioDevicePropertyScopeInput),
@@ -220,7 +220,7 @@ static int run_hal_probe(AudioDeviceID device)
 	CFRunLoopRunInMode(kCFRunLoopDefaultMode, PROBE_SECONDS, false);
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
-	printf("callbacks=%u input_bytes=%llu output_bytes=%llu\n",
+	printf("started=1 callbacks=%u input_bytes=%llu output_bytes=%llu\n",
 		state.callbacks,
 		(unsigned long long)state.input_bytes,
 		(unsigned long long)state.output_bytes);
