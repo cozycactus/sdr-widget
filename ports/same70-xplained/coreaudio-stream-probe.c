@@ -12,6 +12,8 @@
 #define MAX_PROBE_SECONDS 120.0
 #define DEFAULT_PROBE_RUNS 1u
 #define MAX_PROBE_RUNS 100u
+#define VERIFY_MODE_LOOPBACK 0u
+#define VERIFY_MODE_INPUT    1u
 #define PCM24_SCALE 8388608.0f
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
 #define CAPTURE_SAMPLE_MARGIN 65536u
@@ -214,6 +216,20 @@ static verify_result_t verify_loopback(const io_state_t *state)
 	return result;
 }
 
+static verify_result_t verify_input_activity(const io_state_t *state)
+{
+	verify_result_t result;
+
+	memset(&result, 0, sizeof(result));
+	result.first_mismatch = UINT32_MAX;
+	result.compared = state->input_sample_count;
+	result.passed =
+		(state->input_sample_overflow == 0u) &&
+		(state->input_sample_count >= VERIFY_MIN_SAMPLES) &&
+		(state->input_nonzero != 0u);
+	return result;
+}
+
 static void print_osstatus(const char *label, OSStatus status)
 {
 	fprintf(stderr, "%s failed: %d (0x%08x)\n", label, (int)status, (unsigned int)status);
@@ -221,7 +237,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--verify loopback|input] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -255,6 +271,25 @@ static int parse_u32_range(const char *text, uint32_t min_value, uint32_t max_va
 
 	*value = (uint32_t)parsed;
 	return 1;
+}
+
+static int parse_verify_mode(const char *text, uint32_t *mode)
+{
+	if (strcmp(text, "loopback") == 0) {
+		*mode = VERIFY_MODE_LOOPBACK;
+		return 1;
+	}
+	if (strcmp(text, "input") == 0) {
+		*mode = VERIFY_MODE_INPUT;
+		return 1;
+	}
+
+	return 0;
+}
+
+static const char *verify_mode_name(uint32_t mode)
+{
+	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
 }
 
 static uint32_t capture_capacity_for_duration(double seconds)
@@ -455,7 +490,8 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID proc_id,
 	AudioObjectPropertyScope scope);
 
-static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t run, probe_summary_t *summary)
+static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t verify_mode,
+	uint32_t run, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -499,7 +535,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t run, pro
 	CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
-	verify = verify_loopback(&state);
+	verify = (verify_mode == VERIFY_MODE_INPUT) ? verify_input_activity(&state) : verify_loopback(&state);
 	printf("run=%u started=1 seconds=%.3f callbacks=%u input_bytes=%llu output_bytes=%llu "
 		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
 		run,
@@ -511,11 +547,12 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t run, pro
 		(unsigned long long)state.output_nonzero,
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
-	printf("run=%u verify=%s aligned=%u input_offset_samples=%u compared_samples=%u "
+	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u compared_samples=%u "
 		"mismatches=%u first_mismatch=%u expected=%d actual=%d "
 		"input_samples=%u output_samples=%u input_overflow=%u output_overflow=%u\n",
 		run,
 		verify.passed ? "pass" : "fail",
+		verify_mode_name(verify_mode),
 		verify.aligned,
 		verify.input_offset,
 		verify.compared,
@@ -585,6 +622,7 @@ int main(int argc, char **argv)
 	const char *device_name = DEFAULT_DEVICE_NAME;
 	double seconds = DEFAULT_PROBE_SECONDS;
 	uint32_t runs = DEFAULT_PROBE_RUNS;
+	uint32_t verify_mode = VERIFY_MODE_LOOPBACK;
 	AudioDeviceID device = kAudioObjectUnknown;
 	probe_summary_t summary;
 	int index;
@@ -601,6 +639,12 @@ int main(int argc, char **argv)
 		} else if (strcmp(argv[index], "--runs") == 0) {
 			if (((index + 1) >= argc) ||
 			    !parse_u32_range(argv[index + 1], 1u, MAX_PROBE_RUNS, &runs)) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			index++;
+		} else if (strcmp(argv[index], "--verify") == 0) {
+			if (((index + 1) >= argc) || !parse_verify_mode(argv[index + 1], &verify_mode)) {
 				print_usage(argv[0]);
 				return 1;
 			}
@@ -630,9 +674,10 @@ int main(int argc, char **argv)
 
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
-		(void)run_hal_probe(device, seconds, run, &summary);
+		(void)run_hal_probe(device, seconds, verify_mode, run, &summary);
 	}
-	printf("summary runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
+	printf("summary mode=%s runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
+		verify_mode_name(verify_mode),
 		runs,
 		summary.passed,
 		summary.failed,

@@ -50,17 +50,23 @@ Verified firmware features:
   `audio cfg=1 cfgok=0x00000038 ...`.
 - USB audio loopback handlers are present: endpoint 3 stores output packets in
   a small byte ring, endpoint 4 returns fixed 48 kHz high-speed feedback, and
-  endpoint 5 sends queued loopback bytes with silence fill only when the ring
-  runs dry.
+  endpoint 5 can send queued loopback bytes, a generated PCM24 pattern, or
+  silence. Default source is loopback.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board. Latest host-side repeated-open check
-  was `summary runs=3 passed=3 failed=0 compared_samples=569048 mismatches=0`
-  with `input_offset_samples=2488` on each run from the PCM24 verifier. A
-  previous steady 10-second run compared 958024 samples with zero mismatches.
+  was `summary mode=loopback runs=3 passed=3 failed=0 compared_samples=569048
+  mismatches=0` with `input_offset_samples=2488` on each run from the PCM24
+  verifier. A previous steady 10-second run compared 958024 samples with zero
+  mismatches.
   Serial counters after the repeated-open check showed `peak_alt=0x0000000c`,
   `audio ... out=6047/1741536 fb=2/8 in=6125/1764000 err=0`, `under=0`,
   `stall=0`, and `audio loop=0/288 drop=0 silence=22464`. Current
   `alt=0x00000000` after CoreAudio closed the streams.
+- `audio pattern` plus `stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify
+  input"` verified generated capture-only input with `summary mode=input
+  runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0`. The board
+  was switched back to `audio loop`; final serial status showed `source=loop`,
+  `err=0`, `under=0`, `drop=0`, and `stall=0`.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -82,8 +88,8 @@ Verified firmware features:
   from USBHS RWALL/NBUSYBK state, and diagnostics report `fb_busy=<last>/<max>`
   plus `in_busy=<last>/<max>`. Loopback diagnostics report current/peak ring
   fill, dropped OUT bytes, and inserted silence bytes.
-- Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`, `usb attach`,
-  `usb detach`.
+- Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
+  `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio silence`.
 
 Known SAME70/board quirks:
 
@@ -152,6 +158,7 @@ system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 3"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 ```
 
 Typical feature output:

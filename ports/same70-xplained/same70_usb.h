@@ -3,6 +3,10 @@
 
 #include "types.h"
 
+#define SAME70_USB_AUDIO_SOURCE_LOOPBACK 0u
+#define SAME70_USB_AUDIO_SOURCE_PATTERN  1u
+#define SAME70_USB_AUDIO_SOURCE_SILENCE  2u
+
 typedef struct {
 	uint32_t initialized;
 	uint32_t attached;
@@ -47,6 +51,7 @@ typedef struct {
 	uint32_t audio_crc_count;
 	uint32_t audio_overflow_count;
 	uint32_t audio_underflow_count;
+	uint32_t audio_source_mode;
 	uint32_t audio_loopback_level;
 	uint32_t audio_loopback_peak;
 	uint32_t audio_loopback_drop_bytes;
@@ -74,5 +79,6 @@ void same70_usb_attach(void);
 void same70_usb_detach(void);
 void same70_usb_poll(void);
 void same70_usb_get_status(same70_usb_status_t *status);
+uint32_t same70_usb_set_audio_source(uint32_t source);
 
 #endif
