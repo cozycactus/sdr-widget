@@ -87,7 +87,7 @@ usb init=1 attached=1
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n>
+audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 ```
 
 Host checks:
@@ -120,8 +120,14 @@ counters are the source of truth for USB-level stream activity.
 started=1 callbacks=<n> input_bytes=<n> output_bytes=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n>
+audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 ```
+
+Latest measured two-run check on the connected board: host output was
+`started=1 callbacks=0 input_bytes=0 output_bytes=0`, while serial `usb`
+reported `out=402/115776 fb=2/8 in=5361/1543968 err=6`,
+`under=6`, `fb_busy=2/2`, `in_busy=2/2`, `peak_alt=0x0000000c`, and
+`stall=0`.
 
 ## Porting Notes
 
@@ -141,9 +147,12 @@ BYCT field for actual OUT byte accounting and reports short/CRC/overflow/
 underflow diagnostics. Error flags are counted only while the corresponding
 alternate setting is active, and stale flags are cleared while streams are
 inactive. Short OUT packets are expected because the observed 288-byte audio
-packets are below the 294-byte endpoint maximum. The latest placeholder stream
-check still sees about four active IN underflows per two-second probe run. This
-is not yet the real SDR Widget audio pipeline.
+packets are below the 294-byte endpoint maximum. Feedback and audio IN refills
+now use USBHS RWALL/NBUSYBK state so the firmware can keep up to two banks
+queued; the serial `usb` command reports those depths as `fb_busy=<last>/<max>`
+and `in_busy=<last>/<max>`. The latest placeholder stream check still sees six
+active IN underflows after two consecutive probe runs. This is not yet the real
+SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
 to SAME70 flash.

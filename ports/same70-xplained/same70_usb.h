@@ -36,8 +36,12 @@ typedef struct {
 	uint32_t audio_out_max_bytes;
 	uint32_t audio_feedback_count;
 	uint32_t audio_feedback_bytes;
+	uint32_t audio_feedback_busy_last;
+	uint32_t audio_feedback_busy_max;
 	uint32_t audio_in_count;
 	uint32_t audio_in_bytes;
+	uint32_t audio_in_busy_last;
+	uint32_t audio_in_busy_max;
 	uint32_t audio_error_count;
 	uint32_t audio_short_count;
 	uint32_t audio_crc_count;

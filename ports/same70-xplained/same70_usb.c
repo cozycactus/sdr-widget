@@ -86,6 +86,9 @@
 #define USBHS_DEVEPTISR_CRCERRI (1u << 6)
 #define USBHS_DEVEPTISR_SHORTPACKETI (1u << 7)
 #define USBHS_DEVEPTISR_ERRORTRANS (1u << 10)
+#define USBHS_DEVEPTISR_NBUSYBK_MASK (3u << 12)
+#define USBHS_DEVEPTISR_NBUSYBK_SHIFT 12u
+#define USBHS_DEVEPTISR_RWALL (1u << 16)
 #define USBHS_DEVEPTISR_BYCT_MASK (0x7ffu << 20)
 #define USBHS_DEVEPTISR_BYCT_SHIFT 20u
 #define USBHS_DEVEPTISR_CFGOK  (1u << 18)
@@ -398,8 +401,12 @@ static uint32_t audio_out_last_bytes;
 static uint32_t audio_out_max_bytes;
 static uint32_t audio_feedback_count;
 static uint32_t audio_feedback_bytes;
+static uint32_t audio_feedback_busy_last;
+static uint32_t audio_feedback_busy_max;
 static uint32_t audio_in_count;
 static uint32_t audio_in_bytes;
+static uint32_t audio_in_busy_last;
+static uint32_t audio_in_busy_max;
 static uint32_t audio_error_count;
 static uint32_t audio_short_count;
 static uint32_t audio_crc_count;
@@ -719,6 +726,11 @@ static uint32_t endpoint_byte_count(uint32_t isr)
 	return (isr & USBHS_DEVEPTISR_BYCT_MASK) >> USBHS_DEVEPTISR_BYCT_SHIFT;
 }
 
+static uint32_t endpoint_busy_banks(uint32_t isr)
+{
+	return (isr & USBHS_DEVEPTISR_NBUSYBK_MASK) >> USBHS_DEVEPTISR_NBUSYBK_SHIFT;
+}
+
 static void clear_iso_status(uint32_t ep, uint32_t isr)
 {
 	uint32_t clear =
@@ -806,6 +818,7 @@ static void poll_audio_out(void)
 static void poll_audio_feedback(void)
 {
 	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
+	uint32_t busy;
 	uint32_t attempts;
 
 	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u)) {
@@ -813,15 +826,15 @@ static void poll_audio_feedback(void)
 		return;
 	}
 
-	count_iso_status(USB_AUDIO_FB_EP, isr);
-	if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
-		return;
-	}
-
 	for (attempts = 0u; attempts < 2u; attempts++) {
 		isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
 		count_iso_status(USB_AUDIO_FB_EP, isr);
-		if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
+		busy = endpoint_busy_banks(isr);
+		audio_feedback_busy_last = busy;
+		if (busy > audio_feedback_busy_max) {
+			audio_feedback_busy_max = busy;
+		}
+		if (((isr & USBHS_DEVEPTISR_RWALL) == 0u) || (busy >= 2u)) {
 			break;
 		}
 		write_endpoint_packet(USB_AUDIO_FB_EP, audio_feedback_48k_hs, sizeof(audio_feedback_48k_hs));
@@ -833,6 +846,7 @@ static void poll_audio_feedback(void)
 static void poll_audio_in(void)
 {
 	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
+	uint32_t busy;
 	uint32_t attempts;
 
 	if ((usb_configuration == 0u) || (interface_alternate[3] == 0u)) {
@@ -840,15 +854,15 @@ static void poll_audio_in(void)
 		return;
 	}
 
-	count_iso_status(USB_AUDIO_IN_EP, isr);
-	if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
-		return;
-	}
-
 	for (attempts = 0u; attempts < 2u; attempts++) {
 		isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
 		count_iso_status(USB_AUDIO_IN_EP, isr);
-		if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
+		busy = endpoint_busy_banks(isr);
+		audio_in_busy_last = busy;
+		if (busy > audio_in_busy_max) {
+			audio_in_busy_max = busy;
+		}
+		if (((isr & USBHS_DEVEPTISR_RWALL) == 0u) || (busy >= 2u)) {
 			break;
 		}
 		write_endpoint_zero_packet(USB_AUDIO_IN_EP, AUDIO_IN_PACKET_BYTES);
@@ -1392,8 +1406,12 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->audio_out_max_bytes = audio_out_max_bytes;
 	status->audio_feedback_count = audio_feedback_count;
 	status->audio_feedback_bytes = audio_feedback_bytes;
+	status->audio_feedback_busy_last = audio_feedback_busy_last;
+	status->audio_feedback_busy_max = audio_feedback_busy_max;
 	status->audio_in_count = audio_in_count;
 	status->audio_in_bytes = audio_in_bytes;
+	status->audio_in_busy_last = audio_in_busy_last;
+	status->audio_in_busy_max = audio_in_busy_max;
 	status->audio_error_count = audio_error_count;
 	status->audio_short_count = audio_short_count;
 	status->audio_crc_count = audio_crc_count;

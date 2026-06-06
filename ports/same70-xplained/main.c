@@ -325,6 +325,14 @@ static void console_usb_status(void)
 	usart1_write_u32(status.audio_overflow_count);
 	usart1_write(" under=");
 	usart1_write_u32(status.audio_underflow_count);
+	usart1_write(" fb_busy=");
+	usart1_write_u32(status.audio_feedback_busy_last);
+	usart1_write("/");
+	usart1_write_u32(status.audio_feedback_busy_max);
+	usart1_write(" in_busy=");
+	usart1_write_u32(status.audio_in_busy_last);
+	usart1_write("/");
+	usart1_write_u32(status.audio_in_busy_max);
 	usart1_write("\r\n");
 	console_write_hex_field("last", status.last_setup0);
 	console_write_hex_field("wValue", status.last_wvalue);

@@ -46,16 +46,17 @@ Verified firmware features:
   sample-rate control requests.
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. Verified serial status shows
-  `audio cfg=1 cfgok=0x00000038 ... err=0`.
+  `audio cfg=1 cfgok=0x00000038 ...`.
 - Placeholder streaming handlers are present: endpoint 3 drains output packets,
   endpoint 4 returns fixed 48 kHz high-speed feedback, and endpoint 5 sends
   silence when macOS opens the streaming alternate settings.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
-  streaming against the connected board. Latest serial check after the probe:
-  `started=1 callbacks=186 input_bytes=761856 output_bytes=761856`,
-  `peak_alt=0x0000000c`, `audio ... out=4011/1155168 fb=2/8
-  in=4063/1170144 err=8`, and `stall=0` after two consecutive probe runs.
-  Current `alt=0x00000000` after CoreAudio closed the streams.
+  streaming against the connected board. Latest host-side stream-probe output
+  was `started=1 callbacks=0 input_bytes=0 output_bytes=0`, while serial
+  counters after two consecutive probe runs showed USB stream traffic:
+  `peak_alt=0x0000000c`, `audio ... out=402/115776 fb=2/8
+  in=5361/1543968 err=6`, `under=6`, and `stall=0`. Current
+  `alt=0x00000000` after CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -70,8 +71,10 @@ Verified firmware features:
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
   maximum. IN underflow counting now ignores inactive alternate settings; the
-  last verification saw four active IN underflows per two-second stream-probe
-  run.
+  last verification saw six active IN underflows after two consecutive
+  stream-probe runs. Endpoint 4 feedback IN and endpoint 5 audio IN are refilled
+  from USBHS RWALL/NBUSYBK state, and diagnostics report `fb_busy=<last>/<max>`
+  plus `in_busy=<last>/<max>`.
 - Console commands: `?`, `help`, `status`, `usb`, `usb init`, `usb attach`,
   `usb detach`.
 
@@ -125,7 +128,7 @@ ctrl=0x02008000 sr=0x00005c03 devctrl=0x0000009d
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n>
+audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 ```
 
 Verified host checks:
@@ -152,7 +155,6 @@ Typical feature output:
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The next practical
 SAME70 milestone is moving from placeholder streams toward useful audio data:
-reduce the remaining IN underflows, improve feedback/input servicing if needed,
-then map the original SDR Widget audio pipeline onto SAME70 peripherals if
-matching hardware is available. Add real feature storage in SAME70 flash only
-if persistence matters for the next test.
+reduce the remaining IN underflows or map the original SDR Widget audio
+pipeline onto SAME70 peripherals if matching hardware is available. Add real
+feature storage in SAME70 flash only if persistence matters for the next test.
