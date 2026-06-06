@@ -118,13 +118,15 @@ Typical `widget-control` feature output:
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It should leave the serial
 `usb` counters with nonzero audio packet counts and a peak alternate-setting
-mask showing playback and capture streams were opened. The probe writes a
-nonzero output byte pattern and reports checksum/nonzero fields for a quick
-loopback check; the serial `usb` counters remain the source of truth for USBHS
-endpoint state.
+mask showing playback and capture streams were opened. The probe writes exact
+PCM24 test samples through CoreAudio Float32 buffers, captures the returned
+input samples, aligns the loopback latency, and reports whether the aligned
+sample stream is bit-perfect. The serial `usb` counters remain the source of
+truth for USBHS endpoint state.
 
 ```text
 started=1 callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
+verify=<pass|fail> aligned=<0|1> input_offset_samples=<n> compared_samples=<n> mismatches=<n> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
@@ -133,9 +135,10 @@ audio loop=<level>/<peak> drop=<bytes> silence=<bytes>
 
 Latest measured two-run check on the connected board: host output was
 `started=1 callbacks=188 input_bytes=770048 output_bytes=770048` with
-`input_nonzero=329571 output_nonzero=767040` on each run, while serial `usb`
-reported `out=4036/1162368 fb=2/8 in=4088/1177344 err=0`, `under=0`,
-`fb_busy=2/2`, `in_busy=2/2`, `audio loop=0/288 drop=0 silence=14976`,
+`verify=pass aligned=1 input_offset_samples=2488 compared_samples=190024
+mismatches=0` on each run, while serial `usb` reported
+`out=4036/1162368 fb=2/8 in=4088/1177344 err=0`, `under=0`, `fb_busy=2/2`,
+`in_busy=2/2`, `audio loop=0/288 drop=0 silence=14976`,
 `peak_alt=0x0000000c`, and `stall=0`.
 
 ## Porting Notes
@@ -151,10 +154,11 @@ Audio streaming endpoints are now hardware-configured and loopback-serviced:
 endpoint 3 OUT stores received packets in an 8192-byte ring, endpoint 4
 feedback IN reports the fixed 48 kHz high-speed feedback value, and endpoint 5
 audio IN sends queued loopback bytes or silence if the ring is empty. The macOS
-HAL stream probe writes a changing output byte pattern and reports input/output
-checksums plus nonzero byte counts, so USB-level loopback can be checked without
-codec hardware. The firmware now reads the USBHS isochronous BYCT field for
-actual OUT byte accounting and reports short/CRC/overflow/underflow
+HAL stream probe writes deterministic PCM24 sample values through CoreAudio
+Float32 buffers, quantizes returned input back to PCM24, aligns stream latency,
+and fails if any aligned sample differs. The firmware now reads the USBHS
+isochronous BYCT field for actual OUT byte accounting and reports
+short/CRC/overflow/underflow
 diagnostics. Error flags are counted only while the corresponding alternate
 setting is active, and stale flags are cleared while streams are inactive.
 Short OUT packets are expected because the observed 288-byte audio packets are
