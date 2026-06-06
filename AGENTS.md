@@ -52,10 +52,10 @@ Verified firmware features:
   silence when macOS opens the streaming alternate settings.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board. Latest serial check after the probe:
-  `started=1 callbacks=0 input_bytes=0 output_bytes=0`, `peak_alt=0x0000000c`,
-  `audio ... out=843/242784 fb=2/8 in=11874/3419712 err=15`, and `stall=0`.
-  Current `alt=0x00000000` after CoreAudio closed the streams. Treat the
-  serial counters as the stream-activity source of truth.
+  `started=1 callbacks=186 input_bytes=761856 output_bytes=761856`,
+  `peak_alt=0x0000000c`, `audio ... out=4011/1155168 fb=2/8
+  in=4063/1170144 err=8`, and `stall=0` after two consecutive probe runs.
+  Current `alt=0x00000000` after CoreAudio closed the streams.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -69,7 +69,9 @@ Verified firmware features:
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
-  maximum. The last verification saw 15 IN underflows.
+  maximum. IN underflow counting now ignores inactive alternate settings; the
+  last verification saw four active IN underflows per two-second stream-probe
+  run.
 - Console commands: `?`, `help`, `status`, `usb`, `usb init`, `usb attach`,
   `usb detach`.
 

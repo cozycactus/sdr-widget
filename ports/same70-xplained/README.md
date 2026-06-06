@@ -138,9 +138,12 @@ fixed 48 kHz high-speed feedback value, and endpoint 5 audio IN sends silence.
 The macOS HAL stream probe has verified USB-level SET_INTERFACE traffic and
 nonzero OUT/IN packet counters. The firmware now reads the USBHS isochronous
 BYCT field for actual OUT byte accounting and reports short/CRC/overflow/
-underflow diagnostics. Short OUT packets are expected because the observed
-288-byte audio packets are below the 294-byte endpoint maximum. This is not yet
-the real SDR Widget audio pipeline.
+underflow diagnostics. Error flags are counted only while the corresponding
+alternate setting is active, and stale flags are cleared while streams are
+inactive. Short OUT packets are expected because the observed 288-byte audio
+packets are below the 294-byte endpoint maximum. The latest placeholder stream
+check still sees about four active IN underflows per two-second probe run. This
+is not yet the real SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
 to SAME70 flash.

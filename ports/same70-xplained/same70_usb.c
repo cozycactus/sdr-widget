@@ -614,13 +614,18 @@ static void configure_audio_endpoints(void)
 	}
 }
 
+static void clear_iso_status(uint32_t ep, uint32_t isr);
+
 static void reset_audio_interface_data_toggle(uint32_t interface)
 {
 	if (interface == 2u) {
 		USBHS_DEVEPTIER(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIER_RSTDTS;
 		USBHS_DEVEPTIER(USB_AUDIO_FB_EP) = USBHS_DEVEPTIER_RSTDTS;
+		clear_iso_status(USB_AUDIO_OUT_EP, USBHS_DEVEPTISR(USB_AUDIO_OUT_EP));
+		clear_iso_status(USB_AUDIO_FB_EP, USBHS_DEVEPTISR(USB_AUDIO_FB_EP));
 	} else if (interface == 3u) {
 		USBHS_DEVEPTIER(USB_AUDIO_IN_EP) = USBHS_DEVEPTIER_RSTDTS;
+		clear_iso_status(USB_AUDIO_IN_EP, USBHS_DEVEPTISR(USB_AUDIO_IN_EP));
 	}
 }
 
@@ -714,6 +719,21 @@ static uint32_t endpoint_byte_count(uint32_t isr)
 	return (isr & USBHS_DEVEPTISR_BYCT_MASK) >> USBHS_DEVEPTISR_BYCT_SHIFT;
 }
 
+static void clear_iso_status(uint32_t ep, uint32_t isr)
+{
+	uint32_t clear =
+		isr & (USBHS_DEVEPTICR_UNDERFIC |
+		       USBHS_DEVEPTICR_HBISOINERRIC |
+		       USBHS_DEVEPTICR_HBISOFLUSHIC |
+		       USBHS_DEVEPTICR_OVERFIC |
+		       USBHS_DEVEPTICR_CRCERRIC |
+		       USBHS_DEVEPTICR_SHORTPACKETIC);
+
+	if (clear != 0u) {
+		USBHS_DEVEPTICR(ep) = clear;
+	}
+}
+
 static void count_iso_status(uint32_t ep, uint32_t isr)
 {
 	uint32_t clear = 0u;
@@ -758,9 +778,13 @@ static void poll_audio_out(void)
 	uint32_t bytes;
 	uint32_t index;
 
+	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u)) {
+		clear_iso_status(USB_AUDIO_OUT_EP, isr);
+		return;
+	}
+
 	count_iso_status(USB_AUDIO_OUT_EP, isr);
-	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
-	    ((isr & USBHS_DEVEPTISR_RXOUTI) == 0u)) {
+	if ((isr & USBHS_DEVEPTISR_RXOUTI) == 0u) {
 		return;
 	}
 
@@ -784,9 +808,13 @@ static void poll_audio_feedback(void)
 	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_FB_EP);
 	uint32_t attempts;
 
+	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u)) {
+		clear_iso_status(USB_AUDIO_FB_EP, isr);
+		return;
+	}
+
 	count_iso_status(USB_AUDIO_FB_EP, isr);
-	if ((usb_configuration == 0u) || (interface_alternate[2] == 0u) ||
-	    ((isr & USBHS_DEVEPTISR_TXINI) == 0u)) {
+	if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
 		return;
 	}
 
@@ -807,9 +835,13 @@ static void poll_audio_in(void)
 	uint32_t isr = USBHS_DEVEPTISR(USB_AUDIO_IN_EP);
 	uint32_t attempts;
 
+	if ((usb_configuration == 0u) || (interface_alternate[3] == 0u)) {
+		clear_iso_status(USB_AUDIO_IN_EP, isr);
+		return;
+	}
+
 	count_iso_status(USB_AUDIO_IN_EP, isr);
-	if ((usb_configuration == 0u) || (interface_alternate[3] == 0u) ||
-	    ((isr & USBHS_DEVEPTISR_TXINI) == 0u)) {
+	if ((isr & USBHS_DEVEPTISR_TXINI) == 0u) {
 		return;
 	}
 
