@@ -91,6 +91,17 @@ Verified firmware features:
   capture-side checks, while `--verify input` remains a looser nonzero activity
   check. Serial `usb` counters remain the source of truth for hardware endpoint
   state.
+- `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
+  full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
+  pattern at both formats, final switch back to `audio loop`, final 48 kHz/24-bit
+  loopback, and serial status confirmation for `source=loop` plus
+  `fmt=48k24/48k24`. Latest default run reported `audio-verify: pass`, with
+  loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
+  compared_samples=379472 mismatches=0` and `rate=44100 bits=16 runs=2 passed=2
+  failed=0 compared_samples=346648 mismatches=0`, plus pattern summaries
+  `rate=48000 bits=24 runs=2 passed=2 failed=0 compared_samples=385024
+  mismatches=0` and `rate=44100 bits=16 runs=2 passed=2 failed=0
+  compared_samples=352256 mismatches=0`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -175,6 +186,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
+make -C ports/same70-xplained audio-verify
 ```
 
 Typical feature output:

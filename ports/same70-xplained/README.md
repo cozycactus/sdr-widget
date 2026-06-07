@@ -115,6 +115,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
+make -C ports/same70-xplained audio-verify
 ```
 
 Typical `widget-control` feature output:
@@ -135,6 +136,14 @@ firmware source is `audio pattern`; it aligns the captured samples against the
 firmware's deterministic LCG pattern and compares them sample-for-sample. Use
 `--verify input` for a looser nonzero input activity check. The serial `usb`
 counters remain the source of truth for USBHS endpoint state.
+
+The `audio-verify` target wraps the same probe with serial source switching. It
+selects `audio loop`, verifies loopback at both advertised formats, selects
+`audio pattern`, verifies the generated input pattern at both formats, switches
+back to `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms
+the serial `usb` status reports `source=loop` and `fmt=48k24/48k24`. Use
+`AUDIO_VERIFY_ARGS="--seconds N --loopback-runs N --pattern-runs N --serial
+/dev/cu.usbmodem..."` to tune the run length or serial port.
 
 ```text
 nominal_sample_rate=<44100|48000>
@@ -171,6 +180,15 @@ compared_samples=352256 mismatches=0`, with expected-pattern offsets `2688` and
 1-second 48 kHz/24-bit loopback check passed with zero mismatches. Final serial
 status showed `source=loop`, `fmt=48k24/48k24`, `err=0`, `under=0`, `drop=0`,
 and `stall=0`.
+
+Latest full automated gate: `make -C ports/same70-xplained audio-verify`
+reported `audio-verify: pass`. It measured 48 kHz/24-bit loopback
+`runs=2 passed=2 failed=0 compared_samples=379472 mismatches=0`, 44.1 kHz/16-bit
+loopback `runs=2 passed=2 failed=0 compared_samples=346648 mismatches=0`,
+48 kHz/24-bit pattern `runs=2 passed=2 failed=0 compared_samples=385024
+mismatches=0`, and 44.1 kHz/16-bit pattern `runs=2 passed=2 failed=0
+compared_samples=352256 mismatches=0`. Final serial status reported
+`source=loop`, `fmt=48k24/48k24`, `err=0`, `under=0`, `drop=0`, and `stall=0`.
 
 ## Porting Notes
 

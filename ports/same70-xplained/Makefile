@@ -3,11 +3,13 @@ CC := $(TOOLCHAIN)gcc
 OBJCOPY := $(TOOLCHAIN)objcopy
 SIZE := $(TOOLCHAIN)size
 HOST_CC ?= clang
+PYTHON ?= python3
 
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/same70-blinky
 STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
 STREAM_PROBE_ARGS ?=
+AUDIO_VERIFY_ARGS ?=
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -33,7 +35,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe stream-probe
+.PHONY: all clean flash probe stream-probe audio-verify
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -55,6 +57,9 @@ $(STREAM_PROBE): coreaudio-stream-probe.c | $(BUILD_DIR)
 
 stream-probe: $(STREAM_PROBE)
 	$(STREAM_PROBE) $(STREAM_PROBE_ARGS)
+
+audio-verify: $(STREAM_PROBE)
+	$(PYTHON) audio-verify.py --probe $(STREAM_PROBE) $(AUDIO_VERIFY_ARGS)
 
 probe:
 	openocd -f board/atmel_same70_xplained.cfg -c "init; targets; flash info 0; shutdown"
