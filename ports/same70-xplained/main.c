@@ -309,6 +309,8 @@ static void console_usb_status(void)
 	usart1_write_u32(status.audio_out_last_bytes);
 	usart1_write(" max_out=");
 	usart1_write_u32(status.audio_out_max_bytes);
+	usart1_write(" outnz=");
+	usart1_write_u32(status.audio_out_nonzero_bytes);
 	usart1_write(" short=");
 	usart1_write_u32(status.audio_short_count);
 	usart1_write(" crc=");

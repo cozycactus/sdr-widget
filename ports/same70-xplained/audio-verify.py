@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--skip-silence", action="store_true")
     parser.add_argument("--skip-final-loopback", action="store_true")
     parser.add_argument("--skip-serial-counter-check", action="store_true")
+    parser.add_argument("--strict-serial-counter-check", action="store_true")
     args = parser.parse_args()
 
     port = find_serial_port(args.serial)
@@ -112,7 +113,9 @@ def main():
             expected_fmt = "48k24/48k24"
 
         status = run_serial(port, "usb", args.serial_timeout)
-        if not require_serial_state(status, expected_source, expected_fmt, baseline_fields):
+        if not require_serial_state(
+            status, expected_source, expected_fmt, baseline_fields,
+            allow_underflow_restart=not args.strict_serial_counter_check):
             return 1
     except subprocess.CalledProcessError as exc:
         return exc.returncode

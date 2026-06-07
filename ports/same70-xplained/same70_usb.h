@@ -40,6 +40,7 @@ typedef struct {
 	uint32_t audio_cfgok_mask;
 	uint32_t audio_out_count;
 	uint32_t audio_out_bytes;
+	uint32_t audio_out_nonzero_bytes;
 	uint32_t audio_out_last_bytes;
 	uint32_t audio_out_max_bytes;
 	uint32_t audio_feedback_count;

@@ -98,7 +98,7 @@ usb init=1 attached=1
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
+audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
@@ -136,7 +136,9 @@ Typical `widget-control` feature output:
 ```
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
-opens the `Yoyodyne SDR-Widget` device directly. It should leave the serial
+opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
+output, and unity output volume before starting streams, and prints
+`hog_mode=1` when exclusive ownership was granted. It should leave the serial
 `usb` counters with nonzero audio packet counts and a peak alternate-setting
 mask showing playback and capture streams were opened. The probe selects the
 requested nominal sample rate, writes exact integer test samples through
@@ -169,12 +171,14 @@ selects `audio loop`, verifies loopback at both advertised formats, selects
 `audio silence`, verifies zero input at both formats, switches back to
 `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
 `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
-starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
-`drop` increases by the final status. Generated-source runs use
-`--silent-output` so only loopback verification drives the host USB OUT test
-pattern. Use `AUDIO_VERIFY_ARGS="--seconds N
+starting `usb` status and audits the final counters. `stall`, `crc`, `over`,
+and `drop` increases are hard failures; `under` increases from CoreAudio stream
+restarts are allowed only when `err` increases by no more than the same amount.
+Generated-source runs use `--silent-output` so only loopback verification drives
+the host USB OUT test pattern. Use `AUDIO_VERIFY_ARGS="--seconds N
 --loopback-runs N --pattern-runs N --tone-runs N --sine-runs N
 --silence-runs N --skip-final-loopback --skip-serial-counter-check
+--strict-serial-counter-check
 --serial /dev/cu.usbmodem..."` to tune the run length, per-source run counts,
 final loopback reset, strict serial counter audit, or serial port.
 
@@ -241,7 +245,7 @@ run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|silence> align
 summary mode=<loopback|input|pattern|tone|sine|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
+audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
@@ -270,7 +274,7 @@ compared_samples=352256 mismatches=0`, with expected-pattern offsets `2688` and
 status showed `source=loop`, `fmt=48k24/48k24`, `err=0`, `under=0`, `drop=0`,
 and `stall=0`.
 
-Latest full automated gate with strict serial-diagnostic delta checks and
+Earlier full automated gate with strict serial-diagnostic delta checks and
 hash-audited sample comparisons:
 `make -C ports/same70-xplained audio-verify` reported `audio-verify: pass`. It
 measured 48 kHz/24-bit loopback `runs=2 passed=2 failed=0
@@ -296,6 +300,16 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 44.1 kHz/16-bit. Final serial status reported `source=loop`, `fmt=48k24/48k24`,
 `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
 increase from the starting baseline.
+
+Current generated-source gate status: `make -C ports/same70-xplained
+audio-generated-verify` passes with `hog_mode=1`, `output_nonzero=0`, and
+`mismatches=0` for pattern, tone, sine, and silence at both advertised formats.
+After adding `outnz=<bytes>`, focused 48 kHz/24-bit loopback diagnostics showed
+the board receiving nonzero USB OUT payload, but the captured input did not
+align to the probe's host-output pattern. The latest debug WAVs were
+`/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
+Loopback alignment is therefore the current open audio issue; generated USB IN
+sources remain exact.
 
 Latest WAV capture check used `audio-capture` with `--seconds 1`,
 `--source loop`, `--rate 44100`, `--bits 16`, captured input

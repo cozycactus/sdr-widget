@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define DEFAULT_DEVICE_NAME "Yoyodyne SDR-Widget"
 #define DEFAULT_PROBE_SECONDS 2.0
@@ -696,6 +697,97 @@ static void print_osstatus(const char *label, OSStatus status)
 	fprintf(stderr, "%s failed: %d (0x%08x)\n", label, (int)status, (unsigned int)status);
 }
 
+static uint32_t property_is_settable(AudioDeviceID device, const AudioObjectPropertyAddress *address)
+{
+	Boolean settable = false;
+	OSStatus status;
+
+	if (!AudioObjectHasProperty(device, address)) {
+		return 0u;
+	}
+	status = AudioObjectIsPropertySettable(device, address, &settable);
+	return (status == noErr) && settable;
+}
+
+static void set_output_mute(AudioDeviceID device, AudioObjectPropertyElement element, UInt32 muted)
+{
+	AudioObjectPropertyAddress address = {
+		kAudioDevicePropertyMute,
+		kAudioDevicePropertyScopeOutput,
+		element
+	};
+	OSStatus status;
+
+	if (!property_is_settable(device, &address)) {
+		return;
+	}
+	status = AudioObjectSetPropertyData(device, &address, 0u, NULL, sizeof(muted), &muted);
+	if (status != noErr) {
+		print_osstatus("AudioObjectSetPropertyData(output mute)", status);
+	}
+}
+
+static void set_output_volume(AudioDeviceID device, AudioObjectPropertyElement element, Float32 volume)
+{
+	AudioObjectPropertyAddress address = {
+		kAudioDevicePropertyVolumeScalar,
+		kAudioDevicePropertyScopeOutput,
+		element
+	};
+	OSStatus status;
+
+	if (!property_is_settable(device, &address)) {
+		return;
+	}
+	status = AudioObjectSetPropertyData(device, &address, 0u, NULL, sizeof(volume), &volume);
+	if (status != noErr) {
+		print_osstatus("AudioObjectSetPropertyData(output volume)", status);
+	}
+}
+
+static void configure_output_unity(AudioDeviceID device, uint32_t output_channels)
+{
+	uint32_t channel;
+
+	set_output_mute(device, kAudioObjectPropertyElementMain, 0u);
+	set_output_volume(device, kAudioObjectPropertyElementMain, 1.0f);
+	for (channel = 1u; channel <= output_channels; channel++) {
+		set_output_mute(device, channel, 0u);
+		set_output_volume(device, channel, 1.0f);
+	}
+}
+
+static uint32_t set_hog_mode(AudioDeviceID device, pid_t owner)
+{
+	AudioObjectPropertyAddress address = {
+		kAudioDevicePropertyHogMode,
+		kAudioObjectPropertyScopeGlobal,
+		kAudioObjectPropertyElementMain
+	};
+	pid_t value = owner;
+	OSStatus status;
+
+	if (!property_is_settable(device, &address)) {
+		return 0u;
+	}
+	status = AudioObjectSetPropertyData(device, &address, 0u, NULL, sizeof(value), &value);
+	if (status != noErr) {
+		print_osstatus("AudioObjectSetPropertyData(hog mode)", status);
+		return 0u;
+	}
+	return 1u;
+}
+
+static uint32_t acquire_hog_mode(AudioDeviceID device)
+{
+	return set_hog_mode(device, getpid());
+}
+
+static void release_hog_mode(AudioDeviceID device)
+{
+	(void)set_hog_mode(device, (pid_t)-1);
+}
+
 static void print_usage(const char *program)
 {
 	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|silence] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
@@ -1224,6 +1316,7 @@ int main(int argc, char **argv)
 	probe_summary_t summary;
 	uint32_t input_channels;
 	uint32_t output_channels;
+	uint32_t hog_acquired;
 	int index;
 	uint32_t run;
 
@@ -1331,6 +1424,9 @@ int main(int argc, char **argv)
 	if (output_channels == 0u) {
 		output_channels = 1u;
 	}
+	hog_acquired = acquire_hog_mode(device);
+	printf("hog_mode=%u\n", hog_acquired);
+	configure_output_unity(device, output_channels);
 
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
@@ -1347,5 +1443,8 @@ int main(int argc, char **argv)
 		summary.failed,
 		(unsigned long long)summary.compared,
 		(unsigned long long)summary.mismatches);
+	if (hog_acquired) {
+		release_hog_mode(device);
+	}
 	return (summary.failed == 0u) ? 0 : 1;
 }

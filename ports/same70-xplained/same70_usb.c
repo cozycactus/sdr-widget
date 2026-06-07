@@ -444,6 +444,7 @@ static uint32_t last_set_interface_value;
 static uint32_t audio_config_count;
 static uint32_t audio_out_count;
 static uint32_t audio_out_bytes;
+static uint32_t audio_out_nonzero_bytes;
 static uint32_t audio_out_last_bytes;
 static uint32_t audio_out_max_bytes;
 static uint32_t audio_feedback_count;
@@ -1301,6 +1302,9 @@ static void poll_audio_out(void)
 
 	bytes = min_u32(endpoint_byte_count(isr), audio_out_max_packet_bytes());
 	for (index = 0u; index < bytes; index++) {
+		if (fifo[index] != 0u) {
+			audio_out_nonzero_bytes++;
+		}
 		if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_LOOPBACK) {
 			audio_loopback_push(fifo[index]);
 		} else {
@@ -1933,6 +1937,7 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->audio_cfgok_mask = audio_cfgok_mask();
 	status->audio_out_count = audio_out_count;
 	status->audio_out_bytes = audio_out_bytes;
+	status->audio_out_nonzero_bytes = audio_out_nonzero_bytes;
 	status->audio_out_last_bytes = audio_out_last_bytes;
 	status->audio_out_max_bytes = audio_out_max_bytes;
 	status->audio_feedback_count = audio_feedback_count;

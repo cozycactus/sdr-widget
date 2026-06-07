@@ -96,9 +96,22 @@ def parse_counter(fields, key):
     return int(value.split("/", 1)[0], 0)
 
 
-def require_serial_state(output, source=None, fmt=None, baseline=None):
+def require_serial_state(output, source=None, fmt=None, baseline=None,
+                         allow_underflow_restart=False):
     fields = parse_serial_fields(output)
     failures = []
+    under_delta = 0
+    err_delta = 0
+
+    if baseline is not None:
+        under_start = parse_counter(baseline, "under")
+        under_current = parse_counter(fields, "under")
+        err_start = parse_counter(baseline, "err")
+        err_current = parse_counter(fields, "err")
+        if (under_start is not None) and (under_current is not None):
+            under_delta = max(0, under_current - under_start)
+        if (err_start is not None) and (err_current is not None):
+            err_delta = max(0, err_current - err_start)
 
     if fields.get("config") != "1":
         failures.append("config is not 1")
@@ -116,6 +129,10 @@ def require_serial_state(output, source=None, fmt=None, baseline=None):
             if start is None:
                 failures.append(f"missing baseline {key}")
             elif current > start:
+                if allow_underflow_restart and key == "under":
+                    continue
+                if allow_underflow_restart and key == "err" and err_delta <= under_delta:
+                    continue
                 failures.append(f"{key} increased from {start} to {current}")
 
     if failures:

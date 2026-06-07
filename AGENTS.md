@@ -108,13 +108,15 @@ Verified firmware features:
   both formats, silence at both formats, final switch back to `audio loop`,
   final 48 kHz/24-bit loopback, and serial status confirmation for
   `source=loop` plus `fmt=48k24/48k24`. It also captures a starting serial
-  `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or `drop`
-  increases by the final status. Generated-source runs now pass
-  `--silent-output`, so only loopback verification drives the host USB OUT test
-  pattern. Use `--skip-final-loopback` for quiet generated-source checks that
-  should leave the last selected source active, and pair it with
-  `--skip-serial-counter-check` when host interface restarts would otherwise
-  increment `err/under`. Latest quiet sine-only run used `--seconds 1
+  `usb` status and audits final counters. `stall`, `crc`, `over`, and `drop`
+  increases are hard failures; `under` increases from CoreAudio stream restarts
+  are allowed when `err` increases by no more than the same amount. Pass
+  `--strict-serial-counter-check` to fail on those restart underflows too.
+  Generated-source runs now pass `--silent-output`, so only loopback
+  verification drives the host USB OUT test pattern. Use `--skip-final-loopback`
+  for quiet generated-source checks that should leave the last selected source
+  active, and pair it with `--skip-serial-counter-check` when final counter
+  auditing is not useful. Latest quiet sine-only run used `--seconds 1
   --skip-loopback --skip-pattern --skip-tone --skip-silence
   --skip-final-loopback --skip-serial-counter-check --sine-runs 1`; both
   48 kHz/24-bit and 44.1 kHz/16-bit passed with `output_nonzero=0` and
@@ -124,9 +126,14 @@ Verified firmware features:
   silence at both formats with silent USB OUT, no final loopback, and no serial
   counter audit. Latest run passed with `output_nonzero=0` on every probe and
   `mismatches=0` for pattern, tone, sine, and silence at both advertised
-  formats; the target ends on `audio silence`, then the board was manually set
-  back to `audio sine`.
-  Latest hash-audited default run reported
+  formats, with `hog_mode=1` on the host probe; the target ends on
+  `audio silence`, then the board was manually set back to `audio sine`.
+  Current focused 48 kHz/24-bit loopback diagnostics show the board receiving
+  nonzero USB OUT payload via `outnz=<bytes>`, but captured input does not align
+  to the probe's host-output pattern. The latest debug WAVs are
+  `/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
+  Loopback alignment is the current open audio issue; generated USB IN sources
+  remain exact. Earlier hash-audited default run reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2
@@ -252,7 +259,7 @@ ctrl=0x02008000 sr=0x00005c03 devctrl=0x0000009d
 events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
-audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
+audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
