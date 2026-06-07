@@ -5,12 +5,13 @@ codec path on the stock SAME70 Xplained board. No external codec board is
 connected yet, and the firmware must keep reporting `external_codec=0` until
 this map is physically wired and verified.
 
-The preferred target is the UC3A3 schematic set in
+The preferred ADC target is the UC3A3 schematic set in
 `/Users/cozy/Downloads/DOCS-SDR-Widget-kit/UC3A3`: an AK5394 ADC-board
-interface plus the ES9023 DAC sheet, not a generic USB/I2S audio module. The
-current SAME70 board can prove USB timing, generated audio, and bit-perfect
-loopback, but it cannot prove analog SDR input or output without external
-ADC/DAC hardware.
+interface. The current first DAC experiment is one AD1856 mono output test;
+the ES9023 DAC sheet remains the original UC3A3 reference path. This is
+not a generic USB/I2S audio module. The current SAME70 board can prove USB
+timing, generated audio, and bit-perfect loopback, but it cannot prove analog
+SDR input or output without external ADC/DAC hardware.
 
 The preferred future clocking model is documented in
 `external-codec-low-jitter-clock-plan.md`: an external low-jitter clock board is
@@ -55,6 +56,20 @@ on its serial clock/frame inputs.
 | Optional I2C SCL | PA4 | EXT1/EXT2 pin 12 or J500 pin 10 | I2C_SCL or SCL | TWCK0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
 | Power | -- | J501 pin 4 or EXT VCC pins | 3V3/VCC | 3.3 V supply | Logic supply only unless current budget is confirmed | Never use 5V for SAME70 I/O |
 | Ground | -- | J501 pins 6/7 or nearby header GND | GND | Ground | Common reference | Connect before signals |
+
+## AD1856 Mono DAC Test Signals
+
+One AD1856 is the first selected DAC smoke test. It is a mono 16-bit PCM DAC,
+not an I2S DAC and not yet a stereo/IQ output path. See
+`external-dac-ad1856-mono-test.md` before wiring.
+
+| AD1856 signal | SAME70 pin | Board header pin | SAME70 function | Notes |
+| --- | --- | --- | --- | --- |
+| `DATA` pin 7 | PD26 | J502 pin 1 | TD | Candidate serial data into one AD1856 |
+| `CLK` pin 5 | PB1 | J505 pin 8 or J507 pin 4 | TK | Candidate data clock; must meet AD1856 timing |
+| `LE` pin 6 | PB0 | J505 pin 7 or J507 pin 5 | TF | Candidate latch-enable pulse; do not assume normal LRCK is valid |
+| `VOUT` pin 9 | -- | -- | -- | External analog low-pass/output stage |
+| `+VL/-VL`, `+VS/-VS` | -- | -- | -- | External bipolar supplies; do not power from SAME70 3V3 |
 
 ## Bring-Up Order
 

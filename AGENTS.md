@@ -58,23 +58,28 @@ Verified firmware features:
 - The SAME70 port does not yet drive the original external codec path. The
   `audio hw` serial command, also wrapped by `make -C ports/same70-xplained
   audio-hw`, reports `external_codec=0`, `i2sc=not_configured`, and
-  `needs_external_codec_board`. The UC3A3 schematic path is an AK5394
-  ADC-board interface plus ES9023 DAC with AD_MCLK, DA_MCLK, ADC/DAC serial
-  clocks and frames, ADC serial data, DAC serial data, codec reset, and ADC
-  control wired to an SSC-capable peripheral. The future stock-board wiring
-  plan now uses an external low-jitter clock board as ADC/DAC master, with
-  SAME70 as an SSC-style RX/TX slave: DA_SDATA/TD on PD26/J502.1,
-  AD_SDATA/RD on PA10/J504.2, AD_LRCK or AD_FSYNC/RF on PD24/J504.1,
-  AD_SCLK/RK on PA22/J504.3, and DA_SCLK/TK plus DA_LRCK/TF on PB1/PB0 via
-  J505 or J507. External MCLK is expected to feed ADC/DAC directly; PCK0 on
-  PB13 is reserved for optional diagnostics, not codec MCLK. Details live in
-  `ports/same70-xplained/external-codec-original-uc3a3-map.md` and
-  `ports/same70-xplained/external-codec-low-jitter-clock-plan.md` and
-  `ports/same70-xplained/external-codec-pin-map.md`. The status seam is
+  `needs_external_codec_board`. The future ADC target is an original-style
+  AK5394 ADC-board interface. The selected first DAC bring-up is one AD1856
+  mono output test; ES9023 remains the original DAC reference path. AD1856 is
+  not I2S and needs DATA/CLK/LE plus external bipolar supplies, so one chip is
+  a mono smoke test only, not stereo/IQ. The future stock-board wiring plan
+  still uses an external low-jitter clock board as ADC/DAC or formatter master,
+  with SAME70 as an SSC-style RX/TX slave for the final path: DA_SDATA/TD on
+  PD26/J502.1, AD_SDATA/RD on PA10/J504.2, AD_LRCK or AD_FSYNC/RF on
+  PD24/J504.1, AD_SCLK/RK on PA22/J504.3, and DA_SCLK/TK plus DA_LRCK/TF on
+  PB1/PB0 via J505 or J507. For the AD1856 mono test, interpret TD/TK/TF as
+  DATA/CLK/LE only after timing is scoped. External MCLK is expected to feed
+  ADC/DAC or formatter logic directly; PCK0 on PB13 is reserved for optional
+  diagnostics, not codec MCLK. Details live in
+  `ports/same70-xplained/external-codec-original-uc3a3-map.md`,
+  `ports/same70-xplained/external-codec-low-jitter-clock-plan.md`,
+  `ports/same70-xplained/external-codec-pin-map.md`, and
+  `ports/same70-xplained/external-dac-ad1856-mono-test.md`. The status seam is
   `same70_audio_hw.c`; latest `audio-hw` still passes while reporting
-  `external_codec=0`, `UC3A3_AK5394_ES9023`,
-  `external_low_jitter_mclk_direct_bclk_lrck_slave_ssc_explicit_fb_tbd`, and
-  `needs_external_codec_board`.
+  `external_codec=0`,
+  `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
+  `external_low_jitter_mclk_direct_bclk_lrck_slave_ssc_explicit_fb_tbd_ad1856_mono_formatter_tbd`,
+  and `needs_external_codec_board`.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -126,38 +131,43 @@ Verified firmware features:
   before/after the no-change set, UAC mute/volume round trips restored to zero,
   zero mismatches for pattern, tone, sine, and melody, silence host
   `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at both formats, and
-  `audio-hw` reporting `UC3A3_AK5394_ES9023` plus
-  `needs_external_codec_board`.
+  `audio-hw` reporting
+  `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
+  `AD1856=mono_DATA_TD_CLK_TK_LE_TF`, and `needs_external_codec_board`.
 - `make -C ports/same70-xplained external-codec-preflight` is the pre-wiring
-  guard for future codec work. It checks the UC3A3 original map and
-  `ports/same70-xplained/external-codec-pin-map.md` for the selected header
-  route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw` to prove
-  the stock board still reports no external codec. Latest run passed after
-  flashing the updated status text and reported `external codec remains
-  disabled`.
+  guard for future codec work. It checks the UC3A3 original map, the AD1856
+  mono DAC plan, and `ports/same70-xplained/external-codec-pin-map.md` for the
+  selected header route and 3.3 V/no-generic-USB-I2S guardrails, then runs
+  `audio-hw` to prove the stock board still reports no external codec. Latest
+  run passed after flashing the updated status text and reported
+  `external codec remains disabled`.
 - `make -C ports/same70-xplained external-codec-original-map` is the offline
   schematic-source gate for the UC3A3 AK5394 ADC-board plus ES9023 DAC signal
   model. It checks `ports/same70-xplained/external-codec-original-uc3a3-map.md`
-  for the local UC3A3 PDF source set, J303/J304 nets, ES9023 I2S nets, legacy
-  firmware pin evidence, and the note that PCK0 is not the external codec
-  MCLK source for the low-jitter plan. Latest run passed.
+  for the local UC3A3 PDF source set, J303/J304 nets, ES9023 I2S nets, the
+  AD1856 mono DAC deviation, legacy firmware pin evidence, and the note that
+  PCK0 is not the external codec MCLK source for the low-jitter plan. Latest
+  run passed.
 - `make -C ports/same70-xplained external-codec-clock-plan` is the offline
   low-jitter full-duplex clocking gate. It checks
   `ports/same70-xplained/external-codec-low-jitter-clock-plan.md` for external
   ADC/DAC MCLK, shared external BCLK/LRCK into SAME70 RK/RF and TK/TF, explicit
-  USB feedback endpoint 4 as the first firmware mode, and no firmware
-  resampling. Latest run passed.
+  USB feedback endpoint 4 as the first firmware mode, no firmware resampling,
+  and the AD1856 mono DAC timing caveat. Latest run passed.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
   stop conditions, stock-board baseline, codec-board selection, unpowered
   checks, power-only checks, reset/control, clock-only probe, serial data
-  bring-up, and the requirement for a separate external-codec acceptance gate.
-  Latest run passed.
+  bring-up, AD1856 bipolar-supply and `LE` timing stop conditions, and the
+  requirement for a separate external-codec acceptance gate. Latest run passed.
 - `make -C ports/same70-xplained board-ready` runs `board-verify` and then
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
-  run passed and ended on `audio melody`.
+  run passed, exact-verified `/tmp/same70-melody-listen.wav` with
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x7e88f0113256a9f7`, played it through `afplay`, and ended on
+  `audio melody`.
 - `make -C ports/same70-xplained flash-ready` flashes the connected SAME70,
   waits briefly for USB re-enumeration, then runs `board-ready`. Latest run
   programmed and verified flash with OpenOCD, passed the widget/UAC control and
@@ -280,7 +290,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x61ebe3d6f489b0a7`, played through `afplay`, and left the board on
+  `0x7e88f0113256a9f7`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -440,9 +450,11 @@ source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, generated melody, and silence. The next practical SAME70
 milestone is keeping the stock-board USB path verified while preparing the
 header-based, full-duplex, external-low-jitter-clock projection of the UC3A3
-AK5394 ADC-board plus ES9023 DAC wiring. The `external-codec-original-map`
-target checks the schematic-source map, `external-codec-clock-plan` checks the
-external MCLK/direct-to-codecs and shared BCLK/LRCK slave-SSC plan,
+AK5394 ADC-board plus the selected AD1856 mono-first DAC test. The
+`external-codec-original-map` target checks the schematic-source map,
+`external-codec-clock-plan` checks the external MCLK/direct-to-codecs and
+shared BCLK/LRCK slave-SSC plan plus AD1856 timing caveat,
+`external-dac-ad1856-mono` checks the mono DAC planning doc,
 `external-codec-wiring-checklist` is an offline staged wiring hold list, and
 `external-codec-preflight` is a live pre-wiring boundary check only. Do not
 enable or claim analog SDR input/output until external hardware is connected

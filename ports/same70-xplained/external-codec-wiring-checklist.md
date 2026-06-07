@@ -6,13 +6,13 @@ No external codec board is connected yet. Until every relevant hold point below
 is passed with real measurements, firmware must keep reporting
 `external_codec=0`, `i2sc=not_configured`, and `needs_external_codec_board`.
 
-This checklist is for the UC3A3 original AK5394 ADC-board plus ES9023 DAC path
-with `AD_MCLK`, `DA_MCLK`, `AD_SCLK`, `AD_LRCK`/`AD_FSYNC`, `AD_SDATA`,
-`DA_SCLK`, `DA_LRCK`, `DA_SDATA`, reset, and ADC mode/control signals. It is
-not for a generic USB/I2S audio module. The preferred clocking target is the
-full-duplex external low-jitter plan in `external-codec-low-jitter-clock-plan.md`:
-the external board is clock master, SAME70 is an SSC RX/TX slave, and USB OUT
-uses explicit feedback until the real ADC/DAC path is proven.
+This checklist is for the UC3A3 original AK5394 ADC-board plus the selected DAC
+path. The original DAC reference is ES9023; the current first DAC experiment is
+one AD1856 mono output test with `DATA`, `CLK`, and `LE`. It is not for a
+generic USB/I2S audio module. The preferred clocking target is the full-duplex
+external low-jitter plan in `external-codec-low-jitter-clock-plan.md`: the
+external board is clock master, SAME70 is an SSC RX/TX slave, and USB OUT uses
+explicit feedback until the real ADC/DAC path is proven.
 
 ## Stop Conditions
 
@@ -22,6 +22,10 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - The codec board pinout, clock direction, or power requirement is unknown.
 - The selected clock plan requires SAME70 to recreate DAC/ADC MCLK from PCK0
   instead of feeding MCLK directly from the external low-jitter clock board.
+- AD1856 is powered from SAME70 `3V3`, or its required bipolar supplies are not
+  available and measured.
+- AD1856 `LE` timing is assumed to be normal I2S `LRCK` without scope
+  verification.
 - Any short is measured between `3V3`, `5V0`, `GND`, or a selected signal.
 - `make -C ports/same70-xplained external-codec-preflight` fails.
 - `make -C ports/same70-xplained board-ready` fails on the stock board.
@@ -52,6 +56,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - Confirm the first firmware path will use explicit USB feedback derived from
   real SSC/FIFO cadence, with no sample-rate conversion.
 - Confirm reset polarity and optional control bus requirements.
+- For the mono AD1856 test, confirm the board exposes `DATA`, `CLK`, `LE`,
+  bipolar supplies, common ground, and an analog output filter.
 - Confirm the 3.3 V current draw is safe if powered from SAME70 Xplained
   headers; otherwise use an external 3.3 V supply with common ground.
 
@@ -112,3 +118,7 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 | External `AD_MCLK`/`DA_MCLK` direct to ADC/DAC | -- | No preferred SAME70 route |
 | Optional diagnostic `PCK0`, not codec MCLK | PB13 | J504 pin 5 or J507 pin 19 |
 | `AD_RSTN`/control GPIO default | PC17 | EXT1 pin 10 |
+
+For the AD1856 mono test, interpret the DAC-side candidates as `DATA` on `TD`,
+`CLK` on `TK`, and `LE` on `TF` only after `external-dac-ad1856-mono-test.md`
+timing checks are satisfied.

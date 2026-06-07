@@ -86,6 +86,15 @@ codecs, and feed the same `BCLK`/`LRCK` clock domain into SAME70 `RK`/`RF` and
 | 3 | `DA_SDATA` | `SDI` pin 3 |
 | 4 | `DA_LRCK` | `LRCK` pin 2 |
 
+## AD1856 Mono DAC Deviation
+
+The current first DAC experiment intentionally deviates from the original
+ES9023 DAC sheet: use one AD1856 for a mono 16-bit output smoke test. AD1856 is
+not an I2S DAC and has no MCLK input; it needs `DATA`, `CLK`, and `LE`.
+Treat ES9023 as the original UC3A3 reference path, and treat AD1856 as the
+selected mono-first DAC experiment documented in
+`external-dac-ad1856-mono-test.md`.
+
 ## Legacy Firmware Pin Evidence
 
 The original firmware board definition in
