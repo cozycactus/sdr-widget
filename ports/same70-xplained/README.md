@@ -157,8 +157,9 @@ and wait for default readback after USB re-enumeration. This reset check does
 not write flash-backed NVRAM.
 Add `WIDGET_VERIFY_ARGS="--set-current-check"` to send the current feature
 table through `widget-control -s`; unchanged values are accepted by the device
-without consuming a flash record. The host tool checks that every `-s` response
-byte equals the requested value.
+without consuming a flash record. The verifier checks serial `usb` status
+before/after and fails if feature-store `writes` changes. The host tool checks
+that every `-s` response byte equals the requested value.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -259,7 +260,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x1bd023e412245bd3`, played it with `afplay`, and left the board on
+`0x81f830e2c13746af`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used

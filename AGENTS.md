@@ -87,9 +87,10 @@ Verified firmware features:
   also exercises `widget-control -r` and waits for default readback after
   re-enumeration. `WIDGET_VERIFY_ARGS="--set-current-check"` sends the current
   feature table through `widget-control -s` to cover SET_NVRAM without changing
-  values; latest serial `usb` status still reported `feature store ... writes=0`.
-  The host tool now checks that every `-s` response byte equals the requested
-  value.
+  values, checks serial `usb` status before/after, and fails if feature-store
+  `writes` changes. The host tool now checks that every `-s` response byte
+  equals the requested value. Latest guarded run reported `writes=0` before and
+  after the no-change set.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
@@ -204,7 +205,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x1bd023e412245bd3`, played through `afplay`, and left the board on
+  `0x81f830e2c13746af`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1

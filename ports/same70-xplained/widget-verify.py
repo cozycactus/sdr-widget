@@ -5,6 +5,8 @@ import subprocess
 import sys
 import time
 
+from same70_audio import find_serial_port, parse_counter, parse_serial_fields, run_serial
+
 
 DEFAULT_DEVICE = "16c0:05dc"
 DEFAULT_SERIAL = "1.0.0.0.0.0.0"
@@ -93,6 +95,16 @@ def wait_for_device(args):
     return False
 
 
+def read_feature_write_count(port, timeout, label):
+    output = run_serial(port, "usb", timeout)
+    fields = parse_serial_fields(output)
+    writes = parse_counter(fields, "writes")
+    if writes is None:
+        print(f"widget-verify: {label} serial status missing feature-store writes", file=sys.stderr)
+        return None
+    return writes
+
+
 def main():
     parser = argparse.ArgumentParser(description="Verify SAME70 SDR Widget USB control requests.")
     parser.add_argument("--widget-control", default="../../widget-control")
@@ -100,11 +112,15 @@ def main():
     parser.add_argument("--expected-serial", default=DEFAULT_SERIAL)
     parser.add_argument("--expected-features", default=DEFAULT_FEATURES)
     parser.add_argument("--serial", help="Pass a specific -u serialId to widget-control.")
+    parser.add_argument("--console-serial", help="Serial console port for feature-write counter checks.")
     parser.add_argument("--timeout", type=float, default=3.0)
+    parser.add_argument("--serial-timeout", type=float, default=1.5)
     parser.add_argument("--reset-check", action="store_true",
                         help="Also exercise widget-control -r and wait for feature readback.")
     parser.add_argument("--set-current-check", action="store_true",
                         help="Also send the current feature values through widget-control -s.")
+    parser.add_argument("--skip-write-count-check", action="store_true",
+                        help="Do not require unchanged feature-store writes during --set-current-check.")
     parser.add_argument("--reset-timeout", type=float, default=10.0)
     args = parser.parse_args()
 
@@ -132,12 +148,29 @@ def main():
         return 1
 
     if args.set_current_check:
+        baseline_writes = None
+        port = None
+        if not args.skip_write_count_check:
+            port = find_serial_port(args.console_serial)
+            if port is None:
+                print("widget-verify: no /dev/cu.usbmodem* serial port found", file=sys.stderr)
+                return 1
+            baseline_writes = read_feature_write_count(port, args.serial_timeout, "baseline")
+            if baseline_writes is None:
+                return 1
         output = run_control(args, "-s", extra_args=outputs["nvram"].split())
         if output is None:
             return 1
         output = run_control(args, "-g")
         if output is None or not verify_feature_line("nvram after set-current", output, expected_features):
             return 1
+        if not args.skip_write_count_check:
+            final_writes = read_feature_write_count(port, args.serial_timeout, "final")
+            if final_writes is None:
+                return 1
+            if not require(final_writes == baseline_writes,
+                           f"feature-store writes changed from {baseline_writes} to {final_writes}"):
+                return 1
 
     if args.reset_check:
         output = run_control(args, "-r")
