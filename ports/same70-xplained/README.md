@@ -18,12 +18,12 @@ Current milestones:
 - USBHS target-port device mode at high speed.
 - UAC1 SDR Widget composite descriptor on endpoint 0. macOS lists
   `Yoyodyne SDR-Widget` as a USB audio device with 2 input channels, 2 output
-  channels, and 48 kHz current sample rate.
+  channels, with selectable 48 kHz/24-bit and 44.1 kHz/16-bit streaming modes.
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. The current handlers store
-  output packets in a small byte ring, return fixed 48 kHz feedback, and send
-  queued loopback bytes, generated PCM24 pattern bytes, or silence on input
-  packets. Loopback is the default source.
+  output packets in a small byte ring, return feedback for the active rate, and
+  send queued loopback bytes, generated PCM24/PCM16 pattern bytes, or silence on
+  input packets. Loopback is the default source.
 - DG8SAQ/vendor feature control compatibility for the existing
   `widget-control` host tool.
 
@@ -96,7 +96,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Host checks:
@@ -112,6 +112,7 @@ system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 3"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 ```
 
@@ -124,31 +125,37 @@ Typical `widget-control` feature output:
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It should leave the serial
 `usb` counters with nonzero audio packet counts and a peak alternate-setting
-mask showing playback and capture streams were opened. The probe writes exact
-PCM24 test samples through CoreAudio Float32 buffers, captures the returned
-input samples, aligns the loopback latency, and reports whether the aligned
-sample stream is bit-perfect. Use `--verify input` when the firmware source is
-`audio pattern` or another non-loopback source. The serial `usb` counters
-remain the source of truth for USBHS endpoint state.
+mask showing playback and capture streams were opened. The probe selects the
+requested nominal sample rate, writes exact integer test samples through
+CoreAudio Float32 buffers, captures the returned input samples, quantizes them
+back to the selected bit depth, aligns the loopback latency, and reports whether
+the aligned sample stream is bit-perfect. Use `--verify input` when the firmware
+source is `audio pattern` or another non-loopback source. The serial `usb`
+counters remain the source of truth for USBHS endpoint state.
 
 ```text
-run=<n> started=1 seconds=<n> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
+nominal_sample_rate=<44100|48000>
+run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 run=<n> verify=<pass|fail> mode=<loopback|input> aligned=<0|1> input_offset_samples=<n> compared_samples=<n> mismatches=<n> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+summary mode=<loopback|input> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
-Latest measured repeated-open check on the connected board: `--seconds 2
---runs 3` reported `summary mode=loopback runs=3 passed=3 failed=0
-compared_samples=569048 mismatches=0`, with `input_offset_samples=2488` on each
-run. Serial `usb` reported `out=6047/1741536 fb=2/8 in=6125/1764000 err=0`,
-`under=0`, `fb_busy=2/2`, `in_busy=2/2`,
-`audio loop=0/288 drop=0 silence=22464`, `peak_alt=0x0000000c`, and `stall=0`.
-A previous steady 10-second run compared 958024 aligned samples with zero
-mismatches.
+Latest measured 48 kHz/24-bit check on the connected board: `--seconds 2
+--runs 1 --rate 48000 --bits 24` reported `summary mode=loopback rate=48000
+bits=24 runs=1 passed=1 failed=0 compared_samples=189736 mismatches=0`, with
+`input_offset_samples=2776`.
+
+Latest measured CD-rate check on the connected board: `--seconds 2 --runs 5
+--rate 44100 --bits 16` reported `summary mode=loopback rate=44100 bits=16
+runs=5 passed=5 failed=0 compared_samples=866444 mismatches=0`, with
+`input_offset_samples=2804` on the first three runs and `2892` on the last two.
+Final serial `usb` after switching back to 48 kHz/24-bit reported
+`out=14108/2938948 fb=2/8 in=14284/2975792 err=0`, `under=0`, `drop=0`,
+`stall=0`, `audio loop=0/1152`, and `fmt=48k24/48k24`.
 
 Generated-pattern source check: `audio pattern` followed by `--seconds 2
 --verify input` reported `summary mode=input runs=1 passed=1 failed=0
@@ -167,22 +174,23 @@ AVR32 USBB driver. It currently proves clocks, device mode, endpoint 0
 enumeration, DG8SAQ feature requests, and basic UAC1 class-control requests.
 Audio streaming endpoints are now hardware-configured and loopback-serviced:
 endpoint 3 OUT stores received packets in an 8192-byte ring, endpoint 4
-feedback IN reports the fixed 48 kHz high-speed feedback value, and endpoint 5
-audio IN sends queued loopback bytes, generated PCM24 pattern bytes, or silence
+feedback IN reports the active high-speed feedback value, and endpoint 5 audio
+IN sends queued loopback bytes, generated PCM24/PCM16 pattern bytes, or silence
 depending on the serial-selected source. The macOS HAL stream probe writes
-deterministic PCM24 sample values through CoreAudio Float32 buffers, quantizes
-returned input back to PCM24, aligns stream latency, and fails if any aligned
-sample differs in loopback mode. The firmware now reads the USBHS
+deterministic integer sample values through CoreAudio Float32 buffers, quantizes
+returned input back to the selected bit depth, aligns stream latency, and fails
+if any aligned sample differs in loopback mode. The firmware now reads the USBHS
 isochronous BYCT field for actual OUT byte accounting and reports
 short/CRC/overflow/underflow
 diagnostics. Error flags are counted only while the corresponding alternate
 setting is active, and stale flags are cleared while streams are inactive.
-Short OUT packets are expected because the observed 288-byte audio packets are
-below the 294-byte endpoint maximum. Feedback and audio IN refills now use
-USBHS RWALL/NBUSYBK state so the firmware can keep up to two banks queued; the
-serial `usb` command reports those depths as `fb_busy=<last>/<max>` and
-`in_busy=<last>/<max>`. The latest 10-second loopback stream check saw zero
-active IN underflows and zero dropped loopback bytes.
+Short OUT packets are expected because 48 kHz/24-bit uses 288-byte packets below
+the 294-byte endpoint maximum, and 44.1 kHz/16-bit uses a 176/180-byte packet
+cadence. Feedback and audio IN refills now use USBHS RWALL/NBUSYBK state so the
+firmware can keep up to two banks queued; the serial `usb` command reports those
+depths as `fb_busy=<last>/<max>` and `in_busy=<last>/<max>`. The loopback input
+prebuffers whole packets after stream resets so startup silence is skipped
+cleanly by the bit-perfect verifier.
 This is not yet the real SDR Widget audio pipeline.
 
 Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted

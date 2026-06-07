@@ -83,6 +83,7 @@ static void console_poll(void);
 static void console_write_hex_field(const char *name, uint32_t value);
 static void console_clock_status(void);
 static void console_audio_source_name(uint32_t source);
+static void console_audio_format_name(uint32_t format);
 
 static volatile uint32_t system_ms;
 static uint32_t tick_count;
@@ -335,6 +336,10 @@ static void console_usb_status(void)
 	usart1_write_u32(status.audio_loopback_silence_bytes);
 	usart1_write(" source=");
 	console_audio_source_name(status.audio_source_mode);
+	usart1_write(" fmt=");
+	console_audio_format_name(status.audio_out_format);
+	usart1_write("/");
+	console_audio_format_name(status.audio_in_format);
 	usart1_write("\r\n");
 	console_write_hex_field("last", status.last_setup0);
 	console_write_hex_field("wValue", status.last_wvalue);
@@ -351,6 +356,15 @@ static void console_audio_source_name(uint32_t source)
 		usart1_write("silence");
 	} else {
 		usart1_write("loop");
+	}
+}
+
+static void console_audio_format_name(uint32_t format)
+{
+	if (format == SAME70_USB_AUDIO_FORMAT_44K16) {
+		usart1_write("44k16");
+	} else {
+		usart1_write("48k24");
 	}
 }
 

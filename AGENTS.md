@@ -41,7 +41,8 @@ Verified firmware features:
 - USB endpoint 0 exposes the UAC1 SDR Widget composite descriptor: interface 0
   is DG8SAQ/vendor control, interfaces 1-3 are USB Audio Control/Streaming.
 - macOS lists `Yoyodyne SDR-Widget` as a USB audio device with 2 input
-  channels, 2 output channels, and 48 kHz current sample rate.
+  channels and 2 output channels. The SAME70 descriptor now exposes
+  48 kHz/24-bit and 44.1 kHz/16-bit streaming modes.
 - Endpoint 0 handles standard enumeration, interface alternate-setting
   requests, SDR Widget vendor feature requests, and basic UAC1 mute/volume and
   sample-rate control requests.
@@ -49,19 +50,21 @@ Verified firmware features:
   configured when the host sets configuration 1. Verified serial status shows
   `audio cfg=1 cfgok=0x00000038 ...`.
 - USB audio loopback handlers are present: endpoint 3 stores output packets in
-  a small byte ring, endpoint 4 returns fixed 48 kHz high-speed feedback, and
-  endpoint 5 can send queued loopback bytes, a generated PCM24 pattern, or
+  a small byte ring, endpoint 4 returns feedback for the active rate, and
+  endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, or
   silence. Default source is loopback.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
-  streaming against the connected board. Latest host-side repeated-open check
-  was `summary mode=loopback runs=3 passed=3 failed=0 compared_samples=569048
-  mismatches=0` with `input_offset_samples=2488` on each run from the PCM24
-  verifier. A previous steady 10-second run compared 958024 samples with zero
-  mismatches.
-  Serial counters after the repeated-open check showed `peak_alt=0x0000000c`,
-  `audio ... out=6047/1741536 fb=2/8 in=6125/1764000 err=0`, `under=0`,
-  `stall=0`, and `audio loop=0/288 drop=0 silence=22464`. Current
-  `alt=0x00000000` after CoreAudio closed the streams.
+  streaming against the connected board at both advertised formats. Latest
+  48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
+  passed=1 failed=0 compared_samples=189736 mismatches=0` with
+  `input_offset_samples=2776`. Latest CD-rate check was `summary mode=loopback
+  rate=44100 bits=16 runs=5 passed=5 failed=0 compared_samples=866444
+  mismatches=0`, with `input_offset_samples=2804` on the first three runs and
+  `2892` on the last two.
+  Final serial counters after switching back to 48 kHz/24-bit showed
+  `peak_alt=0x0000000c`, `audio ... out=14108/2938948 fb=2/8
+  in=14284/2975792 err=0`, `under=0`, `stall=0`, `drop=0`,
+  `audio loop=0/1152`, and `fmt=48k24/48k24`.
 - `audio pattern` plus `stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify
   input"` verified generated capture-only input with `summary mode=input
   runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0`. The board
@@ -75,10 +78,10 @@ Verified firmware features:
 - Feature "NVRAM" on the SAME70 port is currently a volatile RAM
   compatibility table, not persistent SAME70 flash storage.
 - The HAL stream probe opens the widget, drives SET_INTERFACE/endpoint traffic,
-  writes exact PCM24 test samples through CoreAudio Float32 buffers, aligns the
-  returned stream latency, and verifies zero sample mismatches through the
-  loopback path. Serial `usb` counters remain the source of truth for hardware
-  endpoint state.
+  selects the requested nominal sample rate, writes exact integer test samples
+  through CoreAudio Float32 buffers, aligns the returned stream latency, and
+  verifies zero sample mismatches through the loopback path. Serial `usb`
+  counters remain the source of truth for hardware endpoint state.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -87,7 +90,9 @@ Verified firmware features:
   stream-probe runs. Endpoint 4 feedback IN and endpoint 5 audio IN are refilled
   from USBHS RWALL/NBUSYBK state, and diagnostics report `fb_busy=<last>/<max>`
   plus `in_busy=<last>/<max>`. Loopback diagnostics report current/peak ring
-  fill, dropped OUT bytes, and inserted silence bytes.
+  fill, dropped OUT bytes, inserted silence bytes, and selected formats as
+  `fmt=<out>/<in>`. The loopback input prebuffers whole packets after stream
+  resets so startup silence is skipped cleanly by the bit-perfect verifier.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio silence`.
 
@@ -142,7 +147,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Verified host checks:
@@ -158,6 +163,7 @@ system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 3"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 ```
 

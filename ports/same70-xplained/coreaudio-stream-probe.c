@@ -14,7 +14,8 @@
 #define MAX_PROBE_RUNS 100u
 #define VERIFY_MODE_LOOPBACK 0u
 #define VERIFY_MODE_INPUT    1u
-#define PCM24_SCALE 8388608.0f
+#define DEFAULT_SAMPLE_RATE_HZ 48000u
+#define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
 #define CAPTURE_SAMPLE_MARGIN 65536u
 #define ALIGN_WINDOW_SAMPLES 128u
@@ -29,6 +30,7 @@ typedef struct {
 	uint64_t input_nonzero;
 	uint64_t output_nonzero;
 	uint32_t sample_lcg;
+	uint32_t sample_bits;
 	int32_t *input_samples;
 	int32_t *output_samples;
 	uint32_t capture_sample_capacity;
@@ -71,10 +73,13 @@ static void update_checksum(uint64_t *checksum, uint64_t *nonzero,
 
 static int32_t next_test_sample(io_state_t *state)
 {
+	uint32_t sample_bits = state->sample_bits - 2u;
+	uint32_t midpoint = 1u << (sample_bits - 1u);
+	uint32_t mask = (1u << sample_bits) - 1u;
 	int32_t sample;
 
 	state->sample_lcg = (state->sample_lcg * 1664525u) + 1013904223u;
-	sample = (int32_t)((state->sample_lcg >> 9) & 0x3fffffu) - 0x200000;
+	sample = (int32_t)((state->sample_lcg >> 9) & mask) - (int32_t)midpoint;
 	if (sample == 0) {
 		sample = 1;
 	}
@@ -82,23 +87,30 @@ static int32_t next_test_sample(io_state_t *state)
 	return sample;
 }
 
-static float pcm24_to_float(int32_t sample)
+static float pcm_scale(uint32_t bits)
 {
-	return (float)sample / PCM24_SCALE;
+	return (float)(1u << (bits - 1u));
 }
 
-static int32_t float_to_pcm24(float sample)
+static float pcm_to_float(int32_t sample, uint32_t bits)
+{
+	return (float)sample / pcm_scale(bits);
+}
+
+static int32_t float_to_pcm(float sample, uint32_t bits)
 {
 	float scaled;
+	int32_t min_sample = -(int32_t)(1u << (bits - 1u));
+	int32_t max_sample = (int32_t)((1u << (bits - 1u)) - 1u);
 
-	if (sample >= 0.99999988f) {
-		return 8388607;
+	if (sample >= ((float)max_sample / pcm_scale(bits))) {
+		return max_sample;
 	}
 	if (sample <= -1.0f) {
-		return -8388608;
+		return min_sample;
 	}
 
-	scaled = sample * PCM24_SCALE;
+	scaled = sample * pcm_scale(bits);
 	return (scaled >= 0.0f) ? (int32_t)(scaled + 0.5f) : (int32_t)(scaled - 0.5f);
 }
 
@@ -129,7 +141,7 @@ static void capture_input_samples(io_state_t *state, const uint8_t *data, UInt32
 	UInt32 index;
 
 	for (index = 0u; index < count; index++) {
-		append_input_sample(state, float_to_pcm24(samples[index]));
+		append_input_sample(state, float_to_pcm(samples[index], state->sample_bits));
 	}
 }
 
@@ -142,7 +154,7 @@ static void fill_output_pattern(io_state_t *state, uint8_t *data, UInt32 length)
 
 	for (index = 0u; index < count; index++) {
 		sample = next_test_sample(state);
-		samples[index] = pcm24_to_float(sample);
+		samples[index] = pcm_to_float(sample, state->sample_bits);
 		append_output_sample(state, sample);
 	}
 	update_checksum(&state->output_checksum, &state->output_nonzero, data, length);
@@ -237,7 +249,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--verify loopback|input] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -270,6 +282,36 @@ static int parse_u32_range(const char *text, uint32_t min_value, uint32_t max_va
 	}
 
 	*value = (uint32_t)parsed;
+	return 1;
+}
+
+static int parse_sample_rate(const char *text, uint32_t *rate_hz)
+{
+	uint32_t value;
+
+	if (!parse_u32_range(text, 1u, 384000u, &value)) {
+		return 0;
+	}
+	if ((value != 44100u) && (value != 48000u)) {
+		return 0;
+	}
+
+	*rate_hz = value;
+	return 1;
+}
+
+static int parse_sample_bits(const char *text, uint32_t *bits)
+{
+	uint32_t value;
+
+	if (!parse_u32_range(text, 1u, 32u, &value)) {
+		return 0;
+	}
+	if ((value != 16u) && (value != 24u)) {
+		return 0;
+	}
+
+	*bits = value;
 	return 1;
 }
 
@@ -366,6 +408,48 @@ static uint32_t stream_buffer_count(AudioDeviceID device, AudioObjectPropertySco
 
 	free(buffers);
 	return count;
+}
+
+static int set_nominal_sample_rate(AudioDeviceID device, uint32_t rate_hz)
+{
+	AudioObjectPropertyAddress address = {
+		kAudioDevicePropertyNominalSampleRate,
+		kAudioObjectPropertyScopeGlobal,
+		kAudioObjectPropertyElementMain
+	};
+	Float64 rate = (Float64)rate_hz;
+	Float64 current = 0.0;
+	UInt32 size = sizeof(rate);
+	uint32_t attempt;
+	OSStatus status;
+
+	if (!AudioObjectHasProperty(device, &address)) {
+		fprintf(stderr, "device has no nominal sample-rate property\n");
+		return 0;
+	}
+
+	status = AudioObjectSetPropertyData(device, &address, 0u, NULL, size, &rate);
+	if (status != noErr) {
+		print_osstatus("AudioObjectSetPropertyData(nominal sample rate)", status);
+		return 0;
+	}
+
+	for (attempt = 0u; attempt < 20u; attempt++) {
+		size = sizeof(current);
+		status = AudioObjectGetPropertyData(device, &address, 0u, NULL, &size, &current);
+		if (status != noErr) {
+			print_osstatus("AudioObjectGetPropertyData(nominal sample rate)", status);
+			return 0;
+		}
+		if (((current + 0.5) >= (Float64)rate_hz) && ((current - 0.5) <= (Float64)rate_hz)) {
+			printf("nominal_sample_rate=%.0f\n", current);
+			return 1;
+		}
+		CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+	}
+
+	printf("nominal_sample_rate=%.0f\n", current);
+	return 0;
 }
 
 static int cfstring_get(CFStringRef text, char *buffer, size_t size)
@@ -490,8 +574,8 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID proc_id,
 	AudioObjectPropertyScope scope);
 
-static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t verify_mode,
-	uint32_t run, probe_summary_t *summary)
+static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_rate_hz,
+	uint32_t sample_bits, uint32_t verify_mode, uint32_t run, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -500,6 +584,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t verify_m
 
 	memset(&state, 0, sizeof(state));
 	state.sample_lcg = 0x12345678u;
+	state.sample_bits = sample_bits;
 	state.capture_sample_capacity = capture_capacity_for_duration(seconds);
 	state.input_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
 	state.output_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
@@ -536,10 +621,12 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t verify_m
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
 	verify = (verify_mode == VERIFY_MODE_INPUT) ? verify_input_activity(&state) : verify_loopback(&state);
-	printf("run=%u started=1 seconds=%.3f callbacks=%u input_bytes=%llu output_bytes=%llu "
+	printf("run=%u started=1 seconds=%.3f rate=%u bits=%u callbacks=%u input_bytes=%llu output_bytes=%llu "
 		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
 		run,
 		seconds,
+		sample_rate_hz,
+		sample_bits,
 		state.callbacks,
 		(unsigned long long)state.input_bytes,
 		(unsigned long long)state.output_bytes,
@@ -622,6 +709,10 @@ int main(int argc, char **argv)
 	const char *device_name = DEFAULT_DEVICE_NAME;
 	double seconds = DEFAULT_PROBE_SECONDS;
 	uint32_t runs = DEFAULT_PROBE_RUNS;
+	uint32_t sample_rate_hz = DEFAULT_SAMPLE_RATE_HZ;
+	uint32_t sample_bits = DEFAULT_SAMPLE_BITS;
+	uint32_t rate_was_set = 0u;
+	uint32_t bits_were_set = 0u;
 	uint32_t verify_mode = VERIFY_MODE_LOOPBACK;
 	AudioDeviceID device = kAudioObjectUnknown;
 	probe_summary_t summary;
@@ -642,6 +733,20 @@ int main(int argc, char **argv)
 				print_usage(argv[0]);
 				return 1;
 			}
+			index++;
+		} else if (strcmp(argv[index], "--rate") == 0) {
+			if (((index + 1) >= argc) || !parse_sample_rate(argv[index + 1], &sample_rate_hz)) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			rate_was_set = 1u;
+			index++;
+		} else if (strcmp(argv[index], "--bits") == 0) {
+			if (((index + 1) >= argc) || !parse_sample_bits(argv[index + 1], &sample_bits)) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			bits_were_set = 1u;
 			index++;
 		} else if (strcmp(argv[index], "--verify") == 0) {
 			if (((index + 1) >= argc) || !parse_verify_mode(argv[index + 1], &verify_mode)) {
@@ -667,17 +772,34 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (rate_was_set && !bits_were_set) {
+		sample_bits = (sample_rate_hz == 44100u) ? 16u : 24u;
+	} else if (bits_were_set && !rate_was_set) {
+		sample_rate_hz = (sample_bits == 16u) ? 44100u : 48000u;
+	}
+	if (((sample_rate_hz == 44100u) && (sample_bits != 16u)) ||
+	    ((sample_rate_hz == 48000u) && (sample_bits != 24u))) {
+		fprintf(stderr, "supported pairs are 44100/16 and 48000/24\n");
+		return 1;
+	}
+
 	if (!find_device(device_name, &device)) {
 		fprintf(stderr, "device containing \"%s\" not found\n", device_name);
+		return 1;
+	}
+	if (!set_nominal_sample_rate(device, sample_rate_hz)) {
+		fprintf(stderr, "failed to select %u Hz\n", sample_rate_hz);
 		return 1;
 	}
 
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
-		(void)run_hal_probe(device, seconds, verify_mode, run, &summary);
+		(void)run_hal_probe(device, seconds, sample_rate_hz, sample_bits, verify_mode, run, &summary);
 	}
-	printf("summary mode=%s runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
+	printf("summary mode=%s rate=%u bits=%u runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
 		verify_mode_name(verify_mode),
+		sample_rate_hz,
+		sample_bits,
 		runs,
 		summary.passed,
 		summary.failed,

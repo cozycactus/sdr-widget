@@ -6,6 +6,8 @@
 #define SAME70_USB_AUDIO_SOURCE_LOOPBACK 0u
 #define SAME70_USB_AUDIO_SOURCE_PATTERN  1u
 #define SAME70_USB_AUDIO_SOURCE_SILENCE  2u
+#define SAME70_USB_AUDIO_FORMAT_48K24    0u
+#define SAME70_USB_AUDIO_FORMAT_44K16    1u
 
 typedef struct {
 	uint32_t initialized;
@@ -52,6 +54,8 @@ typedef struct {
 	uint32_t audio_overflow_count;
 	uint32_t audio_underflow_count;
 	uint32_t audio_source_mode;
+	uint32_t audio_out_format;
+	uint32_t audio_in_format;
 	uint32_t audio_loopback_level;
 	uint32_t audio_loopback_peak;
 	uint32_t audio_loopback_drop_bytes;
