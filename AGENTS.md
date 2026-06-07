@@ -91,6 +91,13 @@ Verified firmware features:
   `writes` changes. The host tool now checks that every `-s` response byte
   equals the requested value. Latest guarded run reported `writes=0` before and
   after the no-change set.
+- `make -C ports/same70-xplained board-verify` is the connected-board smoke
+  gate. It builds the SAME70 firmware and CoreAudio probe, runs
+  `widget-verify` with `--set-current-check`, then runs the quiet
+  `audio-generated-verify` gate. Latest run passed with feature-store
+  `writes=0` before/after the no-change set and zero mismatches for pattern,
+  tone, sine, and melody; silence reported host `input_nonzero=0`, OUT
+  `nonzero=0`, and IN `nonzero=0` at both formats.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
@@ -205,7 +212,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x81f830e2c13746af`, played through `afplay`, and left the board on
+  `0x428e42803109d7e3`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -320,6 +327,7 @@ make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained widget-verify
 make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--set-current-check"
 make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--reset-check"

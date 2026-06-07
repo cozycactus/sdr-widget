@@ -135,6 +135,7 @@ make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
@@ -160,6 +161,21 @@ table through `widget-control -s`; unchanged values are accepted by the device
 without consuming a flash record. The verifier checks serial `usb` status
 before/after and fails if feature-store `writes` changes. The host tool checks
 that every `-s` response byte equals the requested value.
+
+The connected-board smoke gate combines the guarded USB control check with the
+quiet generated-source audio gate:
+
+```sh
+make -C ports/same70-xplained board-verify
+```
+
+It builds the SAME70 firmware and CoreAudio probe, runs `widget-verify` with
+`--set-current-check`, then runs `audio-generated-verify`. The latest run passed
+with feature-store `writes=0` before/after the no-change set and zero
+mismatches for pattern, tone, sine, and melody. Silence reported host
+`input_nonzero=0`, device OUT `nonzero=0`, and device IN `nonzero=0` at both
+formats. Because the generated-source gate ends on `audio silence`, run
+`audio-listen` afterward when you want the board back on melody.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -260,7 +276,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x81f830e2c13746af`, played it with `afplay`, and left the board on
+`0x428e42803109d7e3`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
