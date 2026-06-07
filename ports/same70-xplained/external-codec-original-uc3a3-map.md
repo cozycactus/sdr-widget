@@ -43,6 +43,12 @@ SAME70 clock bring-up must preserve this clock-domain relationship. Treat the
 current SAME70 `PCK0` pin-map entry as only a provisional clock probe until the
 external ADC-clock direction is confirmed on real hardware.
 
+For the stock SAME70 Xplained header route, the preferred adaptation is not to
+recreate the UC3A3 `PC04`/OSC1 input exactly. Instead, use an external
+low-jitter audio clock board as the ADC/DAC master, feed `MCLK` directly to the
+codecs, and feed the same `BCLK`/`LRCK` clock domain into SAME70 `RK`/`RF` and
+`TK`/`TF` as documented in `external-codec-low-jitter-clock-plan.md`.
+
 ## AK5394 Board Connector
 
 `MISC_IO-3.10.pdf` names J303 as the interface connections to the AK5394 board:
@@ -118,8 +124,9 @@ SAME70 SSC-style pins, while preserving the original signal roles:
 | `AD_SCLK` | ADC receive bit clock | `RK` on `PA22`, `J504 pin 3` |
 | `DA_SCLK` | DAC transmit bit clock | `TK` on `PB1`, `J505 pin 8` or `J507 pin 4` |
 | `DA_LRCK` | DAC transmit frame | `TF` on `PB0`, `J505 pin 7` or `J507 pin 5` |
-| `AD_MCLK` | External ADC clock domain / CPU reference equivalent | direction TBD |
-| `DA_MCLK` | ES9023 MCLK from ADC card | direction TBD |
+| `AD_MCLK` | External ADC clock domain / CPU reference equivalent | direct external-clock feed to ADC; no preferred SAME70 header route |
+| `DA_MCLK` | ES9023 MCLK from ADC card | direct external-clock feed to DAC; no preferred SAME70 header route |
 
-Do not treat `PCK0` on `PB13` as the final master-clock answer until the
-external ADC-card clock direction and SAME70 clock-input strategy are confirmed.
+Do not treat `PCK0` on `PB13` as the external codec MCLK source for the
+low-jitter plan. Keep it reserved for optional diagnostics unless a later
+measured hardware revision proves that routing through SAME70 is acceptable.

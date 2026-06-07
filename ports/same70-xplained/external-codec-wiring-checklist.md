@@ -9,7 +9,10 @@ is passed with real measurements, firmware must keep reporting
 This checklist is for the UC3A3 original AK5394 ADC-board plus ES9023 DAC path
 with `AD_MCLK`, `DA_MCLK`, `AD_SCLK`, `AD_LRCK`/`AD_FSYNC`, `AD_SDATA`,
 `DA_SCLK`, `DA_LRCK`, `DA_SDATA`, reset, and ADC mode/control signals. It is
-not for a generic USB/I2S audio module.
+not for a generic USB/I2S audio module. The preferred clocking target is the
+full-duplex external low-jitter plan in `external-codec-low-jitter-clock-plan.md`:
+the external board is clock master, SAME70 is an SSC RX/TX slave, and USB OUT
+uses explicit feedback until the real ADC/DAC path is proven.
 
 ## Stop Conditions
 
@@ -17,6 +20,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 
 - The codec board drives any SAME70 I/O above 3.3 V logic.
 - The codec board pinout, clock direction, or power requirement is unknown.
+- The selected clock plan requires SAME70 to recreate DAC/ADC MCLK from PCK0
+  instead of feeding MCLK directly from the external low-jitter clock board.
 - Any short is measured between `3V3`, `5V0`, `GND`, or a selected signal.
 - `make -C ports/same70-xplained external-codec-preflight` fails.
 - `make -C ports/same70-xplained board-ready` fails on the stock board.
@@ -40,9 +45,12 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
   net names.
 - Confirm all digital I/O is 3.3 V-compatible, or add level shifting before any
   SAME70 signal connection.
-- Confirm the clock plan follows the UC3A3 model: ADC-side audio clocking feeds
-  `AD_MCLK` at 12.288 MHz to the CPU clock domain and `DA_MCLK` at 24.576 MHz
-  to the ES9023 DAC.
+- Confirm the clock plan follows `external-codec-low-jitter-clock-plan.md`:
+  external low-jitter `MCLK` feeds ADC/DAC directly, external `BCLK` feeds both
+  `RK` and `TK`, external `LRCK` feeds both `RF` and `TF`, and SAME70 does not
+  recreate MCLK through PCK0.
+- Confirm the first firmware path will use explicit USB feedback derived from
+  real SSC/FIFO cadence, with no sample-rate conversion.
 - Confirm reset polarity and optional control bus requirements.
 - Confirm the 3.3 V current draw is safe if powered from SAME70 Xplained
   headers; otherwise use an external 3.3 V supply with common ground.
@@ -74,9 +82,10 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 ## Stage 5: Clock-Only Probe
 
 - Wire only the selected clock signals after reset/control passes.
-- Probe MCLK first, then BCLK/LRCK if the clock plan requires them.
-- Confirm frequency, voltage, duty cycle, and no unexpected activity on data
-  pins.
+- Probe external MCLK at the ADC/DAC first, then BCLK/LRCK at the ADC, DAC,
+  and SAME70 header pins.
+- Confirm frequency, voltage, duty cycle, fanout/signal integrity, and no
+  unexpected activity on data pins.
 - Keep ADC and DAC data disconnected until clock-only measurements pass.
 
 ## Stage 6: Serial Audio Data
@@ -87,6 +96,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - Create a new external-codec acceptance gate separate from `board-ready`.
 - The acceptance gate must prove real ADC/DAC movement, not generated USB audio
   and not host loopback alone.
+- The first acceptance gate should keep explicit feedback endpoint 4 enabled and
+  prove zero FIFO overflow/underflow before any implicit-feedback experiment.
 
 ## Candidate Header Summary
 
@@ -98,5 +109,6 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 | `AD_SCLK` to `RK` | PA22 | J504 pin 3 |
 | `DA_SCLK` to `TK` | PB1 | J505 pin 8 or J507 pin 4 |
 | `DA_LRCK` to `TF` | PB0 | J505 pin 7 or J507 pin 5 |
-| `AD_MCLK`/`DA_MCLK` clock probe, direction TBD | PB13 | J504 pin 5 or J507 pin 19 |
+| External `AD_MCLK`/`DA_MCLK` direct to ADC/DAC | -- | No preferred SAME70 route |
+| Optional diagnostic `PCK0`, not codec MCLK | PB13 | J504 pin 5 or J507 pin 19 |
 | `AD_RSTN`/control GPIO default | PC17 | EXT1 pin 10 |

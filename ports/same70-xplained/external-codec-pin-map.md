@@ -12,6 +12,12 @@ current SAME70 board can prove USB timing, generated audio, and bit-perfect
 loopback, but it cannot prove analog SDR input or output without external
 ADC/DAC hardware.
 
+The preferred future clocking model is documented in
+`external-codec-low-jitter-clock-plan.md`: an external low-jitter clock board is
+the ADC/DAC master, while SAME70 is an SSC-style RX/TX slave. `MCLK` should feed
+the external ADC/DAC directly; SAME70 should observe the external `BCLK`/`LRCK`
+on its serial clock/frame inputs.
+
 ## Rules Before Wiring
 
 - Use only 3.3 V logic. Do not connect 5 V logic to SAME70 I/O pins.
@@ -27,6 +33,8 @@ ADC/DAC hardware.
   codec-firmware work; it checks this map and the live `audio hw` boundary.
 - Follow `external-codec-original-uc3a3-map.md` as the source-of-truth signal
   model before using this SAME70 header projection.
+- Follow `external-codec-low-jitter-clock-plan.md` for the preferred
+  full-duplex external-clock architecture.
 - Follow `external-codec-wiring-checklist.md` before selecting, powering, or
   wiring an external codec board.
 
@@ -40,7 +48,8 @@ ADC/DAC hardware.
 | ADC bit clock, original `AD_SCLK` | PA22 | J504 pin 3 | AD10 | RK | Analog-high Arduino header | J504 is not populated by default |
 | DAC bit clock, original `DA_SCLK` | PB1 | J505 pin 8 or J507 pin 4 | D14 or D23 | TK | Shared with TXD0 on J505 and D23 on J507 | J505/J507 are not populated by default |
 | DAC frame, original `DA_LRCK` | PB0 | J505 pin 7 or J507 pin 5 | D15 or D24 | TF | Shared with RXD0 on J505 and D24 on J507 | J505/J507 are not populated by default |
-| Provisional clock probe for original `AD_MCLK`/`DA_MCLK` | PB13 | J504 pin 5 or J507 pin 19 | DAC0 or D38 | PCK0 | Direction is TBD; UC3A3 schemes feed 12.288 MHz to CPU and 24.576 MHz to ES9023 from ADC side | J504/J507 are not populated by default |
+| External low-jitter `MCLK`, original `AD_MCLK`/`DA_MCLK` | -- | No preferred SAME70 route | -- | -- | Feed ADC/DAC directly from the external clock board; do not recreate MCLK through SAME70 | Use clock fanout/buffer or source-side series resistors |
+| Optional diagnostic clock output, not external MCLK | PB13 | J504 pin 5 or J507 pin 19 | DAC0 or D38 | PCK0 | Reserved for firmware diagnostics only in the low-jitter plan | J504/J507 are not populated by default |
 | Codec reset/control GPIO default, original `AD_RSTN` first | PC17 | EXT1 pin 10 | SPI_SS_B/GPIO | GPIO | Xplained Pro extension header | EXT1 has populated extension-header footprint; verify actual header population |
 | Optional I2C SDA | PA3 | EXT1/EXT2 pin 11 or J500 pin 9 | I2C_SDA or SDA | TWD0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
 | Optional I2C SCL | PA4 | EXT1/EXT2 pin 12 or J500 pin 10 | I2C_SCL or SCL | TWCK0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
@@ -56,7 +65,8 @@ ADC/DAC hardware.
 4. Power only the stock SAME70 board and verify `board-ready` still passes.
 5. Attach external board power/ground only; verify supply voltage and current.
 6. Add reset/control wiring and verify GPIO-only control.
-7. Add clock wiring and verify clock-only output before connecting data pins.
+7. Add external `MCLK`, `BCLK`, and `LRCK` wiring and verify clock-only input
+   at the codecs and SAME70 before connecting data pins.
 8. Add serial audio data pins and create a new explicit external-codec gate.
 
 For the detailed staged checklist, see `external-codec-wiring-checklist.md`.
