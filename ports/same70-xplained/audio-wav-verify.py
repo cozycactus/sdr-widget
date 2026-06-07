@@ -102,8 +102,26 @@ def find_expected_alignment(samples, expected):
     return None
 
 
+def find_loopback_alignment(samples, expected):
+    window = min(ALIGN_WINDOW_SAMPLES, len(expected))
+    if window == 0 or len(samples) < window:
+        return None
+
+    for offset in range(0, len(samples) - window + 1):
+        if samples[offset:offset + window] == expected[:window]:
+            return offset, 0
+    return None
+
+
 def verify_expected(samples, expected):
-    alignment = find_expected_alignment(samples, expected)
+    return verify_with_alignment(samples, expected, find_expected_alignment(samples, expected))
+
+
+def verify_loopback(samples, expected):
+    return verify_with_alignment(samples, expected, find_loopback_alignment(samples, expected))
+
+
+def verify_with_alignment(samples, expected, alignment):
     result = {
         "passed": False,
         "aligned": False,
@@ -188,10 +206,11 @@ def expected_for_source(source, sample_count, bits):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Verify a SAME70 generated-source WAV capture from disk."
+        description="Verify a SAME70 WAV capture from disk."
     )
     parser.add_argument("wav")
-    parser.add_argument("--source", choices=("pattern", "tone", "silence"), required=True)
+    parser.add_argument("--source", choices=("loop", "pattern", "tone", "silence"), required=True)
+    parser.add_argument("--expected-wav")
     parser.add_argument("--rate", type=int)
     parser.add_argument("--bits", type=int)
     args = parser.parse_args()
@@ -215,6 +234,24 @@ def main():
     samples = wav["samples"]
     if args.source == "silence":
         result = verify_silence(samples)
+    elif args.source == "loop":
+        if args.expected_wav is None:
+            print("audio-wav-verify: --source loop requires --expected-wav", file=sys.stderr)
+            return 1
+        try:
+            expected_wav = read_wav_samples(args.expected_wav)
+        except (OSError, EOFError, wave.Error, ValueError) as exc:
+            print(f"audio-wav-verify: failed to read expected WAV: {exc}", file=sys.stderr)
+            return 1
+        for key in ("rate", "bits", "channels"):
+            if wav[key] != expected_wav[key]:
+                print(
+                    f"audio-wav-verify: {key} mismatch: input={wav[key]} "
+                    f"expected={expected_wav[key]}",
+                    file=sys.stderr,
+                )
+                return 1
+        result = verify_loopback(samples, expected_wav["samples"])
     else:
         expected = expected_for_source(args.source, len(samples), wav["bits"])
         result = verify_expected(samples, expected)

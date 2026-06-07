@@ -119,9 +119,10 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-capture
-make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-pattern-cd-capture.wav --source pattern --rate 44100 --bits 16"
+make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
 Typical `widget-control` feature output:
@@ -149,7 +150,9 @@ it requires all quantized input samples to be zero. Use `--verify input` for a
 looser nonzero input activity check. The serial `usb` counters remain the source
 of truth for USBHS endpoint state. Add `--dump-input-wav FILE --runs 1` to write
 the quantized captured input stream as a PCM WAV file for inspection or
-listening; multi-run WAV dumps are rejected so the output file is unambiguous.
+listening. Add `--dump-output-wav FILE --runs 1` to write the quantized host
+output stream too, which lets loopback be rechecked later from a WAV pair.
+Multi-run WAV dumps are rejected so output files are unambiguous.
 
 The `audio-verify` target wraps the same probe with serial source switching. It
 selects `audio loop`, verifies loopback at both advertised formats, selects
@@ -166,27 +169,35 @@ port.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
-generated-source WAVs again from disk with `audio-wav-verify.py`, restores
-`audio loop`, checks the final serial `usb` status against the starting error
-counters, and prints `audio-capture: pass output=<path>` on success. Defaults
-capture the 48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
+WAV artifacts again from disk with `audio-wav-verify.py`, restores `audio loop`,
+checks the final serial `usb` status against the starting error counters, and
+prints `audio-capture: pass output=<path>` on success. Defaults capture the
+48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
 `AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path:
 
 ```sh
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source tone --rate 48000 --bits 24 --seconds 1 --output /tmp/file.wav"
 ```
 
-Use `audio-wav-verify` to recheck a dumped generated-source WAV later without
-the board:
+For loopback, `audio-capture --source loop` also dumps the quantized host output
+WAV and verifies the captured input against it after latency alignment:
 
 ```sh
-make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/file.wav --source tone --rate 44100 --bits 16"
+make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source loop --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-loop-cd-input.wav --output-wav /tmp/same70-loop-cd-output.wav"
+```
+
+Use `audio-wav-verify` to recheck dumped generated-source WAVs or loopback WAV
+pairs later without the board:
+
+```sh
+make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
 ```text
 nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 dump_input_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
+dump_output_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
 run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
 summary mode=<loopback|input|pattern|tone|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
@@ -248,13 +259,15 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 increase from the starting baseline.
 
 Latest WAV capture check used `audio-capture` with `--seconds 1`,
-`--source pattern`, `--rate 44100`, `--bits 16`, and output
-`/tmp/same70-pattern-cd-capture.wav`. The live probe and the independent
-`audio-wav-verify.py` disk check both reported `compared_samples=88064`,
-`mismatches=0`, and matching hash `0xed206a5517dda426`. The dump line reported
-`samples=88064 channels=2 rate=44100 bits=16 bytes=176128`; `file` identified
-the resulting WAV as 16-bit stereo PCM at 44.1 kHz with a 176172-byte RIFF/WAVE
-container.
+`--source loop`, `--rate 44100`, `--bits 16`, captured input
+`/tmp/same70-loop-cd-input.wav`, and host output
+`/tmp/same70-loop-cd-output.wav`. The live probe and the independent
+`audio-wav-verify.py` disk check both reported `input_offset_samples=2804`,
+`compared_samples=85260`, `mismatches=0`, and matching hash
+`0x9cf8dd957a3b65c2`. The dump lines reported
+`samples=88064 channels=2 rate=44100 bits=16 bytes=176128` for both WAVs;
+`file` identified both as 16-bit stereo PCM at 44.1 kHz with 176172-byte
+RIFF/WAVE containers.
 
 ## Porting Notes
 

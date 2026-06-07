@@ -23,7 +23,7 @@ VERIFY_MODES = {
 }
 
 
-def run_wav_verify(path, source, rate, bits):
+def run_wav_verify(path, source, rate, bits, expected_wav=None):
     script = os.path.join(os.path.dirname(__file__), "audio-wav-verify.py")
     cmd = [
         sys.executable,
@@ -33,6 +33,8 @@ def run_wav_verify(path, source, rate, bits):
         "--rate", str(rate),
         "--bits", str(bits),
     ]
+    if expected_wav:
+        cmd.extend(["--expected-wav", expected_wav])
     print("+ " + " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True)
 
@@ -42,6 +44,13 @@ def default_output_path(source, rate, bits):
     if fmt is None:
         fmt = f"{rate}_{bits}"
     return f"/tmp/same70-{source}-{fmt}.wav"
+
+
+def default_output_wav_path(rate, bits):
+    fmt = format_name(rate, bits)
+    if fmt is None:
+        fmt = f"{rate}_{bits}"
+    return f"/tmp/same70-loop-output-{fmt}.wav"
 
 
 def main():
@@ -54,6 +63,7 @@ def main():
     parser.add_argument("--bits", type=int, default=24)
     parser.add_argument("--seconds", type=float, default=1.0)
     parser.add_argument("--output")
+    parser.add_argument("--output-wav")
     parser.add_argument("--skip-wav-verify", action="store_true")
     parser.add_argument("--serial-timeout", type=float, default=1.5)
     args = parser.parse_args()
@@ -72,6 +82,9 @@ def main():
         return 1
 
     output = args.output or default_output_path(args.source, args.rate, args.bits)
+    output_wav = args.output_wav
+    if args.source == "loop" and output_wav is None:
+        output_wav = default_output_wav_path(args.rate, args.bits)
 
     try:
         baseline_status = run_serial(port, "usb", args.serial_timeout)
@@ -82,6 +95,10 @@ def main():
             print(f"serial status did not report source={args.source}", file=sys.stderr)
             return 1
 
+        probe_args = ["--dump-input-wav", output]
+        if output_wav:
+            probe_args.extend(["--dump-output-wav", output_wav])
+
         run_probe(
             args.probe,
             args.device,
@@ -90,10 +107,10 @@ def main():
             args.bits,
             1,
             VERIFY_MODES[args.source],
-            ["--dump-input-wav", output],
+            probe_args,
         )
-        if args.source != "loop" and not args.skip_wav_verify:
-            run_wav_verify(output, args.source, args.rate, args.bits)
+        if not args.skip_wav_verify:
+            run_wav_verify(output, args.source, args.rate, args.bits, output_wav)
 
         run_serial(port, "audio loop", args.serial_timeout)
         status = run_serial(port, "usb", args.serial_timeout)
@@ -102,7 +119,10 @@ def main():
     except subprocess.CalledProcessError as exc:
         return exc.returncode
 
-    print("audio-capture: pass output=" + output)
+    message = "audio-capture: pass output=" + output
+    if output_wav:
+        message += " output_wav=" + output_wav
+    print(message)
     return 0
 
 

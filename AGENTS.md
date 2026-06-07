@@ -95,8 +95,10 @@ Verified firmware features:
   `expected_hash` and `actual_hash` values over the quantized samples actually
   compared, giving an audit-friendly fingerprint for bit-perfect checks. With
   `--dump-input-wav FILE --runs 1`, it also writes the quantized captured input
-  stream as a PCM WAV artifact for inspection/listening. Serial `usb` counters
-  remain the source of truth for hardware endpoint state.
+  stream as a PCM WAV artifact for inspection/listening; with
+  `--dump-output-wav FILE --runs 1`, it also writes the quantized host output
+  stream so loopback can be rechecked later from a WAV pair. Serial `usb`
+  counters remain the source of truth for hardware endpoint state.
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
   pattern at both formats, generated tone at both formats, silence at both
@@ -135,18 +137,20 @@ Verified firmware features:
   actual_hash=0xb89840f63a4ab703`, and `file` identified the dump as 24-bit
   stereo PCM at 48 kHz with 291884 total bytes.
 - `make -C ports/same70-xplained audio-capture` wraps the WAV dump path with
-  serial source selection, exact verification, generated-source WAV
-  verification from disk, final `audio loop` restore, and final serial counter
-  checks. `audio-wav-verify.py` independently reopens dumped pattern, tone, or
-  silence WAV files and compares their PCM samples against the deterministic
-  firmware source stream. Latest CD-rate target run used `--source pattern
-  --rate 44100 --bits 16 --seconds 1 --output
-  /tmp/same70-pattern-cd-capture.wav`; both the live probe and disk WAV verifier
-  passed with
-  `compared_samples=88064 mismatches=0` and matching hash
-  `0xed206a5517dda426`. It printed
-  `audio-capture: pass output=/tmp/same70-pattern-cd-capture.wav`, and `file`
-  identified the dump as 16-bit stereo PCM at 44.1 kHz with 176172 total bytes.
+  serial source selection, exact verification, WAV verification from disk, final
+  `audio loop` restore, and final serial counter checks. `audio-wav-verify.py`
+  independently reopens dumped pattern, tone, or silence WAV files and compares
+  their PCM samples against the deterministic firmware source stream. For
+  `--source loop`, it compares the captured input WAV against the dumped host
+  output WAV after latency alignment. Latest CD-rate loopback artifact run used
+  `--source loop --rate 44100 --bits 16 --seconds 1 --output
+  /tmp/same70-loop-cd-input.wav --output-wav /tmp/same70-loop-cd-output.wav`;
+  both the live probe and disk WAV-pair verifier passed with
+  `input_offset_samples=2804 compared_samples=85260 mismatches=0` and matching
+  hash `0x9cf8dd957a3b65c2`. It printed `audio-capture: pass
+  output=/tmp/same70-loop-cd-input.wav output_wav=/tmp/same70-loop-cd-output.wav`,
+  and `file` identified both dumps as 16-bit stereo PCM at 44.1 kHz with
+  176172 total bytes each.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -234,9 +238,10 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-capture
-make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-pattern-cd-capture.wav --source pattern --rate 44100 --bits 16"
+make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
 Typical feature output:

@@ -220,7 +220,8 @@ static int write_le32(FILE *file, uint32_t value)
 	return write_bytes(file, bytes, sizeof(bytes));
 }
 
-static int write_input_wav(const char *path, const io_state_t *state,
+static int write_samples_wav(const char *label, const char *path,
+	const int32_t *samples, uint32_t available_samples,
 	uint32_t sample_rate_hz, uint32_t sample_bits, uint32_t channels)
 {
 	FILE *file;
@@ -244,7 +245,7 @@ static int write_input_wav(const char *path, const io_state_t *state,
 	}
 
 	bytes_per_sample = sample_bits / 8u;
-	sample_count = state->input_sample_count - (state->input_sample_count % channels);
+	sample_count = available_samples - (available_samples % channels);
 	data_size = sample_count * bytes_per_sample;
 	block_align = channels * bytes_per_sample;
 	byte_rate = sample_rate_hz * block_align;
@@ -271,7 +272,7 @@ static int write_input_wav(const char *path, const io_state_t *state,
 		write_le32(file, data_size);
 
 	for (index = 0u; ok && (index < sample_count); index++) {
-		uint32_t value = (uint32_t)state->input_samples[index];
+		uint32_t value = (uint32_t)samples[index];
 
 		if (sample_bits == 16u) {
 			ok = write_le16(file, value & 0xffffu);
@@ -291,9 +292,23 @@ static int write_input_wav(const char *path, const io_state_t *state,
 		return 0;
 	}
 
-	printf("dump_input_wav=%s samples=%u channels=%u rate=%u bits=%u bytes=%u\n",
-		path, sample_count, channels, sample_rate_hz, sample_bits, data_size);
+	printf("%s=%s samples=%u channels=%u rate=%u bits=%u bytes=%u\n",
+		label, path, sample_count, channels, sample_rate_hz, sample_bits, data_size);
 	return 1;
+}
+
+static int write_input_wav(const char *path, const io_state_t *state,
+	uint32_t sample_rate_hz, uint32_t sample_bits, uint32_t channels)
+{
+	return write_samples_wav("dump_input_wav", path, state->input_samples,
+		state->input_sample_count, sample_rate_hz, sample_bits, channels);
+}
+
+static int write_output_wav(const char *path, const io_state_t *state,
+	uint32_t sample_rate_hz, uint32_t sample_bits, uint32_t channels)
+{
+	return write_samples_wav("dump_output_wav", path, state->output_samples,
+		state->output_sample_count, sample_rate_hz, sample_bits, channels);
 }
 
 static uint32_t min_u32(uint32_t a, uint32_t b)
@@ -598,7 +613,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|silence] [--dump-input-wav FILE] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|silence] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -947,7 +962,8 @@ static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID pro
 
 static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_rate_hz,
 	uint32_t sample_bits, uint32_t verify_mode, uint32_t input_channels,
-	const char *dump_input_wav, uint32_t run, probe_summary_t *summary)
+	uint32_t output_channels, const char *dump_input_wav, const char *dump_output_wav,
+	uint32_t run, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -1017,6 +1033,9 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
 	if (!write_input_wav(dump_input_wav, &state, sample_rate_hz, sample_bits, input_channels)) {
+		verify.passed = 0u;
+	}
+	if (!write_output_wav(dump_output_wav, &state, sample_rate_hz, sample_bits, output_channels)) {
 		verify.passed = 0u;
 	}
 	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u expected_offset_samples=%u compared_samples=%u "
@@ -1097,6 +1116,7 @@ int main(int argc, char **argv)
 {
 	const char *device_name = DEFAULT_DEVICE_NAME;
 	const char *dump_input_wav = NULL;
+	const char *dump_output_wav = NULL;
 	double seconds = DEFAULT_PROBE_SECONDS;
 	uint32_t runs = DEFAULT_PROBE_RUNS;
 	uint32_t sample_rate_hz = DEFAULT_SAMPLE_RATE_HZ;
@@ -1107,6 +1127,7 @@ int main(int argc, char **argv)
 	AudioDeviceID device = kAudioObjectUnknown;
 	probe_summary_t summary;
 	uint32_t input_channels;
+	uint32_t output_channels;
 	int index;
 	uint32_t run;
 
@@ -1159,6 +1180,13 @@ int main(int argc, char **argv)
 			}
 			dump_input_wav = argv[index + 1];
 			index++;
+		} else if (strcmp(argv[index], "--dump-output-wav") == 0) {
+			if ((index + 1) >= argc) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			dump_output_wav = argv[index + 1];
+			index++;
 		} else if ((strcmp(argv[index], "-h") == 0) || (strcmp(argv[index], "--help") == 0)) {
 			print_usage(argv[0]);
 			return 0;
@@ -1180,8 +1208,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "supported pairs are 44100/16 and 48000/24\n");
 		return 1;
 	}
-	if ((dump_input_wav != NULL) && (runs != 1u)) {
-		fprintf(stderr, "--dump-input-wav requires --runs 1\n");
+	if (((dump_input_wav != NULL) || (dump_output_wav != NULL)) && (runs != 1u)) {
+		fprintf(stderr, "--dump-*-wav requires --runs 1\n");
 		return 1;
 	}
 
@@ -1197,11 +1225,15 @@ int main(int argc, char **argv)
 	if (input_channels == 0u) {
 		input_channels = 1u;
 	}
+	output_channels = channel_count(device, kAudioDevicePropertyScopeOutput);
+	if (output_channels == 0u) {
+		output_channels = 1u;
+	}
 
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
 		(void)run_hal_probe(device, seconds, sample_rate_hz, sample_bits, verify_mode,
-			input_channels, dump_input_wav, run, &summary);
+			input_channels, output_channels, dump_input_wav, dump_output_wav, run, &summary);
 	}
 	printf("summary mode=%s rate=%u bits=%u runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
 		verify_mode_name(verify_mode),
