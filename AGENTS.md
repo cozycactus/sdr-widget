@@ -128,20 +128,17 @@ Verified firmware features:
   `mismatches=0` for pattern, tone, sine, and silence at both advertised
   formats, with `hog_mode=1` on the host probe; the target ends on
   `audio silence`, then the board was manually set back to `audio sine`.
-  Current focused 48 kHz/24-bit loopback diagnostics show the board receiving
-  nonzero USB OUT payload via `outnz=<bytes>`, but captured input does not align
-  to the probe's host-output pattern. The latest debug WAVs are
-  `/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
-  Loopback is not just an alignment miss: with `audio loop` selected and
-  `coreaudio-stream-probe --verify input --silent-output` at 44.1 kHz/16-bit,
-  the host probe reports `output_nonzero=0`, but serial `outnz` still grows by
-  roughly 75k nonzero OUT bytes per one-second run and by roughly 396k over a
-  five-second run. Exact loopback still fails at both advertised formats, while
-  generated USB IN sources remain exact. Experiments with one-bank OUT,
-  pre-write `TXINI` clearing, single queued feedback, RWALL-gated OUT reads,
-  and adaptive OUT descriptors did not remove the nonzero silent-OUT symptom
-  and were reverted; the adaptive descriptor also confused macOS interface
-  selection. Earlier hash-audited default run reported
+  Latest full gate status: `make -C ports/same70-xplained audio-verify
+  AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
+  loopback, pattern, tone, sine, and silence at both advertised formats, plus a
+  final 48 kHz/24-bit loopback check. Final serial status reported `err=0`,
+  `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, and the board was
+  manually set back to `audio sine` afterward. Focused `audio outdiag`
+  diagnostics now show silent host output is zero at the device (`nonzero=0`) at
+  both 44.1 kHz/16-bit and 48 kHz/24-bit. Exact loopback passes at both formats;
+  first nonzero OUT payload offsets in the latest focused run were `5792` bytes
+  at 44.1 kHz/16-bit and `9216` bytes at 48 kHz/24-bit. Earlier hash-audited
+  default run reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2
@@ -211,11 +208,16 @@ Verified firmware features:
   fill, dropped OUT bytes, inserted silence bytes, and selected formats as
   `fmt=<out>/<in>`. The loopback input prebuffers whole packets after stream
   resets so startup silence is skipped cleanly by the bit-perfect verifier.
+  `audio outdiag reset` and `audio outdiag` expose resettable endpoint-3 OUT
+  diagnostics: packets, bytes, nonzero bytes, FNV-1a hash, last packet length,
+  first 256 stream bytes, and first 256 bytes starting at the first nonzero OUT
+  payload.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio sine`, `audio silence`. Audio source commands now print a terse
-  `audio source=<source>` line instead of the full `usb` status block, so they
-  are safer while a host audio stream is active.
+  `audio sine`, `audio silence`, `audio outdiag`, `audio outdiag reset`. Audio
+  source commands now print a terse `audio source=<source>` line instead of the
+  full `usb` status block, so they are safer while a host audio stream is
+  active.
 
 Known SAME70/board quirks:
 

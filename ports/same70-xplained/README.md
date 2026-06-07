@@ -79,6 +79,8 @@ audio pattern
 audio tone
 audio sine
 audio silence
+audio outdiag
+audio outdiag reset
 ```
 
 `status` reports the heartbeat counter, millisecond uptime, and USART status
@@ -301,19 +303,23 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
 increase from the starting baseline.
 
-Current generated-source gate status: `make -C ports/same70-xplained
-audio-generated-verify` passes with `hog_mode=1`, `output_nonzero=0`, and
-`mismatches=0` for pattern, tone, sine, and silence at both advertised formats.
-After adding `outnz=<bytes>`, focused 48 kHz/24-bit loopback diagnostics showed
-the board receiving nonzero USB OUT payload, but the captured input did not
-align to the probe's host-output pattern. The latest debug WAVs were
-`/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
-Loopback is therefore the current open audio issue, and current evidence points
-upstream of sample alignment: with `audio loop` selected and
-`coreaudio-stream-probe --verify input --silent-output` at 44.1 kHz/16-bit, the
-host probe reports `output_nonzero=0`, but serial `outnz` still grows by about
-75k nonzero OUT bytes per one-second run. Generated USB IN sources remain
-exact.
+Current full gate status: `make -C ports/same70-xplained audio-verify
+AUDIO_VERIFY_ARGS="--seconds 1"` passes with `hog_mode=1` and zero mismatches
+for exact loopback, pattern, tone, sine, and silence at both advertised formats.
+The final gate restores `audio loop`, verifies 48 kHz/24-bit loopback again, and
+the final serial status reports `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`,
+and `stall=0`. Focused OUT diagnostics now show silent host output is really
+zero on the device: with `audio loop` selected and
+`coreaudio-stream-probe --verify input --silent-output`, `audio outdiag`
+reported `nonzero=0` at both 44.1 kHz/16-bit and 48 kHz/24-bit. Exact loopback
+passes at both formats; the first nonzero OUT payload starts after startup
+zeros (`nz_offset=5792` at 44.1 kHz/16-bit and `nz_offset=9216` at
+48 kHz/24-bit in the latest focused run).
+
+Use `audio outdiag reset` before a host probe, then `audio outdiag` afterward to
+dump raw endpoint-3 OUT diagnostics since reset: packet count, byte count,
+nonzero byte count, FNV-1a hash, last packet length, the first 256 stream bytes,
+and a second 256-byte window starting at the first nonzero OUT byte.
 
 Latest WAV capture check used `audio-capture` with `--seconds 1`,
 `--source loop`, `--rate 44100`, `--bits 16`, captured input

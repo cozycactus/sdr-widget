@@ -82,6 +82,7 @@ static void usart1_drain_rx(void);
 static void console_poll(void);
 static void console_write_hex_field(const char *name, uint32_t value);
 static void console_clock_status(void);
+static void console_audio_out_diag(void);
 static void console_audio_source_name(uint32_t source);
 static void console_audio_format_name(uint32_t format);
 
@@ -192,6 +193,17 @@ static void usart1_write_hex32(uint32_t value)
 	usart1_write("0x");
 	for (index = 0u; index < 8u; index++) {
 		uint32_t shift = 28u - (index * 4u);
+		uint32_t nibble = (value >> shift) & 0xfu;
+		usart1_putc((char)((nibble < 10u) ? ('0' + nibble) : ('a' + (nibble - 10u))));
+	}
+}
+
+static void usart1_write_hex8(uint32_t value)
+{
+	uint32_t index;
+
+	for (index = 0u; index < 2u; index++) {
+		uint32_t shift = 4u - (index * 4u);
 		uint32_t nibble = (value >> shift) & 0xfu;
 		usart1_putc((char)((nibble < 10u) ? ('0' + nibble) : ('a' + (nibble - 10u))));
 	}
@@ -372,6 +384,45 @@ static void console_audio_source_status(uint32_t source)
 	usart1_write("\r\n");
 }
 
+static void console_audio_out_diag(void)
+{
+	same70_usb_audio_out_diag_t diag;
+	uint32_t index;
+
+	same70_usb_get_audio_out_diag(&diag);
+	usart1_write("audio outdiag packets=");
+	usart1_write_u32(diag.packets);
+	usart1_write(" bytes=");
+	usart1_write_u32(diag.bytes);
+	usart1_write(" nonzero=");
+	usart1_write_u32(diag.nonzero_bytes);
+	usart1_write(" hash=");
+	usart1_write_hex32(diag.hash);
+	usart1_write(" last=");
+	usart1_write_u32(diag.last_packet_bytes);
+	usart1_write(" captured=");
+	usart1_write_u32(diag.captured_bytes);
+	usart1_write(" nz_offset=");
+	if (diag.first_nonzero_offset == 0xffffffffu) {
+		usart1_write("none");
+	} else {
+		usart1_write_u32(diag.first_nonzero_offset);
+	}
+	usart1_write(" nz_captured=");
+	usart1_write_u32(diag.captured_nonzero_bytes);
+	usart1_write("\r\n");
+	usart1_write("audio outdiag first=");
+	for (index = 0u; index < diag.captured_bytes; index++) {
+		usart1_write_hex8(diag.captured[index]);
+	}
+	usart1_write("\r\n");
+	usart1_write("audio outdiag firstnz=");
+	for (index = 0u; index < diag.captured_nonzero_bytes; index++) {
+		usart1_write_hex8(diag.captured_nonzero[index]);
+	}
+	usart1_write("\r\n");
+}
+
 static void console_audio_format_name(uint32_t format)
 {
 	if (format == SAME70_USB_AUDIO_FORMAT_44K16) {
@@ -460,7 +511,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio silence\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio silence, audio outdiag, audio outdiag reset\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -497,6 +548,11 @@ static void console_handle_line(void)
 	} else if (text_equals(console_line, "audio silence")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_SILENCE);
 		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SILENCE);
+	} else if (text_equals(console_line, "audio outdiag")) {
+		console_audio_out_diag();
+	} else if (text_equals(console_line, "audio outdiag reset")) {
+		same70_usb_reset_audio_out_diag();
+		console_audio_out_diag();
 	} else {
 		usart1_write("unknown: ");
 		usart1_write(console_line);

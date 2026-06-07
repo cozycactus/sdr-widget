@@ -10,6 +10,7 @@
 #define SAME70_USB_AUDIO_SOURCE_SINE     4u
 #define SAME70_USB_AUDIO_FORMAT_48K24    0u
 #define SAME70_USB_AUDIO_FORMAT_44K16    1u
+#define SAME70_USB_AUDIO_OUT_DIAG_BYTES  256u
 
 typedef struct {
 	uint32_t initialized;
@@ -81,11 +82,26 @@ typedef struct {
 	uint32_t last_wlength;
 } same70_usb_status_t;
 
+typedef struct {
+	uint32_t packets;
+	uint32_t bytes;
+	uint32_t nonzero_bytes;
+	uint32_t hash;
+	uint32_t last_packet_bytes;
+	uint32_t captured_bytes;
+	uint32_t first_nonzero_offset;
+	uint32_t captured_nonzero_bytes;
+	uint8_t captured[SAME70_USB_AUDIO_OUT_DIAG_BYTES];
+	uint8_t captured_nonzero[SAME70_USB_AUDIO_OUT_DIAG_BYTES];
+} same70_usb_audio_out_diag_t;
+
 void same70_usb_init(void);
 void same70_usb_attach(void);
 void same70_usb_detach(void);
 void same70_usb_poll(void);
 void same70_usb_get_status(same70_usb_status_t *status);
 uint32_t same70_usb_set_audio_source(uint32_t source);
+void same70_usb_reset_audio_out_diag(void);
+void same70_usb_get_audio_out_diag(same70_usb_audio_out_diag_t *diag);
 
 #endif
