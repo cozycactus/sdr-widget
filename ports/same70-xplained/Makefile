@@ -13,6 +13,7 @@ AUDIO_VERIFY_ARGS ?=
 AUDIO_GENERATED_VERIFY_ARGS ?= --seconds 1 --skip-loopback --skip-final-loopback --skip-serial-counter-check
 AUDIO_CAPTURE_ARGS ?=
 AUDIO_WAV_VERIFY_ARGS ?=
+SERIAL_COMMAND_ARGS ?=
 WIDGET_VERIFY_ARGS ?=
 WIDGET_CONTROL ?= ../../widget-control
 BOARD_WIDGET_VERIFY_ARGS ?= --set-current-check
@@ -51,7 +52,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-wav-verify widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -93,6 +94,9 @@ audio-cd-ready:
 audio-listen: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_LISTEN_ARGS)
 	$(AUDIO_PLAYER) $(AUDIO_LISTEN_OUTPUT)
+
+audio-hw:
+	$(PYTHON) serial-command.py "audio hw" --expect "external_codec=0" --expect "i2sc=not_configured" --expect "needs_external_codec_board" $(SERIAL_COMMAND_ARGS)
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)

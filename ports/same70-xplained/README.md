@@ -81,6 +81,7 @@ audio tone
 audio sine
 audio melody
 audio silence
+audio hw
 audio outdiag
 audio outdiag reset
 audio indiag
@@ -137,6 +138,7 @@ make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
 make -C ports/same70-xplained flash-ready
@@ -303,7 +305,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0xdf077d4010892593`, played it with `afplay`, and left the board on
+`0x81f830e2c13746af`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -442,6 +444,11 @@ nonzero byte count, FNV-1a hash, last packet length, the first 256 stream bytes,
 and a second 256-byte window starting at the first nonzero OUT byte.
 Use `audio indiag reset` and `audio indiag` the same way for endpoint-5 IN
 diagnostics recorded by the generated silence source.
+Use `audio hw`, or `make -C ports/same70-xplained audio-hw`, to print the
+current hardware-audio boundary. The expected output reports
+`external_codec=0`, `i2sc=not_configured`, and
+`needs_external_codec_board`; the port is still using only USB loopback or
+generated audio sources. Latest `audio-hw` run passed after `board-ready`.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
@@ -453,7 +460,7 @@ audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
 `samples=177152 channels=2 rate=44100 bits=16 bytes=354304` for both WAVs;
 `file` identified both as 16-bit stereo PCM at 44.1 kHz with 354348-byte
 RIFF/WAVE containers. The wrapper then exact-verified
-`/tmp/same70-melody-listen.wav` with hash `0xdf077d4010892593`, played it with
+`/tmp/same70-melody-listen.wav` with hash `0x81f830e2c13746af`, played it with
 `afplay`, and left the board on `audio melody`.
 
 Latest sine listening-source checks after flashing passed at both advertised
@@ -468,6 +475,13 @@ because capture starts at an aligned phase offset.
 The original SDR Widget firmware depends on AVR32-specific peripherals and
 registers, including USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port.
 Those need SAME70 equivalents before the full application can run here.
+The original audio path is the AK5394A/CS4344 external codec path driven by
+AVR32 SSC plus PDCA double buffers. On this SAME70 Xplained port, the codec
+side is deliberately not claimed yet: no external codec is configured, the
+SAME70 I2S/I2SC-style peripheral is not configured, and the missing signals are
+MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset, and codec
+control. The current board can prove USB timing and bit-perfect sample movement,
+but not analog SDR input/output until that external codec path exists.
 
 The USBHS bring-up code is intentionally tiny and separate from the original
 AVR32 USBB driver. It currently proves clocks, device mode, endpoint 0

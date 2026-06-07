@@ -54,6 +54,13 @@ Verified firmware features:
   endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, a
   deterministic square-wave PCM tone, a deterministic low-harmonic sine source,
   deterministic melody, or silence. Default source is loopback.
+- The SAME70 port does not yet drive the original external codec path. The
+  `audio hw` serial command, also wrapped by `make -C ports/same70-xplained
+  audio-hw`, reports `external_codec=0`, `i2sc=not_configured`, and
+  `needs_external_codec_board`. The old AVR32 path expects AK5394A/CS4344 style
+  hardware with MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset,
+  and codec control wired to an SSC/I2S-capable peripheral. Latest
+  `audio-hw` run passed after `board-ready`.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -221,7 +228,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0xdf077d4010892593`, played through `afplay`, and left the board on
+  `0x81f830e2c13746af`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -252,7 +259,7 @@ Verified firmware features:
   endpoint-5 IN bytes recorded by the generated silence source.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio sine`, `audio melody`, `audio silence`, `audio outdiag`,
+  `audio sine`, `audio melody`, `audio silence`, `audio hw`, `audio outdiag`,
   `audio outdiag reset`, `audio indiag`, `audio indiag reset`. Audio source
   commands now print a terse `audio source=<source>` line instead of the full
   `usb` status block, so they are safer while a host audio stream is active.
@@ -338,6 +345,7 @@ make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
 make -C ports/same70-xplained flash-ready

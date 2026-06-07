@@ -84,6 +84,7 @@ static void console_write_hex_field(const char *name, uint32_t value);
 static void console_clock_status(void);
 static void console_audio_out_diag(void);
 static void console_audio_in_diag(void);
+static void console_audio_hardware_status(void);
 static void console_audio_source_name(uint32_t source);
 static void console_audio_format_name(uint32_t format);
 
@@ -398,6 +399,14 @@ static void console_audio_source_status(uint32_t source)
 	usart1_write("\r\n");
 }
 
+static void console_audio_hardware_status(void)
+{
+	usart1_write("audio hw usb_path=1 external_codec=0 i2sc=not_configured\r\n");
+	usart1_write("audio hw current=usb_loopback_or_generated no_adc no_dac\r\n");
+	usart1_write("audio hw required=mclk,bclk,lrck,adc_sdata,dac_sdata,codec_reset,codec_control\r\n");
+	usart1_write("audio hw original=AK5394A_CS4344 AVR32_SSC_PDCA needs_external_codec_board\r\n");
+}
+
 static void console_audio_out_diag(void)
 {
 	same70_usb_audio_out_diag_t diag;
@@ -564,7 +573,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -604,6 +613,8 @@ static void console_handle_line(void)
 	} else if (text_equals(console_line, "audio silence")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_SILENCE);
 		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SILENCE);
+	} else if (text_equals(console_line, "audio hw")) {
+		console_audio_hardware_status();
 	} else if (text_equals(console_line, "audio outdiag")) {
 		console_audio_out_diag();
 	} else if (text_equals(console_line, "audio outdiag reset")) {
