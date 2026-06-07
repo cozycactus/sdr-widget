@@ -136,6 +136,7 @@ make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained board-verify
+make -C ports/same70-xplained board-ready
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
@@ -176,6 +177,16 @@ mismatches for pattern, tone, sine, and melody. Silence reported host
 `input_nonzero=0`, device OUT `nonzero=0`, and device IN `nonzero=0` at both
 formats. Because the generated-source gate ends on `audio silence`, run
 `audio-listen` afterward when you want the board back on melody.
+
+Use `board-ready` when you want both the connected-board smoke gate and the
+verified listening state in one command:
+
+```sh
+make -C ports/same70-xplained board-ready
+```
+
+It runs `board-verify`, then runs `audio-listen` and leaves the board on
+`audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -276,7 +287,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x428e42803109d7e3`, played it with `afplay`, and left the board on
+`0x320834cbae489b57`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
