@@ -41,6 +41,7 @@ typedef struct {
 	uint64_t input_nonzero;
 	uint64_t output_nonzero;
 	uint32_t sample_lcg;
+	uint32_t silent_output;
 	uint32_t sample_bits;
 	int32_t *input_samples;
 	int32_t *output_samples;
@@ -165,7 +166,7 @@ static void capture_input_samples(io_state_t *state, const uint8_t *data, UInt32
 	}
 }
 
-static void fill_output_pattern(io_state_t *state, uint8_t *data, UInt32 length)
+static void fill_output_buffer(io_state_t *state, uint8_t *data, UInt32 length)
 {
 	float *samples = (float *)data;
 	UInt32 count = length / sizeof(float);
@@ -173,7 +174,7 @@ static void fill_output_pattern(io_state_t *state, uint8_t *data, UInt32 length)
 	int32_t sample;
 
 	for (index = 0u; index < count; index++) {
-		sample = next_test_sample(state);
+		sample = state->silent_output ? 0 : next_test_sample(state);
 		samples[index] = pcm_to_float(sample, state->sample_bits);
 		append_output_sample(state, sample);
 	}
@@ -697,7 +698,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|silence] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|silence] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -1037,7 +1038,7 @@ static OSStatus io_callback(AudioObjectID device, const AudioTimeStamp *now,
 	if (output_data != NULL) {
 		for (index = 0u; index < output_data->mNumberBuffers; index++) {
 			if (output_data->mBuffers[index].mData != NULL) {
-				fill_output_pattern(state,
+				fill_output_buffer(state,
 					(uint8_t *)output_data->mBuffers[index].mData,
 					output_data->mBuffers[index].mDataByteSize);
 				state->output_bytes += output_data->mBuffers[index].mDataByteSize;
@@ -1054,7 +1055,7 @@ static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID pro
 static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_rate_hz,
 	uint32_t sample_bits, uint32_t verify_mode, uint32_t input_channels,
 	uint32_t output_channels, const char *dump_input_wav, const char *dump_output_wav,
-	uint32_t run, probe_summary_t *summary)
+	uint32_t run, uint32_t silent_output, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -1064,6 +1065,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 	memset(&state, 0, sizeof(state));
 	state.sample_lcg = 0x12345678u;
 	state.sample_bits = sample_bits;
+	state.silent_output = silent_output;
 	state.capture_sample_capacity = capture_capacity_for_duration(seconds);
 	state.input_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
 	state.output_samples = (int32_t *)calloc(state.capture_sample_capacity, sizeof(int32_t));
@@ -1217,6 +1219,7 @@ int main(int argc, char **argv)
 	uint32_t rate_was_set = 0u;
 	uint32_t bits_were_set = 0u;
 	uint32_t verify_mode = VERIFY_MODE_LOOPBACK;
+	uint32_t silent_output = 0u;
 	AudioDeviceID device = kAudioObjectUnknown;
 	probe_summary_t summary;
 	uint32_t input_channels;
@@ -1253,15 +1256,17 @@ int main(int argc, char **argv)
 			}
 			bits_were_set = 1u;
 			index++;
-		} else if (strcmp(argv[index], "--verify") == 0) {
-			if (((index + 1) >= argc) || !parse_verify_mode(argv[index + 1], &verify_mode)) {
-				print_usage(argv[0]);
-				return 1;
-			}
-			index++;
-		} else if (strcmp(argv[index], "--device") == 0) {
-			if ((index + 1) >= argc) {
-				print_usage(argv[0]);
+			} else if (strcmp(argv[index], "--verify") == 0) {
+				if (((index + 1) >= argc) || !parse_verify_mode(argv[index + 1], &verify_mode)) {
+					print_usage(argv[0]);
+					return 1;
+				}
+				index++;
+			} else if (strcmp(argv[index], "--silent-output") == 0) {
+				silent_output = 1u;
+			} else if (strcmp(argv[index], "--device") == 0) {
+				if ((index + 1) >= argc) {
+					print_usage(argv[0]);
 				return 1;
 			}
 			device_name = argv[index + 1];
@@ -1305,6 +1310,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "--dump-*-wav requires --runs 1\n");
 		return 1;
 	}
+	if ((verify_mode == VERIFY_MODE_LOOPBACK) && silent_output) {
+		fprintf(stderr, "--silent-output is not valid with --verify loopback\n");
+		return 1;
+	}
 
 	if (!find_device(device_name, &device)) {
 		fprintf(stderr, "device containing \"%s\" not found\n", device_name);
@@ -1326,7 +1335,8 @@ int main(int argc, char **argv)
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
 		(void)run_hal_probe(device, seconds, sample_rate_hz, sample_bits, verify_mode,
-			input_channels, output_channels, dump_input_wav, dump_output_wav, run, &summary);
+			input_channels, output_channels, dump_input_wav, dump_output_wav, run,
+			silent_output, &summary);
 	}
 	printf("summary mode=%s rate=%u bits=%u runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
 		verify_mode_name(verify_mode),

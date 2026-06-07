@@ -176,11 +176,13 @@ per-source run counts, or serial port.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
-WAV artifacts again from disk with `audio-wav-verify.py`, restores `audio loop`,
-checks the final serial `usb` status against the starting error counters, and
-prints `audio-capture: pass output=<path>` on success. Add `--leave-source` to
-keep the selected source active instead of restoring loopback. Defaults capture
-the 48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
+WAV artifacts again from disk with `audio-wav-verify.py`, restores `audio loop`
+unless `--leave-source` is passed, checks the final serial `usb` status against
+the starting error counters, and prints `audio-capture: pass output=<path>` on
+success. Non-loop sources pass `--silent-output` to the CoreAudio probe so host
+USB OUT does not add a noisy monitor signal while generated USB IN is being
+verified. Defaults capture the 48 kHz/24-bit generated tone to
+`/tmp/same70-tone-48k24.wav`. Set
 `AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path. Add
 `--skip-serial-counter-check` for listening or monitoring sessions where slow
 9600-baud diagnostic status output could disturb an already-active stream:
@@ -198,8 +200,8 @@ make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --
 
 To check the listening path without a live monitor app, use `audio-listen`. It
 captures the verified sine input, verifies the dumped WAV from disk, plays it
-through the Mac default output with `afplay`, and leaves the board source set to
-`audio sine`:
+through the Mac default output with `afplay`, keeps the probe's USB OUT stream
+silent during capture, and leaves the board source set to `audio sine`:
 
 ```sh
 make -C ports/same70-xplained audio-listen

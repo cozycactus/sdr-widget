@@ -101,6 +101,8 @@ def main():
             return 1
 
         probe_args = ["--dump-input-wav", output]
+        if args.source != "loop":
+            probe_args.append("--silent-output")
         if output_wav:
             probe_args.extend(["--dump-output-wav", output_wav])
 

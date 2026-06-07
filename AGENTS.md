@@ -143,9 +143,11 @@ Verified firmware features:
 - `make -C ports/same70-xplained audio-capture` wraps the WAV dump path with
   serial source selection, exact verification, WAV verification from disk, final
   `audio loop` restore unless `--leave-source` is passed, and final serial
-  counter checks. `audio-wav-verify.py` independently reopens dumped pattern,
-  tone, sine, or silence WAV files and compares their PCM samples against the
-  deterministic firmware source stream.
+  counter checks. For non-loop sources, it passes `--silent-output` to the
+  CoreAudio probe so the host USB OUT pattern cannot be heard as monitor noise
+  while the generated USB IN stream is being verified. `audio-wav-verify.py`
+  independently reopens dumped pattern, tone, sine, or silence WAV files and
+  compares their PCM samples against the deterministic firmware source stream.
   For `--source loop`, it compares the captured input WAV against the dumped
   host output WAV after latency alignment. Latest CD-rate loopback artifact run used
   `--source loop --rate 44100 --bits 16 --seconds 1 --output
@@ -164,7 +166,8 @@ Verified firmware features:
   Sine hashes can vary by run because capture starts at an aligned phase offset.
   If live monitoring still sounds noisy, run
   `make -C ports/same70-xplained audio-listen`; it captures, verifies, plays the
-  verified sine WAV through `afplay`, and leaves the board on `audio sine`.
+  verified sine WAV through `afplay`, keeps USB OUT silent during capture, and
+  leaves the board on `audio sine`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
