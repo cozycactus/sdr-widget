@@ -24,7 +24,8 @@ Current milestones:
   output packets in a small byte ring, return feedback for the active rate, and
   send queued loopback bytes, generated PCM24/PCM16 pattern bytes, a
   deterministic square-wave PCM tone, a deterministic low-harmonic sine source,
-  or silence on input packets. Loopback is the default source.
+  deterministic melody, or silence on input packets. Loopback is the default
+  source.
 - DG8SAQ/vendor feature control compatibility for the existing
   `widget-control` host tool.
 
@@ -102,7 +103,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|melody|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Host checks:
@@ -148,16 +149,19 @@ requested nominal sample rate, writes exact integer test samples through
 CoreAudio Float32 buffers, captures the returned input samples, quantizes them
 back to the selected bit depth, aligns the loopback latency, and reports whether
 the aligned sample stream is bit-perfect. In exact loopback, pattern, tone,
-sine, and silence modes, the verify line also includes 64-bit `expected_hash` and
-`actual_hash` fingerprints over the quantized samples actually compared. Use
+sine, melody, and silence modes, the verify line also includes 64-bit
+`expected_hash` and `actual_hash` fingerprints over the quantized samples
+actually compared. Use
 `--verify pattern` when the firmware source is `audio pattern`; it aligns the
 captured samples against the firmware's deterministic LCG pattern and compares
 them sample-for-sample. Use `--verify tone` when the firmware source is
 `audio tone`; it aligns captured samples against the deterministic square-wave
 PCM source. Use `--verify sine` when the firmware source is `audio sine`; it
 aligns captured samples against a deterministic low-harmonic sine lookup source
-for less harsh listening checks. Use `--verify silence` when the firmware
-source is `audio silence`; it requires all quantized input samples to be zero.
+for less harsh listening checks. Use `--verify melody` when the firmware source
+is `audio melody`; it aligns captured samples against the generated note phrase.
+Use `--verify silence` when the firmware source is `audio silence`; it requires
+all quantized input samples to be zero.
 Use `--verify input` for a looser nonzero input activity check. The serial `usb`
 counters remain the source of truth for USBHS endpoint state. Add
 `--dump-input-wav FILE --runs 1` to write
@@ -171,6 +175,7 @@ selects `audio loop`, verifies loopback at both advertised formats, selects
 `audio pattern`, verifies the generated input pattern at both formats, selects
 `audio tone`, verifies the generated tone at both formats, selects
 `audio sine`, verifies the generated sine at both formats, selects
+`audio melody`, verifies the generated melody at both formats, selects
 `audio silence`, verifies zero input at both formats, switches back to
 `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
 `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
@@ -179,7 +184,7 @@ and `drop` increases are hard failures; `under` increases from CoreAudio stream
 restarts are allowed only when `err` increases by no more than the same amount.
 Generated-source runs use `--silent-output` so only loopback verification drives
 the host USB OUT test pattern. Use `AUDIO_VERIFY_ARGS="--seconds N
---loopback-runs N --pattern-runs N --tone-runs N --sine-runs N
+--loopback-runs N --pattern-runs N --tone-runs N --sine-runs N --melody-runs N
 --silence-runs N --skip-final-loopback --skip-serial-counter-check
 --strict-serial-counter-check
 --serial /dev/cu.usbmodem..."` to tune the run length, per-source run counts,
@@ -187,10 +192,11 @@ final loopback reset, strict serial counter audit, or serial port.
 
 The `audio-generated-verify` target is the quick quiet gate for generated input
 sources only. It runs `audio-verify` with `--seconds 1 --skip-loopback
---skip-final-loopback --skip-serial-counter-check`, so pattern, tone, sine, and
-silence are verified at both formats with silent USB OUT and no final loopback
-burst. Because the sequence ends with the silence source, run `audio-listen` or
-set `audio melody` afterward when you want an audible monitor signal again.
+--skip-final-loopback --skip-serial-counter-check`, so pattern, tone, sine,
+melody, and silence are verified at both formats with silent USB OUT and no
+final loopback burst. Because the sequence ends with the silence source, run
+`audio-listen` or set `audio melody` afterward when you want an audible monitor
+signal again.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
@@ -227,11 +233,20 @@ capture, and leaves the board source set to `audio melody`:
 make -C ports/same70-xplained audio-listen
 ```
 
-Latest checked run after flashing the melody firmware captured four seconds to
-`/tmp/same70-melody-listen.wav`, exact-verified the WAV with
+Latest checked `audio-listen` run captured four seconds to
+`/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0xf9e64757ade0199b`, played it with `afplay`, and left serial status at
-`source=melody fmt=44k16/44k16`.
+`0x6b652800e1e6635b`, played it with `afplay`, and left the board on
+`audio melody`.
+
+Latest exact melody verification used
+`audio-verify --skip-loopback --skip-pattern --skip-tone --skip-sine
+--skip-silence --skip-final-loopback --skip-serial-counter-check --melody-runs
+1` and passed at both formats with matching live hashes:
+`0x76e0eff7c151b947` at 48 kHz/24-bit and `0x3186e5c43407cda7` at
+44.1 kHz/16-bit. A one-second `audio-capture --source melody --rate 44100
+--bits 16` run also passed live exact verification and disk WAV verification on
+`/tmp/same70-melody-exact.wav` with hash `0x9d6ac91ff2387a43`.
 
 For loopback, `audio-capture --source loop` also dumps the quantized host output
 WAV and verifies the captured input against it after latency alignment:
@@ -252,12 +267,12 @@ nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 dump_input_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
 dump_output_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input|pattern|tone|sine|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|melody|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern|tone|sine|melody|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|melody|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Latest measured 48 kHz/24-bit check on the connected board: `--seconds 2
@@ -330,6 +345,13 @@ output was zero on the device; exact loopback passes at both formats, with the
 first nonzero OUT payload starting after startup zeros. At that time the board
 was manually set back to `audio sine` afterward.
 
+The expanded generated-source gate now reaches melody as an exact source:
+pattern, tone, sine, and melody passed in the latest run with silent USB OUT and
+zero mismatches. That full `audio-generated-verify` run was not accepted as a
+complete pass because the later silence probe repeatedly produced zero CoreAudio
+callbacks (`compared_samples=0`), so silence needs a separate host-start
+follow-up before refreshing the full gate status.
+
 Use `audio outdiag reset` before a host probe, then `audio outdiag` afterward to
 dump raw endpoint-3 OUT diagnostics since reset: packet count, byte count,
 nonzero byte count, FNV-1a hash, last packet length, the first 256 stream bytes,
@@ -366,7 +388,8 @@ Audio streaming endpoints are now hardware-configured and loopback-serviced:
 endpoint 3 OUT stores received packets in an 8192-byte ring, endpoint 4
 feedback IN reports the active high-speed feedback value, and endpoint 5 audio
 IN sends queued loopback bytes, generated PCM24/PCM16 pattern bytes, a generated
-square-wave tone, generated sine, or silence depending on the serial-selected source. The macOS
+square-wave tone, generated sine, generated melody, or silence depending on the
+serial-selected source. The macOS
 HAL stream probe writes
 deterministic integer sample values through CoreAudio Float32 buffers, quantizes
 returned input back to the selected bit depth, aligns stream latency, and fails

@@ -43,11 +43,13 @@ def main():
     parser.add_argument("--pattern-runs", type=int, default=2)
     parser.add_argument("--tone-runs", type=int, default=1)
     parser.add_argument("--sine-runs", type=int, default=1)
+    parser.add_argument("--melody-runs", type=int, default=1)
     parser.add_argument("--silence-runs", type=int, default=1)
     parser.add_argument("--skip-loopback", action="store_true")
     parser.add_argument("--skip-pattern", action="store_true")
     parser.add_argument("--skip-tone", action="store_true")
     parser.add_argument("--skip-sine", action="store_true")
+    parser.add_argument("--skip-melody", action="store_true")
     parser.add_argument("--skip-silence", action="store_true")
     parser.add_argument("--skip-final-loopback", action="store_true")
     parser.add_argument("--skip-outdiag-check", action="store_true")
@@ -117,6 +119,19 @@ def main():
                     SILENT_OUTPUT_ARGS):
                 return 1
             expected_source = "sine"
+            expected_fmt = "44k16/44k16"
+
+        if not args.skip_melody:
+            run_serial(port, "audio melody", args.serial_timeout)
+            if not run_checked_probe(
+                    args, port, 48000, 24, args.melody_runs, "melody",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            if not run_checked_probe(
+                    args, port, 44100, 16, args.melody_runs, "melody",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            expected_source = "melody"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_silence:

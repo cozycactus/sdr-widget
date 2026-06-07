@@ -202,6 +202,26 @@ def find_expected_alignment(samples, expected):
     return None
 
 
+def find_verified_alignment(samples, expected):
+    start = first_nonzero_offset(samples)
+    if start is None:
+        return None
+
+    window = min(ALIGN_WINDOW_SAMPLES, len(samples) - start)
+    if window == 0 or len(expected) < window:
+        return None
+
+    for offset in range(0, len(expected) - window + 1):
+        if samples[start:start + window] != expected[offset:offset + window]:
+            continue
+        compared = min(len(samples) - start, len(expected) - offset)
+        if compared < VERIFY_MIN_SAMPLES:
+            continue
+        if samples[start:start + compared] == expected[offset:offset + compared]:
+            return start, offset
+    return None
+
+
 def find_loopback_alignment(samples, expected):
     window = min(ALIGN_WINDOW_SAMPLES, len(expected))
     if window == 0 or len(samples) < window:
@@ -215,6 +235,10 @@ def find_loopback_alignment(samples, expected):
 
 def verify_expected(samples, expected):
     return verify_with_alignment(samples, expected, find_expected_alignment(samples, expected))
+
+
+def verify_exactly_aligned(samples, expected):
+    return verify_with_alignment(samples, expected, find_verified_alignment(samples, expected))
 
 
 def verify_loopback(samples, expected):
@@ -363,7 +387,10 @@ def main():
         if expected is None:
             print(f"audio-wav-verify: unsupported source: {args.source}", file=sys.stderr)
             return 1
-        result = verify_expected(samples, expected)
+        if args.source == "melody":
+            result = verify_exactly_aligned(samples, expected)
+        else:
+            result = verify_expected(samples, expected)
 
     status = "pass" if result["passed"] else "fail"
     print(

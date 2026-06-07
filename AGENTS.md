@@ -53,7 +53,7 @@ Verified firmware features:
   a small byte ring, endpoint 4 returns feedback for the active rate, and
   endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, a
   deterministic square-wave PCM tone, a deterministic low-harmonic sine source,
-  or silence. Default source is loopback.
+  deterministic melody, or silence. Default source is loopback.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -96,12 +96,13 @@ Verified firmware features:
   aligns captured input against the firmware-generated LCG pattern for exact
   capture-side checks, `--verify tone` matches the firmware square-wave source,
   `--verify sine` matches the deterministic sine lookup source for less harsh
-  listening checks, and `--verify silence` proves the selected source returns
-  quantized zero samples only. `--verify input` remains a looser nonzero
-  activity check. For exact loopback, pattern, tone, sine, and silence modes,
-  the probe now prints 64-bit `expected_hash` and `actual_hash` values over the
-  quantized samples actually compared, giving an audit-friendly fingerprint for
-  bit-perfect checks. With
+  listening checks, `--verify melody` matches the generated note phrase, and
+  `--verify silence` proves the selected source returns quantized zero samples
+  only. `--verify input` remains a looser nonzero activity check. For exact
+  loopback, pattern, tone, sine, melody, and silence modes, the probe now prints
+  64-bit `expected_hash` and `actual_hash` values over the quantized samples
+  actually compared, giving an audit-friendly fingerprint for bit-perfect
+  checks. With
   `--dump-input-wav FILE --runs 1`, it also writes the quantized captured input
   stream as a PCM WAV artifact for inspection/listening; with
   `--dump-output-wav FILE --runs 1`, it also writes the quantized host output
@@ -110,8 +111,9 @@ Verified firmware features:
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
   pattern at both formats, generated tone at both formats, generated sine at
-  both formats, silence at both formats, final switch back to `audio loop`,
-  final 48 kHz/24-bit loopback, and serial status confirmation for
+  both formats, generated melody at both formats, silence at both formats, final
+  switch back to `audio loop`, final 48 kHz/24-bit loopback, and serial status
+  confirmation for
   `source=loop` plus `fmt=48k24/48k24`. It also captures a starting serial
   `usb` status and audits final counters. `stall`, `crc`, `over`, and `drop`
   increases are hard failures; `under` increases from CoreAudio stream restarts
@@ -130,12 +132,15 @@ Verified firmware features:
   48 kHz/24-bit and 44.1 kHz/16-bit passed with `output_nonzero=0` and
   `mismatches=0`, and final status reported `source=sine fmt=44k16/44k16`.
   `make -C ports/same70-xplained audio-generated-verify` is the shorter quiet
-  gate for all generated input sources; it verifies pattern, tone, sine, and
-  silence at both formats with silent USB OUT, no final loopback, and no serial
-  counter audit. Latest run passed with `output_nonzero=0` on every probe and
-  `mismatches=0` for pattern, tone, sine, and silence at both advertised
-  formats, with `hog_mode=1` on the host probe; the target ends on
-  `audio silence`, then the board was manually set back to `audio sine`.
+  gate for all generated input sources; it verifies pattern, tone, sine, melody,
+  and silence at both formats with silent USB OUT, no final loopback, and no
+  serial counter audit. Previous generated-gate run before adding melody passed
+  with `output_nonzero=0` on every probe and `mismatches=0` for pattern, tone,
+  sine, and silence at both advertised formats, with `hog_mode=1` on the host
+  probe. Current expanded generated gate was not accepted as a full pass because
+  the final silence probe repeatedly produced zero CoreAudio callbacks
+  (`compared_samples=0`), but pattern, tone, sine, and melody all passed before
+  that silence start issue.
   Previous full gate status before adding the melody source:
   `make -C ports/same70-xplained audio-verify
   AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
@@ -186,8 +191,9 @@ Verified firmware features:
   counter checks. For non-loop sources, it passes `--silent-output` to the
   CoreAudio probe so the host USB OUT pattern cannot be heard as monitor noise
   while the generated USB IN stream is being verified. `audio-wav-verify.py`
-  independently reopens dumped pattern, tone, sine, or silence WAV files and
-  compares their PCM samples against the deterministic firmware source stream.
+  independently reopens dumped pattern, tone, sine, melody, or silence WAV files
+  and compares their PCM samples against the deterministic firmware source
+  stream.
   For `--source loop`, it compares the captured input WAV against the dumped
   host output WAV after latency alignment. Latest CD-rate loopback artifact run used
   `--source loop --rate 44100 --bits 16 --seconds 1 --output
@@ -206,10 +212,22 @@ Verified firmware features:
   `make -C ports/same70-xplained audio-listen`; it captures, exact-verifies the
   melody WAV against the generated note phrase, plays it through `afplay`, keeps
   USB OUT silent during capture, and leaves the board on `audio melody`.
-  Latest checked post-flash run wrote `/tmp/same70-melody-listen.wav`, passed
-  WAV verification with `compared_samples=353280 mismatches=0` and matching hash
-  `0xf9e64757ade0199b`, then serial `usb` confirmed
-  `source=melody fmt=44k16/44k16`.
+  Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
+  passed live exact verification plus disk WAV verification with
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x6b652800e1e6635b`, played through `afplay`, and left the board on
+  `audio melody`.
+  Latest exact melody gate:
+  `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
+  --skip-loopback --skip-pattern --skip-tone --skip-sine --skip-silence
+  --skip-final-loopback --skip-serial-counter-check --melody-runs 1"` passed at
+  both formats with matching live hashes: 48 kHz/24-bit
+  `expected_hash=0x76e0eff7c151b947 actual_hash=0x76e0eff7c151b947`, and
+  44.1 kHz/16-bit
+  `expected_hash=0x3186e5c43407cda7 actual_hash=0x3186e5c43407cda7`.
+  Latest `audio-capture --source melody --rate 44100 --bits 16` also passed
+  live exact verification plus disk WAV verification on
+  `/tmp/same70-melody-exact.wav` with hash `0x9d6ac91ff2387a43`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -284,7 +302,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|melody|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Verified host checks:
@@ -305,6 +323,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify sine"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify melody --silent-output"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify

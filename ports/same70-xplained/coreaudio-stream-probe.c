@@ -19,6 +19,7 @@
 #define VERIFY_MODE_SILENCE  3u
 #define VERIFY_MODE_TONE     4u
 #define VERIFY_MODE_SINE     5u
+#define VERIFY_MODE_MELODY   6u
 #define DEFAULT_SAMPLE_RATE_HZ 48000u
 #define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
@@ -32,6 +33,12 @@
 #define TONE_ALIGN_MAX_SAMPLES 4096u
 #define SINE_PERIOD_SAMPLES 96u
 #define SINE_ALIGN_MAX_SAMPLES 4096u
+#define MELODY_ALIGN_MAX_SAMPLES 1048576u
+#define MELODY_NOTE_COUNT 24u
+#define MELODY_PHASE_SHIFT 16u
+#define MELODY_PHASE_PERIOD (SINE_PERIOD_SAMPLES << MELODY_PHASE_SHIFT)
+#define MELODY_NOTE_FRAMES_48K 9600u
+#define MELODY_NOTE_FRAMES_44K 8820u
 
 typedef struct {
 	uint32_t callbacks;
@@ -73,6 +80,35 @@ typedef struct {
 	uint64_t compared;
 	uint64_t mismatches;
 } probe_summary_t;
+
+static const int32_t sine_samples_16[SINE_PERIOD_SAMPLES] = {
+	0, 536, 1069, 1598, 2120, 2633, 3135, 3623,
+	4096, 4551, 4987, 5401, 5793, 6159, 6499, 6811,
+	7094, 7347, 7568, 7757, 7913, 8035, 8122, 8174,
+	8192, 8174, 8122, 8035, 7913, 7757, 7568, 7347,
+	7094, 6811, 6499, 6159, 5793, 5401, 4987, 4551,
+	4096, 3623, 3135, 2633, 2120, 1598, 1069, 536,
+	0, -536, -1069, -1598, -2120, -2633, -3135, -3623,
+	-4096, -4551, -4987, -5401, -5793, -6159, -6499, -6811,
+	-7094, -7347, -7568, -7757, -7913, -8035, -8122, -8174,
+	-8192, -8174, -8122, -8035, -7913, -7757, -7568, -7347,
+	-7094, -6811, -6499, -6159, -5793, -5401, -4987, -4551,
+	-4096, -3623, -3135, -2633, -2120, -1598, -1069, -536,
+};
+
+static const uint32_t melody_notes_48k[MELODY_NOTE_COUNT] = {
+	34292u, 43205u, 51380u, 68584u, 64734u, 51380u,
+	43205u, 38491u, 34292u, 38491u, 43205u, 51380u,
+	57672u, 51380u, 43205u, 34292u, 38491u, 43205u,
+	51380u, 57672u, 51380u, 43205u, 38491u, 34292u,
+};
+
+static const uint32_t melody_notes_44k[MELODY_NOTE_COUNT] = {
+	37324u, 47026u, 55923u, 74649u, 70459u, 55923u,
+	47026u, 41895u, 37324u, 41895u, 47026u, 55923u,
+	62772u, 55923u, 47026u, 37324u, 41895u, 47026u,
+	55923u, 62772u, 55923u, 47026u, 41895u, 37324u,
+};
 
 static void update_checksum(uint64_t *checksum, uint64_t *nonzero,
 	const uint8_t *data, UInt32 length)
@@ -392,21 +428,7 @@ static void fill_expected_tone(int32_t *samples, uint32_t count, uint32_t sample
 
 static int32_t expected_sine_sample(uint32_t index, uint32_t sample_bits)
 {
-	static const int32_t samples[SINE_PERIOD_SAMPLES] = {
-		0, 536, 1069, 1598, 2120, 2633, 3135, 3623,
-		4096, 4551, 4987, 5401, 5793, 6159, 6499, 6811,
-		7094, 7347, 7568, 7757, 7913, 8035, 8122, 8174,
-		8192, 8174, 8122, 8035, 7913, 7757, 7568, 7347,
-		7094, 6811, 6499, 6159, 5793, 5401, 4987, 4551,
-		4096, 3623, 3135, 2633, 2120, 1598, 1069, 536,
-		0, -536, -1069, -1598, -2120, -2633, -3135, -3623,
-		-4096, -4551, -4987, -5401, -5793, -6159, -6499, -6811,
-		-7094, -7347, -7568, -7757, -7913, -8035, -8122, -8174,
-		-8192, -8174, -8122, -8035, -7913, -7757, -7568, -7347,
-		-7094, -6811, -6499, -6159, -5793, -5401, -4987, -4551,
-		-4096, -3623, -3135, -2633, -2120, -1598, -1069, -536,
-	};
-	int32_t sample = samples[(index / 2u) % SINE_PERIOD_SAMPLES];
+	int32_t sample = sine_samples_16[(index / 2u) % SINE_PERIOD_SAMPLES];
 
 	return (sample_bits == 16u) ? sample : (sample * 256);
 }
@@ -417,6 +439,68 @@ static void fill_expected_sine(int32_t *samples, uint32_t count, uint32_t sample
 
 	for (index = 0u; index < count; index++) {
 		samples[index] = expected_sine_sample(index, sample_bits);
+	}
+}
+
+static uint32_t melody_note_frames(uint32_t sample_rate_hz)
+{
+	return (sample_rate_hz == 44100u) ? MELODY_NOTE_FRAMES_44K : MELODY_NOTE_FRAMES_48K;
+}
+
+static const uint32_t *melody_note_table(uint32_t sample_rate_hz)
+{
+	return (sample_rate_hz == 44100u) ? melody_notes_44k : melody_notes_48k;
+}
+
+static int32_t melody_apply_envelope(int32_t sample, uint32_t frame, uint32_t frames)
+{
+	uint32_t attack = frames / 20u;
+	uint32_t release = frames / 8u;
+	uint32_t gain = 256u;
+
+	if ((attack > 0u) && (frame < attack)) {
+		gain = (frame * 256u) / attack;
+	} else if ((release > 0u) && (frame >= (frames - release))) {
+		gain = ((frames - frame) * 256u) / release;
+	}
+
+	return (sample * (int32_t)gain) / 256;
+}
+
+static void fill_expected_melody(int32_t *samples, uint32_t count, uint32_t sample_bits,
+	uint32_t sample_rate_hz)
+{
+	const uint32_t *notes = melody_note_table(sample_rate_hz);
+	uint32_t note_frames = melody_note_frames(sample_rate_hz);
+	uint32_t note = 0u;
+	uint32_t frame = 0u;
+	uint32_t phase = 0u;
+	uint32_t index;
+	int32_t frame_sample = 0;
+
+	for (index = 0u; index < count; index++) {
+		if ((index % 2u) == 0u) {
+			int32_t sample;
+
+			if (frame >= note_frames) {
+				frame = 0u;
+				phase = 0u;
+				note++;
+				if (note >= MELODY_NOTE_COUNT) {
+					note = 0u;
+				}
+			}
+
+			sample = sine_samples_16[phase >> MELODY_PHASE_SHIFT];
+			sample = melody_apply_envelope(sample, frame, note_frames);
+			phase += notes[note];
+			if (phase >= MELODY_PHASE_PERIOD) {
+				phase -= MELODY_PHASE_PERIOD;
+			}
+			frame++;
+			frame_sample = (sample_bits == 16u) ? sample : (sample * 256);
+		}
+		samples[index] = frame_sample;
 	}
 }
 
@@ -443,6 +527,52 @@ static uint32_t find_pattern_alignment(const io_state_t *state, const int32_t *e
 			}
 		}
 		if (index == window) {
+			*input_offset = start;
+			*expected_offset = offset;
+			return 1u;
+		}
+	}
+
+	return 0u;
+}
+
+static uint32_t find_verified_alignment(const io_state_t *state, const int32_t *expected,
+	uint32_t expected_count, uint32_t *input_offset, uint32_t *expected_offset)
+{
+	uint32_t window;
+	uint32_t start;
+	uint32_t offset;
+	uint32_t index;
+
+	if (!first_nonzero_input_offset(state, &start)) {
+		return 0u;
+	}
+	window = min_u32(ALIGN_WINDOW_SAMPLES, state->input_sample_count - start);
+	if ((window == 0u) || (expected_count < window)) {
+		return 0u;
+	}
+
+	for (offset = 0u; offset <= (expected_count - window); offset++) {
+		uint32_t compared;
+
+		for (index = 0u; index < window; index++) {
+			if (!samples_match(state->input_samples[start + index], expected[offset + index])) {
+				break;
+			}
+		}
+		if (index != window) {
+			continue;
+		}
+		compared = min_u32(state->input_sample_count - start, expected_count - offset);
+		if (compared < VERIFY_MIN_SAMPLES) {
+			continue;
+		}
+		for (index = 0u; index < compared; index++) {
+			if (!samples_match(state->input_samples[start + index], expected[offset + index])) {
+				break;
+			}
+		}
+		if (index == compared) {
 			*input_offset = start;
 			*expected_offset = offset;
 			return 1u;
@@ -643,6 +773,57 @@ static verify_result_t verify_input_sine(const io_state_t *state)
 	return result;
 }
 
+static verify_result_t verify_input_melody(const io_state_t *state, uint32_t sample_rate_hz)
+{
+	verify_result_t result;
+	int32_t *expected;
+	uint32_t expected_count;
+	uint32_t index;
+
+	memset(&result, 0, sizeof(result));
+	result.first_mismatch = UINT32_MAX;
+	if ((state->input_sample_overflow != 0u) || (state->input_sample_count < VERIFY_MIN_SAMPLES)) {
+		return result;
+	}
+
+	expected_count = state->input_sample_count + MELODY_ALIGN_MAX_SAMPLES;
+	expected = (int32_t *)calloc(expected_count, sizeof(int32_t));
+	if (expected == NULL) {
+		return result;
+	}
+	fill_expected_melody(expected, expected_count, state->sample_bits, sample_rate_hz);
+	if (!find_verified_alignment(state, expected, expected_count,
+	    &result.input_offset, &result.expected_offset)) {
+		free(expected);
+		return result;
+	}
+
+	result.aligned = 1u;
+	result.compared = min_u32(
+		state->input_sample_count - result.input_offset,
+		expected_count - result.expected_offset);
+	result.expected_hash = VERIFY_HASH_OFFSET_BASIS;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
+	for (index = 0u; index < result.compared; index++) {
+		int32_t expected_sample = expected[result.expected_offset + index];
+		int32_t actual = state->input_samples[result.input_offset + index];
+		result.expected_hash = hash_sample(result.expected_hash, expected_sample);
+		result.actual_hash = hash_sample(result.actual_hash, actual);
+		if (!samples_match(actual, expected_sample)) {
+			if (result.first_mismatch == UINT32_MAX) {
+				result.first_mismatch = index;
+				result.first_expected = expected_sample;
+				result.first_actual = actual;
+			}
+			result.mismatches++;
+		}
+	}
+
+	result.passed = (result.compared >= VERIFY_MIN_SAMPLES) && (result.mismatches == 0u);
+	free(expected);
+	return result;
+}
+
 static verify_result_t verify_input_activity(const io_state_t *state)
 {
 	verify_result_t result;
@@ -790,7 +971,7 @@ static void release_hog_mode(AudioDeviceID device)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|silence] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|melody|silence] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -882,6 +1063,10 @@ static int parse_verify_mode(const char *text, uint32_t *mode)
 		*mode = VERIFY_MODE_SINE;
 		return 1;
 	}
+	if (strcmp(text, "melody") == 0) {
+		*mode = VERIFY_MODE_MELODY;
+		return 1;
+	}
 
 	return 0;
 }
@@ -899,6 +1084,9 @@ static const char *verify_mode_name(uint32_t mode)
 	}
 	if (mode == VERIFY_MODE_SINE) {
 		return "sine";
+	}
+	if (mode == VERIFY_MODE_MELODY) {
+		return "melody";
 	}
 
 	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
@@ -1199,6 +1387,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		verify = verify_input_tone(&state);
 	} else if (verify_mode == VERIFY_MODE_SINE) {
 		verify = verify_input_sine(&state);
+	} else if (verify_mode == VERIFY_MODE_MELODY) {
+		verify = verify_input_melody(&state, sample_rate_hz);
 	} else if (verify_mode == VERIFY_MODE_SILENCE) {
 		verify = verify_input_silence(&state);
 	} else if (verify_mode == VERIFY_MODE_INPUT) {
