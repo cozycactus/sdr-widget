@@ -1,9 +1,45 @@
 #!/bin/sh
 ##
-## this makes the widget if the AVR32BIN environment variable
-## is pointing to the directory containing avr32-gcc
+## Build the legacy AVR32 widget firmware.
 ##
-PATH=${AVR32BIN:=/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.0.0.201009140852/os/linux/x86_64/bin}:$PATH
-#PATH=${AVR32BIN:=/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.1.0.201012011657/os/linux/x86_64/bin}:$PATH
-export PATH
+## Set AVR32BIN to the directory containing avr32-gcc, or keep the AVR32
+## toolchain on PATH.  On this macOS checkout, the sibling source-built
+## avr32-toolchain-macos-arm64 tree is detected automatically when present.
+##
+
+set -eu
+
+find_avr32bin()
+{
+    if [ -n "${AVR32BIN:-}" ]; then
+        printf '%s\n' "$AVR32BIN"
+        return
+    fi
+
+    if command -v avr32-gcc >/dev/null 2>&1; then
+        dirname "$(command -v avr32-gcc)"
+        return
+    fi
+
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    macos_toolchain="$script_dir/../avr32-toolchain-macos-arm64/avr32-tools-src/bin"
+    linux_toolchain="/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.0.0.201009140852/os/linux/x86_64/bin"
+    linux_toolchain_31="/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.1.0.201012011657/os/linux/x86_64/bin"
+
+    if [ -x "$macos_toolchain/avr32-gcc" ]; then
+        printf '%s\n' "$macos_toolchain"
+    elif [ -x "$linux_toolchain/avr32-gcc" ]; then
+        printf '%s\n' "$linux_toolchain"
+    elif [ -x "$linux_toolchain_31/avr32-gcc" ]; then
+        printf '%s\n' "$linux_toolchain_31"
+    else
+        echo "make-widget: could not find avr32-gcc; set AVR32BIN to the toolchain bin directory" >&2
+        exit 1
+    fi
+}
+
+AVR32BIN=$(find_avr32bin)
+PATH=$AVR32BIN:$PATH
+export AVR32BIN PATH
+
 cd Release && make all

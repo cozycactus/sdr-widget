@@ -3,8 +3,16 @@
 ## and the widget-control that matches
 ## the features in the widget
 ##
-## assumes that you've set the AVR32BIN environment
-## to point to the directory containing avr32-gcc
+## Set AVR32BIN to the directory containing avr32-gcc, or keep avr32-gcc on
+## PATH.  make-widget also auto-detects the sibling macOS AVR32 toolchain tree.
+##
+HOST_CC ?= cc
+PKG_CONFIG ?= pkg-config
+LIBUSB_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags libusb-1.0 2>/dev/null)
+LIBUSB_LIBS ?= $(shell $(PKG_CONFIG) --libs libusb-1.0 2>/dev/null || echo -lusb-1.0)
+HOST_CFLAGS ?=
+HOST_LDFLAGS ?=
+
 all:: Release/widget.elf widget-control
 
 Release/widget.elf::
@@ -19,7 +27,7 @@ sdr-widget::
 	CFLAGS=-DFEATURE_DEFAULT_BOARD=feature_board_widget ./make-widget
 
 widget-control: widget-control.c src/features.h
-	gcc -o widget-control widget-control.c -lusb-1.0
+	$(HOST_CC) $(HOST_CFLAGS) $(LIBUSB_CFLAGS) -o widget-control widget-control.c $(HOST_LDFLAGS) $(LIBUSB_LIBS)
 
 clean::
 	cd Release && make clean

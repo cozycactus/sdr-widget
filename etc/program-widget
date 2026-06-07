@@ -1,29 +1,39 @@
 #!/bin/bash
 ##
-## program the sdr-widget under linux as of Sun May 1, 2011
+## program the AVR32 sdr-widget
 ## accepts either a widget.elf file or a widget.hex file
 ##
-echo program-widget with $1
-[[ -z $1 ]] && echo "no file specified to program-widget" && exit 1
-[[ ! -f $1 ]] && echo "no such file '$1'" && exit 1
-case $1 in
+
+set -e
+
+input=${1:-}
+echo "program-widget with $input"
+[[ -z $input ]] && echo "no file specified to program-widget" && exit 1
+[[ ! -f $input ]] && echo "no such file '$input'" && exit 1
+
+OBJCOPY=${OBJCOPY:-avr32-objcopy}
+DFU_PROGRAMMER=${DFU_PROGRAMMER:-dfu-programmer}
+MCU=${MCU:-at32uc3a3256}
+
+program_hex()
+{
+    "$DFU_PROGRAMMER" "$MCU" erase --debug 6 &&
+        "$DFU_PROGRAMMER" "$MCU" flash --suppress-bootloader-mem "$1" --debug 6 &&
+        "$DFU_PROGRAMMER" "$MCU" reset --debug 4
+}
+
+case $input in
     *.elf)
-	hex=/tmp/`basename $1 .elf`.hex
-	objcopy -O ihex $1 $hex && \
-	    dfu-programmer at32uc3a3256 erase --debug 6  && \
-	    dfu-programmer at32uc3a3256 flash --suppress-bootloader-mem $hex --debug 6 && \
-	    dfu-programmer at32uc3a3256 reset --debug 4 && \
-	    rm $hex && \
-	    exit 0
+	hex=$(mktemp "${TMPDIR:-/tmp}/$(basename "$input" .elf).XXXXXX")
+	trap 'rm -f "$hex"' EXIT
+	"$OBJCOPY" -O ihex "$input" "$hex" && program_hex "$hex"
+	exit 0
 	;;
     *.hex)
-	dfu-programmer at32uc3a3256 erase --debug 6  && \
-	    dfu-programmer at32uc3a3256 flash --suppress-bootloader-mem $1 --debug 6 && \
-	    dfu-programmer at32uc3a3256 reset --debug 4 && \
-	    exit 0
+	program_hex "$input"
+	exit 0
 	;;
     *)
-	echo unrecognized file format for programming: $1
+	echo "unrecognized file format for programming: $input"
 	exit 1
 esac
-	

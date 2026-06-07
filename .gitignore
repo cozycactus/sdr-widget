@@ -7,6 +7,7 @@
 *.o
 *.d
 *.elf
+__pycache__/
 widget-control
 ports/same70-xplained/build/
 Release-llvm/

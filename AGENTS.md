@@ -299,6 +299,18 @@ Build:
 make -C ports/same70-xplained
 ```
 
+Legacy AVR32 build:
+
+```sh
+make all
+```
+
+`make-widget` now auto-detects `avr32-gcc` from `AVR32BIN`, `PATH`, the
+sibling `avr32-toolchain-macos-arm64` source-build tree, or the original Linux
+Atmel Studio locations. `widget-control` builds with `pkg-config` libusb flags.
+`etc/program-widget` accepts `OBJCOPY`, `DFU_PROGRAMMER`, and `MCU` overrides.
+Latest `make clean && make all` passed on macOS using the sibling toolchain.
+
 Probe:
 
 ```sh
