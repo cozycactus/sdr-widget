@@ -152,6 +152,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
@@ -476,6 +477,10 @@ digital-audio/SSC-style pins for the original AK5394A/CS4344-style codec path:
 TD on PD26/J502.1, RD/RF/RK on PA10/J504.2, PD24/J504.1, PA22/J504.3, TK/TF on
 PB1/PB0 via J505 or J507, and PCK0 on PB13 via J504.5 or J507.19. See
 `external-codec-pin-map.md` before wiring or enabling codec firmware.
+Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
+codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
+to prove the stock board still reports no external codec. The latest run passed
+and reported `external codec remains disabled`.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input

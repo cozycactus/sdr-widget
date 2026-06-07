@@ -119,6 +119,12 @@ Verified firmware features:
   zero mismatches for pattern, tone, sine, and melody, silence host
   `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at both formats, and
   `audio-hw` reporting `needs_external_codec_board`.
+- `make -C ports/same70-xplained external-codec-preflight` is the pre-wiring
+  guard for future codec work. It checks
+  `ports/same70-xplained/external-codec-pin-map.md` for the selected header
+  route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw` to prove
+  the stock board still reports no external codec. Latest run passed and
+  reported `external codec remains disabled`.
 - `make -C ports/same70-xplained board-ready` runs `board-verify` and then
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
@@ -376,6 +382,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
@@ -400,6 +407,7 @@ USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, generated melody, and silence. The next practical SAME70
 milestone is keeping the stock-board USB path verified while preparing the
-header-based external AK5394A/CS4344-style wiring map. Do not enable or claim
-analog SDR input/output until external hardware is connected and a separate
-external-codec gate proves real ADC/DAC movement.
+header-based external AK5394A/CS4344-style wiring map. The
+`external-codec-preflight` target is a pre-wiring boundary check only. Do not
+enable or claim analog SDR input/output until external hardware is connected
+and a separate external-codec acceptance gate proves real ADC/DAC movement.

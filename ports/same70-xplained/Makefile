@@ -24,6 +24,7 @@ BOARD_AUDIO_VERIFY_ARGS ?= $(AUDIO_GENERATED_VERIFY_ARGS)
 BOARD_AUDIO_HW_ARGS ?= $(SERIAL_COMMAND_ARGS)
 BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 FLASH_READY_DELAY ?= 2
+EXTERNAL_CODEC_PIN_MAP ?= external-codec-pin-map.md
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
 AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
@@ -58,7 +59,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -119,6 +120,25 @@ audio-hw:
 		--expect "external-codec-pin-map.md" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
+
+external-codec-preflight:
+	@test -f "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "needs_external_codec_board" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "3.3 V logic" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "AK5394A/CS4344" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "not a generic USB/I2S audio module" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PD26 | J502 pin 1" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PA10 | J504 pin 2" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PD24 | J504 pin 1" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PA22 | J504 pin 3" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PB1 | J505 pin 8 or J507 pin 4" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PB0 | J505 pin 7 or J507 pin 5" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PB13 | J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "PC17 | EXT1 pin 10" "$(EXTERNAL_CODEC_PIN_MAP)"
+	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
+	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)

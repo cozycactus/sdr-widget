@@ -21,6 +21,8 @@ analog SDR input or output without external ADC/DAC hardware.
   voltage checks pass with the board unpowered, then powered.
 - Keep `audio hw` reporting `external_codec=0`, `i2sc=not_configured`, and
   `needs_external_codec_board` until hardware is actually attached.
+- Run `make -C ports/same70-xplained external-codec-preflight` before wiring or
+  codec-firmware work; it checks this map and the live `audio hw` boundary.
 
 ## Candidate Digital Audio Signals
 
@@ -55,6 +57,9 @@ analog SDR input or output without external ADC/DAC hardware.
 
 Current firmware support is intentionally limited to reporting this future map
 through `audio hw`. The stock-board acceptance gates remain USB loopback,
-generated audio, UAC controls, and serial diagnostics. A future external-codec
-gate must be separate from `board-ready` and must prove real ADC/DAC movement
-before analog SDR audio is claimed.
+generated audio, UAC controls, and serial diagnostics.
+`external-codec-preflight` is only a pre-wiring boundary gate: it verifies this
+map and confirms that the connected stock board still reports no external
+codec. A future external-codec acceptance gate must be separate from
+`board-ready` and must prove real ADC/DAC movement before analog SDR audio is
+claimed.
