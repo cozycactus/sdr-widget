@@ -169,10 +169,13 @@ selects `audio loop`, verifies loopback at both advertised formats, selects
 `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
 `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
 starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
-`drop` increases by the final status. Use `AUDIO_VERIFY_ARGS="--seconds N
+`drop` increases by the final status. Generated-source runs use
+`--silent-output` so only loopback verification drives the host USB OUT test
+pattern. Use `AUDIO_VERIFY_ARGS="--seconds N
 --loopback-runs N --pattern-runs N --tone-runs N --sine-runs N
---silence-runs N --serial /dev/cu.usbmodem..."` to tune the run length,
-per-source run counts, or serial port.
+--silence-runs N --skip-final-loopback --skip-serial-counter-check
+--serial /dev/cu.usbmodem..."` to tune the run length, per-source run counts,
+final loopback reset, strict serial counter audit, or serial port.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies

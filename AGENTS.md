@@ -109,7 +109,17 @@ Verified firmware features:
   final 48 kHz/24-bit loopback, and serial status confirmation for
   `source=loop` plus `fmt=48k24/48k24`. It also captures a starting serial
   `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or `drop`
-  increases by the final status. Latest hash-audited default run reported
+  increases by the final status. Generated-source runs now pass
+  `--silent-output`, so only loopback verification drives the host USB OUT test
+  pattern. Use `--skip-final-loopback` for quiet generated-source checks that
+  should leave the last selected source active, and pair it with
+  `--skip-serial-counter-check` when host interface restarts would otherwise
+  increment `err/under`. Latest quiet sine-only run used `--seconds 1
+  --skip-loopback --skip-pattern --skip-tone --skip-silence
+  --skip-final-loopback --skip-serial-counter-check --sine-runs 1`; both
+  48 kHz/24-bit and 44.1 kHz/16-bit passed with `output_nonzero=0` and
+  `mismatches=0`, and final status reported `source=sine fmt=44k16/44k16`.
+  Latest hash-audited default run reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2

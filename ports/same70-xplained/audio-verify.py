@@ -14,6 +14,9 @@ from same70_audio import (
 )
 
 
+SILENT_OUTPUT_ARGS = ["--silent-output"]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run SAME70 USB audio verification.")
     parser.add_argument("--probe", default="build/coreaudio-stream-probe")
@@ -31,6 +34,8 @@ def main():
     parser.add_argument("--skip-tone", action="store_true")
     parser.add_argument("--skip-sine", action="store_true")
     parser.add_argument("--skip-silence", action="store_true")
+    parser.add_argument("--skip-final-loopback", action="store_true")
+    parser.add_argument("--skip-serial-counter-check", action="store_true")
     args = parser.parse_args()
 
     port = find_serial_port(args.serial)
@@ -42,38 +47,72 @@ def main():
         return 1
 
     try:
-        baseline_status = run_serial(port, "usb", args.serial_timeout)
-        baseline_fields = parse_serial_fields(baseline_status)
+        baseline_fields = None
+        if not args.skip_serial_counter_check:
+            baseline_status = run_serial(port, "usb", args.serial_timeout)
+            baseline_fields = parse_serial_fields(baseline_status)
+        expected_source = None
+        expected_fmt = None
 
         if not args.skip_loopback:
             run_serial(port, "audio loop", args.serial_timeout)
             run_probe(args.probe, args.device, args.seconds, 48000, 24, args.loopback_runs, "loopback")
             run_probe(args.probe, args.device, args.seconds, 44100, 16, args.loopback_runs, "loopback")
+            expected_source = "loop"
+            expected_fmt = "44k16/44k16"
 
         if not args.skip_pattern:
             run_serial(port, "audio pattern", args.serial_timeout)
-            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.pattern_runs, "pattern")
-            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.pattern_runs, "pattern")
+            run_probe(
+                args.probe, args.device, args.seconds, 48000, 24,
+                args.pattern_runs, "pattern", SILENT_OUTPUT_ARGS)
+            run_probe(
+                args.probe, args.device, args.seconds, 44100, 16,
+                args.pattern_runs, "pattern", SILENT_OUTPUT_ARGS)
+            expected_source = "pattern"
+            expected_fmt = "44k16/44k16"
 
         if not args.skip_tone:
             run_serial(port, "audio tone", args.serial_timeout)
-            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.tone_runs, "tone")
-            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.tone_runs, "tone")
+            run_probe(
+                args.probe, args.device, args.seconds, 48000, 24,
+                args.tone_runs, "tone", SILENT_OUTPUT_ARGS)
+            run_probe(
+                args.probe, args.device, args.seconds, 44100, 16,
+                args.tone_runs, "tone", SILENT_OUTPUT_ARGS)
+            expected_source = "tone"
+            expected_fmt = "44k16/44k16"
 
         if not args.skip_sine:
             run_serial(port, "audio sine", args.serial_timeout)
-            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.sine_runs, "sine")
-            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.sine_runs, "sine")
+            run_probe(
+                args.probe, args.device, args.seconds, 48000, 24,
+                args.sine_runs, "sine", SILENT_OUTPUT_ARGS)
+            run_probe(
+                args.probe, args.device, args.seconds, 44100, 16,
+                args.sine_runs, "sine", SILENT_OUTPUT_ARGS)
+            expected_source = "sine"
+            expected_fmt = "44k16/44k16"
 
         if not args.skip_silence:
             run_serial(port, "audio silence", args.serial_timeout)
-            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.silence_runs, "silence")
-            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.silence_runs, "silence")
+            run_probe(
+                args.probe, args.device, args.seconds, 48000, 24,
+                args.silence_runs, "silence", SILENT_OUTPUT_ARGS)
+            run_probe(
+                args.probe, args.device, args.seconds, 44100, 16,
+                args.silence_runs, "silence", SILENT_OUTPUT_ARGS)
+            expected_source = "silence"
+            expected_fmt = "44k16/44k16"
 
-        run_serial(port, "audio loop", args.serial_timeout)
-        run_probe(args.probe, args.device, 1.0, 48000, 24, 1, "loopback")
+        if not args.skip_final_loopback:
+            run_serial(port, "audio loop", args.serial_timeout)
+            run_probe(args.probe, args.device, 1.0, 48000, 24, 1, "loopback")
+            expected_source = "loop"
+            expected_fmt = "48k24/48k24"
+
         status = run_serial(port, "usb", args.serial_timeout)
-        if not require_serial_state(status, "loop", "48k24/48k24", baseline_fields):
+        if not require_serial_state(status, expected_source, expected_fmt, baseline_fields):
             return 1
     except subprocess.CalledProcessError as exc:
         return exc.returncode
