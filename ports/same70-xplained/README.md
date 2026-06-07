@@ -137,6 +137,7 @@ make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
+make -C ports/same70-xplained flash-ready
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
@@ -187,6 +188,17 @@ make -C ports/same70-xplained board-ready
 
 It runs `board-verify`, then runs `audio-listen` and leaves the board on
 `audio melody`.
+
+Use `flash-ready` when you want to program the connected SAME70 first, then
+prove and restore the ready state:
+
+```sh
+make -C ports/same70-xplained flash-ready
+```
+
+It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
+The latest run programmed and verified flash with OpenOCD, passed the control
+and generated-audio gates, and ended on `audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -287,7 +299,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x320834cbae489b57`, played it with `afplay`, and left the board on
+`0x400fe355405808e7`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used

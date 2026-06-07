@@ -18,6 +18,7 @@ WIDGET_CONTROL ?= ../../widget-control
 BOARD_WIDGET_VERIFY_ARGS ?= --set-current-check
 BOARD_AUDIO_VERIFY_ARGS ?= $(AUDIO_GENERATED_VERIFY_ARGS)
 BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
+FLASH_READY_DELAY ?= 2
 AUDIO_LISTEN_OUTPUT ?= /tmp/same70-melody-listen.wav
 AUDIO_LISTEN_ARGS ?= --source melody --rate 44100 --bits 16 --seconds 4 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
 AUDIO_PLAYER ?= afplay
@@ -46,7 +47,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe stream-probe audio-verify audio-generated-verify audio-capture audio-listen audio-wav-verify widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-listen audio-wav-verify widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -96,6 +97,10 @@ board-verify: all $(STREAM_PROBE)
 board-ready:
 	$(MAKE) board-verify
 	$(MAKE) audio-listen AUDIO_LISTEN_ARGS="$(BOARD_READY_AUDIO_LISTEN_ARGS)"
+
+flash-ready: flash
+	sleep $(FLASH_READY_DELAY)
+	$(MAKE) board-ready
 
 probe:
 	openocd -f board/atmel_same70_xplained.cfg -c "init; targets; flash info 0; shutdown"
