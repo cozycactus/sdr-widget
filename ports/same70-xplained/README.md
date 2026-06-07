@@ -123,6 +123,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
+make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
@@ -176,6 +177,13 @@ pattern. Use `AUDIO_VERIFY_ARGS="--seconds N
 --silence-runs N --skip-final-loopback --skip-serial-counter-check
 --serial /dev/cu.usbmodem..."` to tune the run length, per-source run counts,
 final loopback reset, strict serial counter audit, or serial port.
+
+The `audio-generated-verify` target is the quick quiet gate for generated input
+sources only. It runs `audio-verify` with `--seconds 1 --skip-loopback
+--skip-final-loopback --skip-serial-counter-check`, so pattern, tone, sine, and
+silence are verified at both formats with silent USB OUT and no final loopback
+burst. Because the sequence ends with the silence source, run `audio-listen` or
+set `audio sine` afterward when you want an audible monitor signal again.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies

@@ -119,6 +119,13 @@ Verified firmware features:
   --skip-final-loopback --skip-serial-counter-check --sine-runs 1`; both
   48 kHz/24-bit and 44.1 kHz/16-bit passed with `output_nonzero=0` and
   `mismatches=0`, and final status reported `source=sine fmt=44k16/44k16`.
+  `make -C ports/same70-xplained audio-generated-verify` is the shorter quiet
+  gate for all generated input sources; it verifies pattern, tone, sine, and
+  silence at both formats with silent USB OUT, no final loopback, and no serial
+  counter audit. Latest run passed with `output_nonzero=0` on every probe and
+  `mismatches=0` for pattern, tone, sine, and silence at both advertised
+  formats; the target ends on `audio silence`, then the board was manually set
+  back to `audio sine`.
   Latest hash-audited default run reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
@@ -270,6 +277,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
+make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"

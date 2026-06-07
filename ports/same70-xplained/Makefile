@@ -10,6 +10,7 @@ TARGET := $(BUILD_DIR)/same70-blinky
 STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
 STREAM_PROBE_ARGS ?=
 AUDIO_VERIFY_ARGS ?=
+AUDIO_GENERATED_VERIFY_ARGS ?= --seconds 1 --skip-loopback --skip-final-loopback --skip-serial-counter-check
 AUDIO_CAPTURE_ARGS ?=
 AUDIO_WAV_VERIFY_ARGS ?=
 AUDIO_LISTEN_OUTPUT ?= /tmp/same70-sine-listen.wav
@@ -40,7 +41,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe stream-probe audio-verify audio-capture audio-listen audio-wav-verify
+.PHONY: all clean flash probe stream-probe audio-verify audio-generated-verify audio-capture audio-listen audio-wav-verify
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -65,6 +66,9 @@ stream-probe: $(STREAM_PROBE)
 
 audio-verify: $(STREAM_PROBE)
 	$(PYTHON) audio-verify.py --probe $(STREAM_PROBE) $(AUDIO_VERIFY_ARGS)
+
+audio-generated-verify: $(STREAM_PROBE)
+	$(PYTHON) audio-verify.py --probe $(STREAM_PROBE) $(AUDIO_GENERATED_VERIFY_ARGS)
 
 audio-capture: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_CAPTURE_ARGS)
