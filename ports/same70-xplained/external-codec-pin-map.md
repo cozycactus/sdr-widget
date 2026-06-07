@@ -23,6 +23,8 @@ analog SDR input or output without external ADC/DAC hardware.
   `needs_external_codec_board` until hardware is actually attached.
 - Run `make -C ports/same70-xplained external-codec-preflight` before wiring or
   codec-firmware work; it checks this map and the live `audio hw` boundary.
+- Follow `external-codec-wiring-checklist.md` before selecting, powering, or
+  wiring an external codec board.
 
 ## Candidate Digital Audio Signals
 
@@ -52,6 +54,8 @@ analog SDR input or output without external ADC/DAC hardware.
 6. Add reset/control wiring and verify GPIO-only control.
 7. Add clock wiring and verify clock-only output before connecting data pins.
 8. Add serial audio data pins and create a new explicit external-codec gate.
+
+For the detailed staged checklist, see `external-codec-wiring-checklist.md`.
 
 ## Firmware Boundary
 

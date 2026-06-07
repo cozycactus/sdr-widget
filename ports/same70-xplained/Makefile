@@ -25,6 +25,7 @@ BOARD_AUDIO_HW_ARGS ?= $(SERIAL_COMMAND_ARGS)
 BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 FLASH_READY_DELAY ?= 2
 EXTERNAL_CODEC_PIN_MAP ?= external-codec-pin-map.md
+EXTERNAL_CODEC_WIRING_CHECKLIST ?= external-codec-wiring-checklist.md
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
 AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
@@ -59,7 +60,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -121,7 +122,28 @@ audio-hw:
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
-external-codec-preflight:
+external-codec-wiring-checklist:
+	@test -f "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "needs_external_codec_board" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "AK5394A/CS4344-style" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "generic USB/I2S audio module" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "The codec board drives any SAME70 I/O above 3.3 V logic" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "external-codec-preflight" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "board-ready" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "external-codec acceptance gate" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "TD.*PD26.*J502 pin 1" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "RD.*PA10.*J504 pin 2" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "RF.*PD24.*J504 pin 1" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "RK.*PA22.*J504 pin 3" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "TK.*PB1.*J505 pin 8 or J507 pin 4" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "TF.*PB0.*J505 pin 7 or J507 pin 5" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "PCK0.*PB13.*J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "PC17.*EXT1 pin 10" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@printf '%s\n' "external-codec-wiring-checklist: pass"
+
+external-codec-preflight: external-codec-wiring-checklist
 	@test -f "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_PIN_MAP)"

@@ -125,6 +125,13 @@ Verified firmware features:
   route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw` to prove
   the stock board still reports no external codec. Latest run passed and
   reported `external codec remains disabled`.
+- `make -C ports/same70-xplained external-codec-wiring-checklist` is the
+  offline checklist gate for future external-codec wiring. It verifies
+  `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
+  stop conditions, stock-board baseline, codec-board selection, unpowered
+  checks, power-only checks, reset/control, clock-only probe, serial data
+  bring-up, and the requirement for a separate external-codec acceptance gate.
+  Latest run passed.
 - `make -C ports/same70-xplained board-ready` runs `board-verify` and then
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
@@ -382,6 +389,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
@@ -408,6 +416,7 @@ source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, generated melody, and silence. The next practical SAME70
 milestone is keeping the stock-board USB path verified while preparing the
 header-based external AK5394A/CS4344-style wiring map. The
-`external-codec-preflight` target is a pre-wiring boundary check only. Do not
+`external-codec-wiring-checklist` target is an offline staged wiring hold list,
+and `external-codec-preflight` is a live pre-wiring boundary check only. Do not
 enable or claim analog SDR input/output until external hardware is connected
 and a separate external-codec acceptance gate proves real ADC/DAC movement.

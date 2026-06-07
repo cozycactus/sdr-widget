@@ -152,6 +152,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
@@ -481,6 +482,12 @@ Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
 and reported `external codec remains disabled`.
+Use `make -C ports/same70-xplained external-codec-wiring-checklist` for the
+offline staged wiring checklist check. The checklist lives in
+`external-codec-wiring-checklist.md` and covers stop conditions, stock-board
+baseline, codec-board selection, unpowered checks, power-only checks,
+reset/control, clock-only probe, and serial data bring-up. The latest run
+passed.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
@@ -514,7 +521,9 @@ SAME70 digital-audio peripheral path is not configured, and the missing signals 
 MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset, and codec
 control. The first stock-board wiring map intentionally uses exposed headers
 instead of non-header SDRAM/I2SC0 package pins; it is documented in
-`external-codec-pin-map.md`, with XDMAC double buffering still to be designed.
+`external-codec-pin-map.md`, with staged wiring holds documented in
+`external-codec-wiring-checklist.md` and XDMAC double buffering still to be
+designed.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.
