@@ -112,11 +112,14 @@ Verified firmware features:
   increases are hard failures; `under` increases from CoreAudio stream restarts
   are allowed when `err` increases by no more than the same amount. Pass
   `--strict-serial-counter-check` to fail on those restart underflows too.
-  Generated-source runs now pass `--silent-output`, so only loopback
-  verification drives the host USB OUT test pattern. Use `--skip-final-loopback`
-  for quiet generated-source checks that should leave the last selected source
-  active, and pair it with `--skip-serial-counter-check` when final counter
-  auditing is not useful. Latest quiet sine-only run used `--seconds 1
+  The gate also resets `audio outdiag` before each host probe and checks it
+  afterward: loopback probes must show nonzero endpoint-3 OUT payload, and
+  generated-source probes use `--silent-output` and must show `nonzero=0` on the
+  device. Pass `--skip-outdiag-check` to run against older firmware without the
+  resettable OUT diagnostics. Use `--skip-final-loopback` for quiet
+  generated-source checks that should leave the last selected source active, and
+  pair it with `--skip-serial-counter-check` when final counter auditing is not
+  useful. Latest quiet sine-only run used `--seconds 1
   --skip-loopback --skip-pattern --skip-tone --skip-silence
   --skip-final-loopback --skip-serial-counter-check --sine-runs 1`; both
   48 kHz/24-bit and 44.1 kHz/16-bit passed with `output_nonzero=0` and
@@ -132,13 +135,14 @@ Verified firmware features:
   AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
   loopback, pattern, tone, sine, and silence at both advertised formats, plus a
   final 48 kHz/24-bit loopback check. Final serial status reported `err=0`,
-  `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, and the board was
-  manually set back to `audio sine` afterward. Focused `audio outdiag`
-  diagnostics now show silent host output is zero at the device (`nonzero=0`) at
-  both 44.1 kHz/16-bit and 48 kHz/24-bit. Exact loopback passes at both formats;
-  first nonzero OUT payload offsets in the latest focused run were `5792` bytes
-  at 44.1 kHz/16-bit and `9216` bytes at 48 kHz/24-bit. Earlier hash-audited
-  default run reported
+  `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`. The latest checked run
+  reported nonzero OUT payload for loopback (`nonzero=561723` at 48 kHz/24-bit
+  and `nonzero=342917` at 44.1 kHz/16-bit) and `nonzero=0` for every pattern,
+  tone, sine, and silence probe at both formats. Focused `audio outdiag`
+  diagnostics also showed silent host output is zero at the device at both
+  advertised formats, while exact loopback passes at both formats. The board was
+  manually set back to `audio sine` afterward. Earlier hash-audited default run
+  reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2

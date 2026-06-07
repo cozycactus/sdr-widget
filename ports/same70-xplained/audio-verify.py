@@ -8,6 +8,7 @@ from same70_audio import (
     DEFAULT_DEVICE_NAME,
     find_serial_port,
     parse_serial_fields,
+    require_audio_outdiag,
     require_serial_state,
     run_probe,
     run_serial,
@@ -15,6 +16,20 @@ from same70_audio import (
 
 
 SILENT_OUTPUT_ARGS = ["--silent-output"]
+
+
+def run_checked_probe(args, port, rate, bits, runs, verify, extra_args=None, seconds=None):
+    duration = args.seconds if seconds is None else seconds
+    if not args.skip_outdiag_check:
+        run_serial(port, "audio outdiag reset", args.serial_timeout)
+    run_probe(args.probe, args.device, duration, rate, bits, runs, verify, extra_args)
+    if not args.skip_outdiag_check:
+        output = run_serial(port, "audio outdiag", args.serial_timeout)
+        expect_nonzero = (extra_args is None) or ("--silent-output" not in extra_args)
+        label = f"{verify} {rate} Hz {bits}-bit"
+        if not require_audio_outdiag(output, expect_nonzero, label):
+            return False
+    return True
 
 
 def main():
@@ -35,6 +50,7 @@ def main():
     parser.add_argument("--skip-sine", action="store_true")
     parser.add_argument("--skip-silence", action="store_true")
     parser.add_argument("--skip-final-loopback", action="store_true")
+    parser.add_argument("--skip-outdiag-check", action="store_true")
     parser.add_argument("--skip-serial-counter-check", action="store_true")
     parser.add_argument("--strict-serial-counter-check", action="store_true")
     args = parser.parse_args()
@@ -57,58 +73,69 @@ def main():
 
         if not args.skip_loopback:
             run_serial(port, "audio loop", args.serial_timeout)
-            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.loopback_runs, "loopback")
-            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.loopback_runs, "loopback")
+            if not run_checked_probe(args, port, 48000, 24, args.loopback_runs, "loopback"):
+                return 1
+            if not run_checked_probe(args, port, 44100, 16, args.loopback_runs, "loopback"):
+                return 1
             expected_source = "loop"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_pattern:
             run_serial(port, "audio pattern", args.serial_timeout)
-            run_probe(
-                args.probe, args.device, args.seconds, 48000, 24,
-                args.pattern_runs, "pattern", SILENT_OUTPUT_ARGS)
-            run_probe(
-                args.probe, args.device, args.seconds, 44100, 16,
-                args.pattern_runs, "pattern", SILENT_OUTPUT_ARGS)
+            if not run_checked_probe(
+                    args, port, 48000, 24, args.pattern_runs, "pattern",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            if not run_checked_probe(
+                    args, port, 44100, 16, args.pattern_runs, "pattern",
+                    SILENT_OUTPUT_ARGS):
+                return 1
             expected_source = "pattern"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_tone:
             run_serial(port, "audio tone", args.serial_timeout)
-            run_probe(
-                args.probe, args.device, args.seconds, 48000, 24,
-                args.tone_runs, "tone", SILENT_OUTPUT_ARGS)
-            run_probe(
-                args.probe, args.device, args.seconds, 44100, 16,
-                args.tone_runs, "tone", SILENT_OUTPUT_ARGS)
+            if not run_checked_probe(
+                    args, port, 48000, 24, args.tone_runs, "tone",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            if not run_checked_probe(
+                    args, port, 44100, 16, args.tone_runs, "tone",
+                    SILENT_OUTPUT_ARGS):
+                return 1
             expected_source = "tone"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_sine:
             run_serial(port, "audio sine", args.serial_timeout)
-            run_probe(
-                args.probe, args.device, args.seconds, 48000, 24,
-                args.sine_runs, "sine", SILENT_OUTPUT_ARGS)
-            run_probe(
-                args.probe, args.device, args.seconds, 44100, 16,
-                args.sine_runs, "sine", SILENT_OUTPUT_ARGS)
+            if not run_checked_probe(
+                    args, port, 48000, 24, args.sine_runs, "sine",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            if not run_checked_probe(
+                    args, port, 44100, 16, args.sine_runs, "sine",
+                    SILENT_OUTPUT_ARGS):
+                return 1
             expected_source = "sine"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_silence:
             run_serial(port, "audio silence", args.serial_timeout)
-            run_probe(
-                args.probe, args.device, args.seconds, 48000, 24,
-                args.silence_runs, "silence", SILENT_OUTPUT_ARGS)
-            run_probe(
-                args.probe, args.device, args.seconds, 44100, 16,
-                args.silence_runs, "silence", SILENT_OUTPUT_ARGS)
+            if not run_checked_probe(
+                    args, port, 48000, 24, args.silence_runs, "silence",
+                    SILENT_OUTPUT_ARGS):
+                return 1
+            if not run_checked_probe(
+                    args, port, 44100, 16, args.silence_runs, "silence",
+                    SILENT_OUTPUT_ARGS):
+                return 1
             expected_source = "silence"
             expected_fmt = "44k16/44k16"
 
         if not args.skip_final_loopback:
             run_serial(port, "audio loop", args.serial_timeout)
-            run_probe(args.probe, args.device, 1.0, 48000, 24, 1, "loopback")
+            if not run_checked_probe(args, port, 48000, 24, 1, "loopback", seconds=1.0):
+                return 1
             expected_source = "loop"
             expected_fmt = "48k24/48k24"
 

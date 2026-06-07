@@ -142,6 +142,38 @@ def require_serial_state(output, source=None, fmt=None, baseline=None,
     return True
 
 
+def require_audio_outdiag(output, expect_nonzero=None, label=None):
+    fields = parse_serial_fields(output)
+    failures = []
+    packets = parse_counter(fields, "packets")
+    byte_count = parse_counter(fields, "bytes")
+    nonzero = parse_counter(fields, "nonzero")
+
+    if packets is None:
+        failures.append("missing packets")
+    elif packets == 0:
+        failures.append("packets is 0")
+    if byte_count is None:
+        failures.append("missing bytes")
+    elif byte_count == 0:
+        failures.append("bytes is 0")
+    if nonzero is None:
+        failures.append("missing nonzero")
+    elif expect_nonzero is True and nonzero == 0:
+        failures.append("nonzero is 0")
+    elif expect_nonzero is False and nonzero != 0:
+        failures.append(f"nonzero is {nonzero}, expected 0")
+
+    if failures:
+        prefix = "audio outdiag check failed"
+        if label:
+            prefix += f" ({label})"
+        for failure in failures:
+            print(prefix + ": " + failure, file=sys.stderr)
+        return False
+    return True
+
+
 def format_name(rate, bits):
     if (rate == 48000) and (bits == 24):
         return "48k24"

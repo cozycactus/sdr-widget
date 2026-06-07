@@ -308,13 +308,17 @@ AUDIO_VERIFY_ARGS="--seconds 1"` passes with `hog_mode=1` and zero mismatches
 for exact loopback, pattern, tone, sine, and silence at both advertised formats.
 The final gate restores `audio loop`, verifies 48 kHz/24-bit loopback again, and
 the final serial status reports `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`,
-and `stall=0`. Focused OUT diagnostics now show silent host output is really
-zero on the device: with `audio loop` selected and
-`coreaudio-stream-probe --verify input --silent-output`, `audio outdiag`
-reported `nonzero=0` at both 44.1 kHz/16-bit and 48 kHz/24-bit. Exact loopback
-passes at both formats; the first nonzero OUT payload starts after startup
-zeros (`nz_offset=5792` at 44.1 kHz/16-bit and `nz_offset=9216` at
-48 kHz/24-bit in the latest focused run).
+and `stall=0`. The default gate now resets `audio outdiag` before each host
+probe and checks it afterward: loopback probes must show nonzero endpoint-3 OUT
+payload, while generated-source probes use `--silent-output` and must show
+`nonzero=0` on the device. Pass `--skip-outdiag-check` to run against older
+firmware without these diagnostics. The latest checked run reported nonzero OUT
+payload for loopback (`nonzero=561723` at 48 kHz/24-bit and `nonzero=342917` at
+44.1 kHz/16-bit) and `nonzero=0` for every pattern, tone, sine, and silence
+probe at both formats. Earlier focused OUT diagnostics also showed silent host
+output was zero on the device; exact loopback passes at both formats, with the
+first nonzero OUT payload starting after startup zeros. The board was manually
+set back to `audio sine` afterward.
 
 Use `audio outdiag reset` before a host probe, then `audio outdiag` afterward to
 dump raw endpoint-3 OUT diagnostics since reset: packet count, byte count,
