@@ -501,6 +501,12 @@ offline staged wiring checklist check. The checklist lives in
 baseline, codec-board selection, unpowered checks, power-only checks,
 reset/control, clock-only probe, and serial data bring-up. The latest run
 passed.
+Use `make -C ports/same70-xplained ad1856-formatter-sim` to simulate the
+generic Verilog starter for the AD1856 low-jitter formatter. The HDL lives in
+`hdl/ad1856_formatter`; it targets an 11.2896 MHz XO, generates SAME70
+`TK`/`TF`, captures the left 16-bit sample from `TD`, and emits AD1856
+`DATA`/gated `CLK`/low-going `LE`. Latest simulation passed six known sample
+words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input

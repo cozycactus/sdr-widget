@@ -70,3 +70,21 @@ to the external clock.
    pattern, then a low-amplitude tone.
 5. Connect formatter `DATA` to AD1856 pin 7 only after timing is verified.
 6. Add an AD1856 formatter acceptance gate separate from `board-ready`.
+
+## HDL Starter
+
+The first generic Verilog implementation lives in:
+
+```text
+ports/same70-xplained/hdl/ad1856_formatter
+```
+
+It targets an `11.2896 MHz` external XO, generates `2.8224 MHz` `same_tk`,
+generates `44.1 kHz` `same_tf`, captures the left 16-bit sample from SAME70
+`TD`, and outputs a gated 16-pulse AD1856 `CLK` plus low-going `LE`.
+
+Run the formatter simulation with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-sim
+```

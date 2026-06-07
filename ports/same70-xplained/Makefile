@@ -30,6 +30,7 @@ EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 EXTERNAL_CODEC_CLOCK_PLAN ?= external-codec-low-jitter-clock-plan.md
 EXTERNAL_DAC_AD1856_MONO ?= external-dac-ad1856-mono-test.md
 EXTERNAL_DAC_AD1856_FORMATTER ?= external-dac-ad1856-low-jitter-formatter.md
+AD1856_FORMATTER_HDL_DIR ?= hdl/ad1856_formatter
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
 AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
@@ -64,7 +65,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -164,6 +165,8 @@ external-dac-ad1856-formatter:
 	@grep -q "left channel sample exactly" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
 	@grep -q "gated 16-pulse AD1856 clock" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
 	@grep -q "explicit USB feedback" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "hdl/ad1856_formatter" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "ad1856-formatter-sim" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
 	@printf '%s\n' "external-dac-ad1856-formatter: pass"
 
 external-codec-wiring-checklist: external-codec-original-map external-codec-clock-plan external-dac-ad1856-mono external-dac-ad1856-formatter
@@ -261,6 +264,9 @@ external-codec-original-map:
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)
+
+ad1856-formatter-sim:
+	$(MAKE) -C $(AD1856_FORMATTER_HDL_DIR) sim
 
 widget-verify:
 	$(MAKE) -C ../.. widget-control

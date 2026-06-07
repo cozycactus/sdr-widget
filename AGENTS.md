@@ -163,8 +163,14 @@ Verified firmware features:
   gate for the preferred AD1856 low-jitter formatter plan. It checks that
   SAME70 does not generate AD1856 `CLK`/`LE`, that formatter timing comes from
   the external XO domain, that the left channel is used exactly for the first
-  mono proof, and that explicit USB feedback remains required. Latest run
-  passed.
+  mono proof, that explicit USB feedback remains required, and that the HDL
+  starter path is documented. Latest run passed.
+- `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
+  starter testbench for the AD1856 low-jitter formatter. The HDL lives in
+  `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
+  generates SAME70 `TK`/`TF`, captures the left 16-bit sample from `TD`, and
+  emits AD1856 `DATA`/gated `CLK`/low-going `LE`. Latest simulation passed
+  six known sample words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
