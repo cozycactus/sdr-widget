@@ -134,6 +134,14 @@ Verified firmware features:
   `compared_samples=97280 mismatches=0 expected_hash=0xb89840f63a4ab703
   actual_hash=0xb89840f63a4ab703`, and `file` identified the dump as 24-bit
   stereo PCM at 48 kHz with 291884 total bytes.
+- `make -C ports/same70-xplained audio-capture` wraps the WAV dump path with
+  serial source selection, exact verification, final `audio loop` restore, and
+  final serial counter checks. Latest target run used `--source tone --rate
+  48000 --bits 24 --seconds 1 --output /tmp/same70-tone-capture-target.wav`;
+  it passed with `compared_samples=96256 mismatches=0` and matching hash
+  `0xcfd4436e3b780703`, printed
+  `audio-capture: pass output=/tmp/same70-tone-capture-target.wav`, and `file`
+  identified the dump as 24-bit stereo PCM at 48 kHz with 288812 total bytes.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -222,6 +230,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained audio-verify
+make -C ports/same70-xplained audio-capture
 ```
 
 Typical feature output:

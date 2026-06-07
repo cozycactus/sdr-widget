@@ -120,6 +120,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --veri
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained audio-verify
+make -C ports/same70-xplained audio-capture
 ```
 
 Typical `widget-control` feature output:
@@ -161,6 +162,17 @@ starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
 --loopback-runs N --pattern-runs N --tone-runs N --silence-runs N --serial
 /dev/cu.usbmodem..."` to tune the run length, per-source run counts, or serial
 port.
+
+The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
+serial audio source, runs one exact probe pass with `--dump-input-wav`, restores
+`audio loop`, checks the final serial `usb` status against the starting error
+counters, and prints `audio-capture: pass output=<path>` on success. Defaults
+capture the 48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
+`AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path:
+
+```sh
+make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source tone --rate 48000 --bits 24 --seconds 1 --output /tmp/file.wav"
+```
 
 ```text
 nominal_sample_rate=<44100|48000>
@@ -226,14 +238,15 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
 increase from the starting baseline.
 
-Latest WAV capture check: after selecting `audio tone`,
-`make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1
---runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav
-/tmp/same70-tone-48k24.wav"` reported `verify=pass`, `compared_samples=97280`,
-`mismatches=0`, and matching hash `0xb89840f63a4ab703`. The dump line reported
-`samples=97280 channels=2 rate=48000 bits=24 bytes=291840`; `file` identified
-the resulting `/tmp/same70-tone-48k24.wav` as 24-bit stereo PCM at 48 kHz with a
-291884-byte RIFF/WAVE container.
+Latest WAV capture check used `audio-capture` with `--seconds 1`,
+`--source tone`, `--rate 48000`, `--bits 24`, and output
+`/tmp/same70-tone-capture-target.wav`. It reported `verify=pass`,
+`compared_samples=96256`, `mismatches=0`, matching hash
+`0xcfd4436e3b780703`, and
+`audio-capture: pass output=/tmp/same70-tone-capture-target.wav`. The dump line
+reported `samples=96256 channels=2 rate=48000 bits=24 bytes=288768`; `file`
+identified the resulting WAV as 24-bit stereo PCM at 48 kHz with a 288812-byte
+RIFF/WAVE container.
 
 ## Porting Notes
 
