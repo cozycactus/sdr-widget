@@ -14,11 +14,13 @@
 #define MAX_PROBE_RUNS 100u
 #define VERIFY_MODE_LOOPBACK 0u
 #define VERIFY_MODE_INPUT    1u
+#define VERIFY_MODE_PATTERN  2u
 #define DEFAULT_SAMPLE_RATE_HZ 48000u
 #define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
 #define CAPTURE_SAMPLE_MARGIN 65536u
 #define ALIGN_WINDOW_SAMPLES 128u
+#define PATTERN_ALIGN_MAX_SAMPLES 65536u
 #define VERIFY_MIN_SAMPLES 4096u
 
 typedef struct {
@@ -44,6 +46,7 @@ typedef struct {
 	uint32_t passed;
 	uint32_t aligned;
 	uint32_t input_offset;
+	uint32_t expected_offset;
 	uint32_t compared;
 	uint32_t mismatches;
 	uint32_t first_mismatch;
@@ -71,20 +74,26 @@ static void update_checksum(uint64_t *checksum, uint64_t *nonzero,
 	}
 }
 
-static int32_t next_test_sample(io_state_t *state)
+static int32_t next_lcg_sample(uint32_t *lcg, uint32_t sample_bits)
 {
-	uint32_t sample_bits = state->sample_bits - 2u;
-	uint32_t midpoint = 1u << (sample_bits - 1u);
-	uint32_t mask = (1u << sample_bits) - 1u;
+	uint32_t value_bits = sample_bits - 2u;
+	uint32_t midpoint = 1u << (value_bits - 1u);
+	uint32_t mask = (1u << value_bits) - 1u;
+	uint32_t shift = (sample_bits == 16u) ? 17u : 9u;
 	int32_t sample;
 
-	state->sample_lcg = (state->sample_lcg * 1664525u) + 1013904223u;
-	sample = (int32_t)((state->sample_lcg >> 9) & mask) - (int32_t)midpoint;
+	*lcg = (*lcg * 1664525u) + 1013904223u;
+	sample = (int32_t)((*lcg >> shift) & mask) - (int32_t)midpoint;
 	if (sample == 0) {
 		sample = 1;
 	}
 
 	return sample;
+}
+
+static int32_t next_test_sample(io_state_t *state)
+{
+	return next_lcg_sample(&state->sample_lcg, state->sample_bits);
 }
 
 static float pcm_scale(uint32_t bits)
@@ -195,6 +204,62 @@ static uint32_t find_loopback_alignment(const io_state_t *state, uint32_t *input
 	return 0u;
 }
 
+static uint32_t first_nonzero_input_offset(const io_state_t *state, uint32_t *input_offset)
+{
+	uint32_t index;
+
+	for (index = 0u; index < state->input_sample_count; index++) {
+		if (state->input_samples[index] != 0) {
+			*input_offset = index;
+			return 1u;
+		}
+	}
+
+	return 0u;
+}
+
+static void fill_expected_pattern(int32_t *samples, uint32_t count, uint32_t sample_bits)
+{
+	uint32_t lcg = 0x12345678u;
+	uint32_t index;
+
+	for (index = 0u; index < count; index++) {
+		samples[index] = next_lcg_sample(&lcg, sample_bits);
+	}
+}
+
+static uint32_t find_pattern_alignment(const io_state_t *state, const int32_t *expected,
+	uint32_t expected_count, uint32_t *input_offset, uint32_t *expected_offset)
+{
+	uint32_t window;
+	uint32_t start;
+	uint32_t offset;
+	uint32_t index;
+
+	if (!first_nonzero_input_offset(state, &start)) {
+		return 0u;
+	}
+	window = min_u32(ALIGN_WINDOW_SAMPLES, state->input_sample_count - start);
+	if ((window == 0u) || (expected_count < window)) {
+		return 0u;
+	}
+
+	for (offset = 0u; offset <= (expected_count - window); offset++) {
+		for (index = 0u; index < window; index++) {
+			if (!samples_match(state->input_samples[start + index], expected[offset + index])) {
+				break;
+			}
+		}
+		if (index == window) {
+			*input_offset = start;
+			*expected_offset = offset;
+			return 1u;
+		}
+	}
+
+	return 0u;
+}
+
 static verify_result_t verify_loopback(const io_state_t *state)
 {
 	verify_result_t result;
@@ -210,6 +275,7 @@ static verify_result_t verify_loopback(const io_state_t *state)
 	}
 
 	result.aligned = 1u;
+	result.expected_offset = 0u;
 	result.compared = min_u32(state->output_sample_count, state->input_sample_count - result.input_offset);
 	for (index = 0u; index < result.compared; index++) {
 		int32_t expected = state->output_samples[index];
@@ -225,6 +291,53 @@ static verify_result_t verify_loopback(const io_state_t *state)
 	}
 
 	result.passed = (result.compared >= VERIFY_MIN_SAMPLES) && (result.mismatches == 0u);
+	return result;
+}
+
+static verify_result_t verify_input_pattern(const io_state_t *state)
+{
+	verify_result_t result;
+	int32_t *expected;
+	uint32_t expected_count;
+	uint32_t index;
+
+	memset(&result, 0, sizeof(result));
+	result.first_mismatch = UINT32_MAX;
+	if ((state->input_sample_overflow != 0u) || (state->input_sample_count < VERIFY_MIN_SAMPLES)) {
+		return result;
+	}
+
+	expected_count = state->input_sample_count + PATTERN_ALIGN_MAX_SAMPLES;
+	expected = (int32_t *)calloc(expected_count, sizeof(int32_t));
+	if (expected == NULL) {
+		return result;
+	}
+	fill_expected_pattern(expected, expected_count, state->sample_bits);
+	if (!find_pattern_alignment(state, expected, expected_count,
+	    &result.input_offset, &result.expected_offset)) {
+		free(expected);
+		return result;
+	}
+
+	result.aligned = 1u;
+	result.compared = min_u32(
+		state->input_sample_count - result.input_offset,
+		expected_count - result.expected_offset);
+	for (index = 0u; index < result.compared; index++) {
+		int32_t expected_sample = expected[result.expected_offset + index];
+		int32_t actual = state->input_samples[result.input_offset + index];
+		if (!samples_match(actual, expected_sample)) {
+			if (result.first_mismatch == UINT32_MAX) {
+				result.first_mismatch = index;
+				result.first_expected = expected_sample;
+				result.first_actual = actual;
+			}
+			result.mismatches++;
+		}
+	}
+
+	result.passed = (result.compared >= VERIFY_MIN_SAMPLES) && (result.mismatches == 0u);
+	free(expected);
 	return result;
 }
 
@@ -249,7 +362,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -325,12 +438,20 @@ static int parse_verify_mode(const char *text, uint32_t *mode)
 		*mode = VERIFY_MODE_INPUT;
 		return 1;
 	}
+	if (strcmp(text, "pattern") == 0) {
+		*mode = VERIFY_MODE_PATTERN;
+		return 1;
+	}
 
 	return 0;
 }
 
 static const char *verify_mode_name(uint32_t mode)
 {
+	if (mode == VERIFY_MODE_PATTERN) {
+		return "pattern";
+	}
+
 	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
 }
 
@@ -620,7 +741,13 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 	CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
 	AudioDeviceStop(device, proc_id);
 	AudioDeviceDestroyIOProcID(device, proc_id);
-	verify = (verify_mode == VERIFY_MODE_INPUT) ? verify_input_activity(&state) : verify_loopback(&state);
+	if (verify_mode == VERIFY_MODE_PATTERN) {
+		verify = verify_input_pattern(&state);
+	} else if (verify_mode == VERIFY_MODE_INPUT) {
+		verify = verify_input_activity(&state);
+	} else {
+		verify = verify_loopback(&state);
+	}
 	printf("run=%u started=1 seconds=%.3f rate=%u bits=%u callbacks=%u input_bytes=%llu output_bytes=%llu "
 		"input_nonzero=%llu output_nonzero=%llu input_checksum=%llu output_checksum=%llu\n",
 		run,
@@ -634,7 +761,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		(unsigned long long)state.output_nonzero,
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
-	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u compared_samples=%u "
+	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u expected_offset_samples=%u compared_samples=%u "
 		"mismatches=%u first_mismatch=%u expected=%d actual=%d "
 		"input_samples=%u output_samples=%u input_overflow=%u output_overflow=%u\n",
 		run,
@@ -642,6 +769,7 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		verify_mode_name(verify_mode),
 		verify.aligned,
 		verify.input_offset,
+		verify.expected_offset,
 		verify.compared,
 		verify.mismatches,
 		verify.first_mismatch,

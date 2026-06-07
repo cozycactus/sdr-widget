@@ -114,6 +114,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 3"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 ```
 
 Typical `widget-control` feature output:
@@ -129,15 +130,17 @@ mask showing playback and capture streams were opened. The probe selects the
 requested nominal sample rate, writes exact integer test samples through
 CoreAudio Float32 buffers, captures the returned input samples, quantizes them
 back to the selected bit depth, aligns the loopback latency, and reports whether
-the aligned sample stream is bit-perfect. Use `--verify input` when the firmware
-source is `audio pattern` or another non-loopback source. The serial `usb`
+the aligned sample stream is bit-perfect. Use `--verify pattern` when the
+firmware source is `audio pattern`; it aligns the captured samples against the
+firmware's deterministic LCG pattern and compares them sample-for-sample. Use
+`--verify input` for a looser nonzero input activity check. The serial `usb`
 counters remain the source of truth for USBHS endpoint state.
 
 ```text
 nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input> aligned=<0|1> input_offset_samples=<n> compared_samples=<n> mismatches=<n> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
@@ -157,11 +160,17 @@ Final serial `usb` after switching back to 48 kHz/24-bit reported
 `out=14108/2938948 fb=2/8 in=14284/2975792 err=0`, `under=0`, `drop=0`,
 `stall=0`, `audio loop=0/1152`, and `fmt=48k24/48k24`.
 
-Generated-pattern source check: `audio pattern` followed by `--seconds 2
---verify input` reported `summary mode=input runs=1 passed=1 failed=0
-compared_samples=192512 mismatches=0`. The board was switched back to
-`audio loop` afterward; final serial status showed `source=loop`, `err=0`,
-`under=0`, `drop=0`, and `stall=0`.
+Generated-pattern exact source checks: `audio pattern` followed by `--seconds 2
+--runs 2 --rate 48000 --bits 24 --verify pattern` reported `summary
+mode=pattern rate=48000 bits=24 runs=2 passed=2 failed=0
+compared_samples=384000 mismatches=0`, with expected-pattern offsets `3040` and
+`2864`. The same check at `--rate 44100 --bits 16` reported `summary
+mode=pattern rate=44100 bits=16 runs=2 passed=2 failed=0
+compared_samples=352256 mismatches=0`, with expected-pattern offsets `2688` and
+`2504`. The board was switched back to `audio loop` afterward, and a final
+1-second 48 kHz/24-bit loopback check passed with zero mismatches. Final serial
+status showed `source=loop`, `fmt=48k24/48k24`, `err=0`, `under=0`, `drop=0`,
+and `stall=0`.
 
 ## Porting Notes
 

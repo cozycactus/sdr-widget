@@ -934,7 +934,6 @@ static void reset_audio_interface_data_toggle(uint32_t interface)
 {
 	if (interface == 2u) {
 		reset_audio_loopback_buffer();
-		reset_audio_pattern();
 		USBHS_DEVEPTIER(USB_AUDIO_OUT_EP) = USBHS_DEVEPTIER_RSTDTS;
 		USBHS_DEVEPTIER(USB_AUDIO_FB_EP) = USBHS_DEVEPTIER_RSTDTS;
 		clear_iso_status(USB_AUDIO_OUT_EP, USBHS_DEVEPTISR(USB_AUDIO_OUT_EP));

@@ -65,11 +65,17 @@ Verified firmware features:
   `peak_alt=0x0000000c`, `audio ... out=14108/2938948 fb=2/8
   in=14284/2975792 err=0`, `under=0`, `stall=0`, `drop=0`,
   `audio loop=0/1152`, and `fmt=48k24/48k24`.
-- `audio pattern` plus `stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify
-  input"` verified generated capture-only input with `summary mode=input
-  runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0`. The board
-  was switched back to `audio loop`; final serial status showed `source=loop`,
-  `err=0`, `under=0`, `drop=0`, and `stall=0`.
+- `audio pattern` plus exact host-side pattern verification now passes at both
+  advertised formats. `--seconds 2 --runs 2 --rate 48000 --bits 24 --verify
+  pattern` reported `summary mode=pattern rate=48000 bits=24 runs=2 passed=2
+  failed=0 compared_samples=384000 mismatches=0`, with expected-pattern offsets
+  `3040` and `2864`. `--seconds 2 --runs 2 --rate 44100 --bits 16 --verify
+  pattern` reported `summary mode=pattern rate=44100 bits=16 runs=2 passed=2
+  failed=0 compared_samples=352256 mismatches=0`, with expected-pattern offsets
+  `2688` and `2504`. The board was switched back to `audio loop`, and a final
+  1-second 48 kHz/24-bit loopback check passed with zero mismatches. Final
+  serial status showed `source=loop`, `fmt=48k24/48k24`, `err=0`, `under=0`,
+  `drop=0`, and `stall=0`.
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
@@ -80,8 +86,11 @@ Verified firmware features:
 - The HAL stream probe opens the widget, drives SET_INTERFACE/endpoint traffic,
   selects the requested nominal sample rate, writes exact integer test samples
   through CoreAudio Float32 buffers, aligns the returned stream latency, and
-  verifies zero sample mismatches through the loopback path. Serial `usb`
-  counters remain the source of truth for hardware endpoint state.
+  verifies zero sample mismatches through the loopback path. `--verify pattern`
+  aligns captured input against the firmware-generated LCG pattern for exact
+  capture-side checks, while `--verify input` remains a looser nonzero activity
+  check. Serial `usb` counters remain the source of truth for hardware endpoint
+  state.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -165,6 +174,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 3"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 ```
 
 Typical feature output:
