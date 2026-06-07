@@ -16,6 +16,7 @@
 #define VERIFY_MODE_INPUT    1u
 #define VERIFY_MODE_PATTERN  2u
 #define VERIFY_MODE_SILENCE  3u
+#define VERIFY_MODE_TONE     4u
 #define DEFAULT_SAMPLE_RATE_HZ 48000u
 #define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
@@ -25,6 +26,8 @@
 #define VERIFY_MIN_SAMPLES 4096u
 #define VERIFY_HASH_OFFSET_BASIS 1469598103934665603ull
 #define VERIFY_HASH_PRIME 1099511628211ull
+#define TONE_PERIOD_SAMPLES 96u
+#define TONE_ALIGN_MAX_SAMPLES 4096u
 
 typedef struct {
 	uint32_t callbacks;
@@ -246,6 +249,26 @@ static void fill_expected_pattern(int32_t *samples, uint32_t count, uint32_t sam
 	}
 }
 
+static int32_t expected_tone_sample(uint32_t index, uint32_t sample_bits)
+{
+	uint32_t positive = (index % TONE_PERIOD_SAMPLES) < (TONE_PERIOD_SAMPLES / 2u);
+
+	if (sample_bits == 16u) {
+		return positive ? 0x2000 : -0x2000;
+	}
+
+	return positive ? 0x200000 : -0x200000;
+}
+
+static void fill_expected_tone(int32_t *samples, uint32_t count, uint32_t sample_bits)
+{
+	uint32_t index;
+
+	for (index = 0u; index < count; index++) {
+		samples[index] = expected_tone_sample(index, sample_bits);
+	}
+}
+
 static uint32_t find_pattern_alignment(const io_state_t *state, const int32_t *expected,
 	uint32_t expected_count, uint32_t *input_offset, uint32_t *expected_offset)
 {
@@ -367,6 +390,57 @@ static verify_result_t verify_input_pattern(const io_state_t *state)
 	return result;
 }
 
+static verify_result_t verify_input_tone(const io_state_t *state)
+{
+	verify_result_t result;
+	int32_t *expected;
+	uint32_t expected_count;
+	uint32_t index;
+
+	memset(&result, 0, sizeof(result));
+	result.first_mismatch = UINT32_MAX;
+	if ((state->input_sample_overflow != 0u) || (state->input_sample_count < VERIFY_MIN_SAMPLES)) {
+		return result;
+	}
+
+	expected_count = state->input_sample_count + TONE_ALIGN_MAX_SAMPLES;
+	expected = (int32_t *)calloc(expected_count, sizeof(int32_t));
+	if (expected == NULL) {
+		return result;
+	}
+	fill_expected_tone(expected, expected_count, state->sample_bits);
+	if (!find_pattern_alignment(state, expected, expected_count,
+	    &result.input_offset, &result.expected_offset)) {
+		free(expected);
+		return result;
+	}
+
+	result.aligned = 1u;
+	result.compared = min_u32(
+		state->input_sample_count - result.input_offset,
+		expected_count - result.expected_offset);
+	result.expected_hash = VERIFY_HASH_OFFSET_BASIS;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
+	for (index = 0u; index < result.compared; index++) {
+		int32_t expected_sample = expected[result.expected_offset + index];
+		int32_t actual = state->input_samples[result.input_offset + index];
+		result.expected_hash = hash_sample(result.expected_hash, expected_sample);
+		result.actual_hash = hash_sample(result.actual_hash, actual);
+		if (!samples_match(actual, expected_sample)) {
+			if (result.first_mismatch == UINT32_MAX) {
+				result.first_mismatch = index;
+				result.first_expected = expected_sample;
+				result.first_actual = actual;
+			}
+			result.mismatches++;
+		}
+	}
+
+	result.passed = (result.compared >= VERIFY_MIN_SAMPLES) && (result.mismatches == 0u);
+	free(expected);
+	return result;
+}
+
 static verify_result_t verify_input_activity(const io_state_t *state)
 {
 	verify_result_t result;
@@ -423,7 +497,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|silence] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|silence] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -507,6 +581,10 @@ static int parse_verify_mode(const char *text, uint32_t *mode)
 		*mode = VERIFY_MODE_SILENCE;
 		return 1;
 	}
+	if (strcmp(text, "tone") == 0) {
+		*mode = VERIFY_MODE_TONE;
+		return 1;
+	}
 
 	return 0;
 }
@@ -518,6 +596,9 @@ static const char *verify_mode_name(uint32_t mode)
 	}
 	if (mode == VERIFY_MODE_SILENCE) {
 		return "silence";
+	}
+	if (mode == VERIFY_MODE_TONE) {
+		return "tone";
 	}
 
 	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
@@ -811,6 +892,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 	AudioDeviceDestroyIOProcID(device, proc_id);
 	if (verify_mode == VERIFY_MODE_PATTERN) {
 		verify = verify_input_pattern(&state);
+	} else if (verify_mode == VERIFY_MODE_TONE) {
+		verify = verify_input_tone(&state);
 	} else if (verify_mode == VERIFY_MODE_SILENCE) {
 		verify = verify_input_silence(&state);
 	} else if (verify_mode == VERIFY_MODE_INPUT) {

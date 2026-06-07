@@ -472,6 +472,7 @@ static uint32_t audio_loopback_peak;
 static uint32_t audio_loopback_drop_bytes;
 static uint32_t audio_loopback_silence_bytes;
 static uint32_t audio_pattern_lcg;
+static uint32_t audio_tone_phase;
 static uint32_t usb_address;
 static uint32_t usb_configuration;
 static uint8_t interface_alternate[USB_INTERFACE_COUNT];
@@ -917,6 +918,38 @@ static void reset_audio_pattern(void)
 	audio_pattern_lcg = 0x12345678u;
 }
 
+static void reset_audio_tone(void)
+{
+	audio_tone_phase = 0u;
+}
+
+static int next_audio_tone_sample(void)
+{
+	int sample;
+
+	if (audio_tone_phase < 48u) {
+		sample = 0x200000;
+	} else {
+		sample = -0x200000;
+	}
+	audio_tone_phase++;
+	if (audio_tone_phase >= 96u) {
+		audio_tone_phase = 0u;
+	}
+
+	return sample;
+}
+
+static uint32_t next_audio_tone_sample24(void)
+{
+	return (uint32_t)next_audio_tone_sample() & 0x00ffffffu;
+}
+
+static uint32_t next_audio_tone_sample16(void)
+{
+	return (next_audio_tone_sample() > 0) ? 0x2000u : 0xe000u;
+}
+
 static void write_pcm16_le(volatile uint8_t *fifo, uint32_t offset, uint32_t value)
 {
 	fifo[offset] = (uint8_t)(value & 0xffu);
@@ -941,6 +974,7 @@ static void reset_audio_interface_data_toggle(uint32_t interface)
 	} else if (interface == 3u) {
 		reset_audio_loopback_buffer();
 		reset_audio_pattern();
+		reset_audio_tone();
 		reset_audio_in_packet_schedule();
 		USBHS_DEVEPTIER(USB_AUDIO_IN_EP) = USBHS_DEVEPTIER_RSTDTS;
 		clear_iso_status(USB_AUDIO_IN_EP, USBHS_DEVEPTISR(USB_AUDIO_IN_EP));
@@ -1070,6 +1104,28 @@ static void write_endpoint_pattern_packet(uint32_t ep, uint32_t length)
 	} else {
 		for (index = 0u; (index + 2u) < length; index += 3u) {
 			write_pcm24_le(fifo, index, next_audio_pattern_sample());
+		}
+	}
+	for (; index < length; index++) {
+		fifo[index] = 0u;
+	}
+
+	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
+	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
+}
+
+static void write_endpoint_tone_packet(uint32_t ep, uint32_t length)
+{
+	volatile uint8_t *fifo = USBHS_EP_FIFO(ep);
+	uint32_t index;
+
+	if (audio_in_format == SAME70_USB_AUDIO_FORMAT_44K16) {
+		for (index = 0u; (index + 1u) < length; index += 2u) {
+			write_pcm16_le(fifo, index, next_audio_tone_sample16());
+		}
+	} else {
+		for (index = 0u; (index + 2u) < length; index += 3u) {
+			write_pcm24_le(fifo, index, next_audio_tone_sample24());
 		}
 	}
 	for (; index < length; index++) {
@@ -1248,6 +1304,8 @@ static void poll_audio_in(void)
 		packet_bytes = audio_in_packet_bytes();
 		if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_PATTERN) {
 			write_endpoint_pattern_packet(USB_AUDIO_IN_EP, packet_bytes);
+		} else if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_TONE) {
+			write_endpoint_tone_packet(USB_AUDIO_IN_EP, packet_bytes);
 		} else if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_SILENCE) {
 			write_endpoint_silence_packet(USB_AUDIO_IN_EP, packet_bytes);
 		} else {
@@ -1844,12 +1902,13 @@ void same70_usb_get_status(same70_usb_status_t *status)
 
 uint32_t same70_usb_set_audio_source(uint32_t source)
 {
-	if (source > SAME70_USB_AUDIO_SOURCE_SILENCE) {
+	if (source > SAME70_USB_AUDIO_SOURCE_TONE) {
 		return 0u;
 	}
 
 	audio_source_mode = source;
 	reset_audio_loopback_buffer();
 	reset_audio_pattern();
+	reset_audio_tone();
 	return 1u;
 }

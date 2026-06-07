@@ -22,8 +22,9 @@ Current milestones:
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. The current handlers store
   output packets in a small byte ring, return feedback for the active rate, and
-  send queued loopback bytes, generated PCM24/PCM16 pattern bytes, or silence on
-  input packets. Loopback is the default source.
+  send queued loopback bytes, generated PCM24/PCM16 pattern bytes, a
+  deterministic square-wave PCM tone, or silence on input packets. Loopback is
+  the default source.
 - DG8SAQ/vendor feature control compatibility for the existing
   `widget-control` host tool.
 
@@ -75,6 +76,7 @@ usb attach
 usb detach
 audio loop
 audio pattern
+audio tone
 audio silence
 ```
 
@@ -96,7 +98,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Host checks:
@@ -115,6 +117,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained audio-verify
 ```
 
@@ -131,37 +134,40 @@ mask showing playback and capture streams were opened. The probe selects the
 requested nominal sample rate, writes exact integer test samples through
 CoreAudio Float32 buffers, captures the returned input samples, quantizes them
 back to the selected bit depth, aligns the loopback latency, and reports whether
-the aligned sample stream is bit-perfect. In exact loopback, pattern, and
+the aligned sample stream is bit-perfect. In exact loopback, pattern, tone, and
 silence modes, the verify line also includes 64-bit `expected_hash` and
 `actual_hash` fingerprints over the quantized samples actually compared. Use
 `--verify pattern` when the firmware source is `audio pattern`; it aligns the
 captured samples against the firmware's deterministic LCG pattern and compares
-them sample-for-sample. Use `--verify silence` when the firmware source is
-`audio silence`; it requires all quantized input samples to be zero. Use
-`--verify input` for a looser nonzero input activity check. The serial `usb`
-counters remain the source of truth for USBHS endpoint state.
+them sample-for-sample. Use `--verify tone` when the firmware source is
+`audio tone`; it aligns captured samples against the deterministic square-wave
+PCM source. Use `--verify silence` when the firmware source is `audio silence`;
+it requires all quantized input samples to be zero. Use `--verify input` for a
+looser nonzero input activity check. The serial `usb` counters remain the source
+of truth for USBHS endpoint state.
 
 The `audio-verify` target wraps the same probe with serial source switching. It
 selects `audio loop`, verifies loopback at both advertised formats, selects
 `audio pattern`, verifies the generated input pattern at both formats, selects
+`audio tone`, verifies the generated tone at both formats, selects
 `audio silence`, verifies zero input at both formats, switches back to
 `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
 `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
 starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
 `drop` increases by the final status. Use `AUDIO_VERIFY_ARGS="--seconds N
---loopback-runs N --pattern-runs N --silence-runs N --serial
+--loopback-runs N --pattern-runs N --tone-runs N --silence-runs N --serial
 /dev/cu.usbmodem..."` to tune the run length, per-source run counts, or serial
 port.
 
 ```text
 nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input|pattern|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input|pattern|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern|tone|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Latest measured 48 kHz/24-bit check on the connected board: `--seconds 2
@@ -197,19 +203,24 @@ compared_samples=378448 mismatches=0`, 44.1 kHz/16-bit
 loopback `runs=2 passed=2 failed=0 compared_samples=346648 mismatches=0`,
 48 kHz/24-bit pattern `runs=2 passed=2 failed=0 compared_samples=384000
 mismatches=0`, and 44.1 kHz/16-bit pattern `runs=2 passed=2 failed=0
-compared_samples=353280 mismatches=0`. It also measured 48 kHz/24-bit silence
-`runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0` and
-44.1 kHz/16-bit silence `runs=1 passed=1 failed=0 compared_samples=177152
-mismatches=0`, both with `input_nonzero=0`. Matching
+compared_samples=353280 mismatches=0`. It also measured 48 kHz/24-bit tone
+`runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0`,
+44.1 kHz/16-bit tone `runs=1 passed=1 failed=0 compared_samples=176128
+mismatches=0`, 48 kHz/24-bit silence `runs=1 passed=1 failed=0
+compared_samples=192512 mismatches=0`, and 44.1 kHz/16-bit silence
+`runs=1 passed=1 failed=0 compared_samples=177152 mismatches=0`, with silence
+`input_nonzero=0`. Matching
 `expected_hash`/`actual_hash` pairs were `0x4e3aa5b4af22bcb1` and
 `0xf5c67e41d99dc189` for the two 48 kHz/24-bit loopback runs,
-`0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback, `0x809db1fb024fde84` and
-`0x62ceb60938c410d9` for the two 48 kHz/24-bit pattern runs,
-`0x876d1049b97fe09a` and `0x6dd11a9f9959525c` for the two 44.1 kHz/16-bit
-pattern runs, and zero-stream silence hashes `0x4c1b7a9a57ea0383` at
-48 kHz/24-bit plus `0x620be961d8eec383` at 44.1 kHz/16-bit. Final serial status
-reported `source=loop`, `fmt=48k24/48k24`, `err=0`, `crc=0`, `over=0`,
-`under=0`, `drop=0`, and `stall=0`, with no increase from the starting baseline.
+`0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback, `0x551ae4077d09e9ab` and
+`0xa9c113a2ca2eb3e4` for the two 48 kHz/24-bit pattern runs,
+`0xe1198cc4ca20b3a7` and `0x65e279568d3cb0db` for the two 44.1 kHz/16-bit
+pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
+`0xdcb5ab5fe5ce16e3` at 44.1 kHz/16-bit, and zero-stream silence hashes
+`0x4c1b7a9a57ea0383` at 48 kHz/24-bit plus `0x620be961d8eec383` at
+44.1 kHz/16-bit. Final serial status reported `source=loop`, `fmt=48k24/48k24`,
+`err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
+increase from the starting baseline.
 
 ## Porting Notes
 
@@ -223,8 +234,9 @@ enumeration, DG8SAQ feature requests, and basic UAC1 class-control requests.
 Audio streaming endpoints are now hardware-configured and loopback-serviced:
 endpoint 3 OUT stores received packets in an 8192-byte ring, endpoint 4
 feedback IN reports the active high-speed feedback value, and endpoint 5 audio
-IN sends queued loopback bytes, generated PCM24/PCM16 pattern bytes, or silence
-depending on the serial-selected source. The macOS HAL stream probe writes
+IN sends queued loopback bytes, generated PCM24/PCM16 pattern bytes, a generated
+square-wave tone, or silence depending on the serial-selected source. The macOS
+HAL stream probe writes
 deterministic integer sample values through CoreAudio Float32 buffers, quantizes
 returned input back to the selected bit depth, aligns stream latency, and fails
 if any aligned sample differs in loopback mode. The firmware now reads the USBHS

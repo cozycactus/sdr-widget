@@ -51,8 +51,8 @@ Verified firmware features:
   `audio cfg=1 cfgok=0x00000038 ...`.
 - USB audio loopback handlers are present: endpoint 3 stores output packets in
   a small byte ring, endpoint 4 returns feedback for the active rate, and
-  endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, or
-  silence. Default source is loopback.
+  endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, a
+  deterministic square-wave PCM tone, or silence. Default source is loopback.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -88,18 +88,18 @@ Verified firmware features:
   through CoreAudio Float32 buffers, aligns the returned stream latency, and
   verifies zero sample mismatches through the loopback path. `--verify pattern`
   aligns captured input against the firmware-generated LCG pattern for exact
-  capture-side checks, and `--verify silence` proves the selected source returns
-  quantized zero samples only. `--verify input` remains a looser nonzero
-  activity check. For exact loopback, pattern, and silence modes, the probe now
-  prints 64-bit `expected_hash` and `actual_hash` values over the quantized
-  samples actually compared, giving an audit-friendly fingerprint for
-  bit-perfect checks. Serial `usb` counters remain the source of truth for
-  hardware endpoint state.
+  capture-side checks, `--verify tone` matches the firmware square-wave source,
+  and `--verify silence` proves the selected source returns quantized zero
+  samples only. `--verify input` remains a looser nonzero activity check. For
+  exact loopback, pattern, tone, and silence modes, the probe now prints 64-bit
+  `expected_hash` and `actual_hash` values over the quantized samples actually
+  compared, giving an audit-friendly fingerprint for bit-perfect checks. Serial
+  `usb` counters remain the source of truth for hardware endpoint state.
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
-  pattern at both formats, silence at both formats, final switch back to
-  `audio loop`, final 48 kHz/24-bit loopback, and serial status confirmation for
-  `source=loop` plus
+  pattern at both formats, generated tone at both formats, silence at both
+  formats, final switch back to `audio loop`, final 48 kHz/24-bit loopback, and
+  serial status confirmation for `source=loop` plus
   `fmt=48k24/48k24`. It also captures a starting serial `usb` status and fails
   if `stall`, `err`, `crc`, `over`, `under`, or `drop` increases by the final
   status. Latest hash-audited default run reported `audio-verify: pass`, with
@@ -108,18 +108,23 @@ Verified firmware features:
   passed=2 failed=0 compared_samples=346648 mismatches=0`, plus pattern
   summaries `rate=48000 bits=24 runs=2 passed=2 failed=0 compared_samples=384000
   mismatches=0` and `rate=44100 bits=16 runs=2 passed=2 failed=0
-  compared_samples=353280 mismatches=0`, plus silence summaries
+  compared_samples=353280 mismatches=0`, plus tone summaries
+  `rate=48000 bits=24 runs=1 passed=1 failed=0 compared_samples=192512
+  mismatches=0` and `rate=44100 bits=16 runs=1 passed=1 failed=0
+  compared_samples=176128 mismatches=0`, plus silence summaries
   `rate=48000 bits=24 runs=1 passed=1 failed=0 compared_samples=192512
   mismatches=0` and `rate=44100 bits=16 runs=1 passed=1 failed=0
   compared_samples=177152 mismatches=0`. Representative matching hash pairs
   were `0x4e3aa5b4af22bcb1`/`0xf5c67e41d99dc189` for the two 48 kHz/24-bit
   loopback runs, `0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback,
-  `0x809db1fb024fde84`/`0x62ceb60938c410d9` for the two 48 kHz/24-bit pattern
-  runs, `0x876d1049b97fe09a`/`0x6dd11a9f9959525c` for the two 44.1 kHz/16-bit
-  pattern runs, and zero-stream silence hashes `0x4c1b7a9a57ea0383` at
-  48 kHz/24-bit plus `0x620be961d8eec383` at 44.1 kHz/16-bit. Final serial
-  status stayed at `source=loop`, `fmt=48k24/48k24`, `stall=0`, `err=0`,
-  `crc=0`, `over=0`, `under=0`, and `drop=0`.
+  `0x551ae4077d09e9ab`/`0xa9c113a2ca2eb3e4` for the two 48 kHz/24-bit pattern
+  runs, `0xe1198cc4ca20b3a7`/`0x65e279568d3cb0db` for the two 44.1 kHz/16-bit
+  pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit plus
+  `0xdcb5ab5fe5ce16e3` at 44.1 kHz/16-bit, and zero-stream silence hashes
+  `0x4c1b7a9a57ea0383` at 48 kHz/24-bit plus `0x620be961d8eec383` at
+  44.1 kHz/16-bit. Final serial status stayed at `source=loop`,
+  `fmt=48k24/48k24`, `stall=0`, `err=0`, `crc=0`, `over=0`, `under=0`, and
+  `drop=0`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -132,7 +137,8 @@ Verified firmware features:
   `fmt=<out>/<in>`. The loopback input prebuffers whole packets after stream
   resets so startup silence is skipped cleanly by the bit-perfect verifier.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
-  `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio silence`.
+  `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
+  `audio silence`.
 
 Known SAME70/board quirks:
 
@@ -185,7 +191,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Verified host checks:
@@ -204,6 +210,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs 5 --rate 44100 --bits 16"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
 make -C ports/same70-xplained audio-verify
 ```
 
@@ -216,9 +223,9 @@ Typical feature output:
 ## Porting Direction
 
 The original AVR32 firmware depends on AVR32-specific ASF components including
-USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The next practical
-SAME70 milestone is moving from USB loopback toward useful audio data:
-map the original SDR Widget audio pipeline onto SAME70 peripherals if matching
-hardware is available, or add board-level test signal generation if no codec
-hardware is attached. Add real feature storage in SAME70 flash only if
-persistence matters for the next test.
+USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
+source gate now covers loopback, generated LCG pattern, generated square-wave
+tone, and silence. The next practical SAME70 milestone is mapping the original
+SDR Widget audio pipeline onto SAME70 peripherals if matching hardware is
+available, or identifying the missing external codec/ADC path. Add real feature
+storage in SAME70 flash only if persistence matters for the next test.

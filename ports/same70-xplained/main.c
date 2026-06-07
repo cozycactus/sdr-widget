@@ -354,6 +354,8 @@ static void console_audio_source_name(uint32_t source)
 		usart1_write("pattern");
 	} else if (source == SAME70_USB_AUDIO_SOURCE_SILENCE) {
 		usart1_write("silence");
+	} else if (source == SAME70_USB_AUDIO_SOURCE_TONE) {
+		usart1_write("tone");
 	} else {
 		usart1_write("loop");
 	}
@@ -447,7 +449,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio silence\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio silence\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -474,6 +476,9 @@ static void console_handle_line(void)
 		console_usb_status();
 	} else if (text_equals(console_line, "audio pattern")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_PATTERN);
+		console_usb_status();
+	} else if (text_equals(console_line, "audio tone")) {
+		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_TONE);
 		console_usb_status();
 	} else if (text_equals(console_line, "audio silence")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_SILENCE);
