@@ -480,14 +480,17 @@ digital-audio/SSC-style pins for the UC3A3 original AK5394 ADC-board. The
 current first DAC experiment is one AD1856 mono output test; ES9023 remains the
 original DAC reference path. AD1856 is not I2S: it needs `DATA`, `CLK`, and a
 correctly timed low-going `LE` latch pulse after each 16-bit word. The
-preferred clocking target is external-low-jitter full-duplex: external MCLK
-feeds ADC/DAC or formatter logic directly, external BCLK/LRCK feed the codecs
-plus SAME70 RK/RF and TK/TF, ADC data enters RD on PA10/J504.2, and the
-AD1856 mono candidate uses TD/TK/TF on PD26/PB1/PB0 for DATA/CLK/LE. PCK0 on
-PB13 is reserved for optional diagnostics, not external codec MCLK. See
+preferred AD1856 low-jitter path uses an external formatter: SAME70 sends
+sample data on TD, accepts external TK/TF timing, and the formatter drives
+AD1856 `DATA`/`CLK`/`LE` from the low-jitter clock domain. External MCLK feeds
+ADC/DAC or formatter logic directly, external BCLK/LRCK feed the codecs plus
+SAME70 RK/RF and TK/TF, and ADC data enters RD on PA10/J504.2. PCK0 on PB13 is
+reserved for optional diagnostics, not external codec MCLK. See
 `external-codec-original-uc3a3-map.md`,
 `external-codec-low-jitter-clock-plan.md`, `external-codec-pin-map.md`, and
-`external-dac-ad1856-mono-test.md` before wiring or enabling codec firmware.
+`external-dac-ad1856-mono-test.md`,
+`external-dac-ad1856-low-jitter-formatter.md` before wiring or enabling codec
+firmware.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
@@ -528,19 +531,22 @@ The original UC3A3 audio path is the AK5394 ADC-board plus ES9023 DAC path
 driven by AVR32 SSC plus PDCA double buffers. The source map for that schematic
 set is documented in `external-codec-original-uc3a3-map.md`. The selected DAC
 bring-up now starts with one AD1856 mono test before any stereo/IQ DAC path is
-claimed. On this SAME70 Xplained port, the codec side is deliberately not
-claimed yet: no external codec is configured, the SAME70 digital-audio
-peripheral path is not configured, and the missing original signals are
-external MCLK direct to the codecs or formatter, shared BCLK/LRCK into SAME70
-RX/TX clock/frame inputs, ADC serial data, AD1856 DATA/CLK/LE timing, codec
-reset, and codec control. The first stock-board wiring projection
+claimed. The preferred low-jitter AD1856 architecture adds an external
+formatter that owns AD1856 `DATA`/`CLK`/`LE`; SAME70 is only a slave-TX sample
+source into that formatter. On this SAME70 Xplained port, the codec side is
+deliberately not claimed yet: no external codec is configured, the SAME70
+digital-audio peripheral path is not configured, and the missing original
+signals are external MCLK direct to the codecs or formatter, shared BCLK/LRCK
+into SAME70 RX/TX clock/frame inputs, ADC serial data, AD1856 formatter timing,
+codec reset, and codec control. The first stock-board wiring projection
 intentionally uses exposed headers instead of non-header SDRAM/I2SC0 package
 pins, with SAME70 as a slave to the external low-jitter audio clock domain; it
 is documented in `external-codec-pin-map.md`,
-`external-codec-low-jitter-clock-plan.md`, and
-`external-dac-ad1856-mono-test.md`, with staged wiring holds documented in
-`external-codec-wiring-checklist.md` and XDMAC double buffering still to be
-designed.
+`external-codec-low-jitter-clock-plan.md`,
+`external-dac-ad1856-mono-test.md`, and
+`external-dac-ad1856-low-jitter-formatter.md`, with staged wiring holds
+documented in `external-codec-wiring-checklist.md` and XDMAC double buffering
+still to be designed.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.

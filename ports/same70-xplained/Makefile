@@ -29,6 +29,7 @@ EXTERNAL_CODEC_WIRING_CHECKLIST ?= external-codec-wiring-checklist.md
 EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 EXTERNAL_CODEC_CLOCK_PLAN ?= external-codec-low-jitter-clock-plan.md
 EXTERNAL_DAC_AD1856_MONO ?= external-dac-ad1856-mono-test.md
+EXTERNAL_DAC_AD1856_FORMATTER ?= external-dac-ad1856-low-jitter-formatter.md
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
 AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
@@ -63,7 +64,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-dac-ad1856-mono external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -128,6 +129,8 @@ audio-hw:
 		--expect "MCLK=external_to_codecs" \
 		--expect "AD1856=mono_DATA_TD_CLK_TK_LE_TF" \
 		--expect "external-dac-ad1856-mono-test.md" \
+		--expect "external-dac-ad1856-low-jitter-formatter.md" \
+		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
@@ -145,9 +148,25 @@ external-dac-ad1856-mono:
 	@grep -q "bipolar supplies" "$(EXTERNAL_DAC_AD1856_MONO)"
 	@grep -q "44.1 kHz / 16-bit" "$(EXTERNAL_DAC_AD1856_MONO)"
 	@grep -q "low-going.*LE.*pulse" "$(EXTERNAL_DAC_AD1856_MONO)"
+	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_DAC_AD1856_MONO)"
 	@printf '%s\n' "external-dac-ad1856-mono: pass"
 
-external-codec-wiring-checklist: external-codec-original-map external-codec-clock-plan external-dac-ad1856-mono
+external-dac-ad1856-formatter:
+	@test -f "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "preferred AD1856 architecture" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "external XO" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "formatter DATA/CLK/LE" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "SAME70 TD" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "SAME70 must not generate AD1856.*CLK.*LE" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "TD.*PD26.*J502 pin 1" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "TK.*PB1.*J505 pin 8.*J507 pin 4" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "TF.*PB0.*J505 pin 7.*J507 pin 5" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "left channel sample exactly" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "gated 16-pulse AD1856 clock" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@grep -q "explicit USB feedback" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
+	@printf '%s\n' "external-dac-ad1856-formatter: pass"
+
+external-codec-wiring-checklist: external-codec-original-map external-codec-clock-plan external-dac-ad1856-mono external-dac-ad1856-formatter
 	@test -f "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -155,6 +174,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "UC3A3 original AK5394" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "ES9023" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "AD1856" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external-codec-low-jitter-clock-plan.md" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "generic USB/I2S audio module" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "The codec board drives any SAME70 I/O above 3.3 V logic" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -174,7 +194,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "PC17.*EXT1 pin 10" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@printf '%s\n' "external-codec-wiring-checklist: pass"
 
-external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mono
+external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mono external-dac-ad1856-formatter
 	@test -f "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_PIN_MAP)"
@@ -183,6 +203,7 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "UC3A3" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "ES9023" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "AD1856" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "AD1856 Low-Jitter Formatter Signals" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external-codec-low-jitter-clock-plan.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "not a generic USB/I2S audio module" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PD26 | J502 pin 1" "$(EXTERNAL_CODEC_PIN_MAP)"
@@ -195,6 +216,7 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "PB13 | J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "not external MCLK" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PC17 | EXT1 pin 10" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
 
@@ -205,6 +227,8 @@ external-codec-clock-plan:
 	@grep -q "ADC DATA.*SAME70 RD" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "SAME70 TD.*DAC DATA" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "AD1856" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
+	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
+	@grep -q "formatter owns AD1856" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "BCLK.*RK.*TK" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "LRCK.*RF.*TF" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "MCLK.*Feed codecs directly" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
@@ -227,6 +251,7 @@ external-codec-original-map:
 	@grep -q "1 | .*DA_MCLK" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
 	@grep -q "ES9023" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
 	@grep -q "AD1856" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
 	@grep -q "AK5394_AD_MCLK.*PC04" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
 	@grep -q "DA_SDATA.*TD.*PD26" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
 	@grep -q "AD_SDATA.*RD.*PA10" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"

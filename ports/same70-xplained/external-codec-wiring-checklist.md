@@ -26,6 +26,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
   available and measured.
 - AD1856 `LE` timing is assumed to be normal I2S `LRCK` without scope
   verification.
+- The AD1856 low-jitter path wires SAME70 directly to AD1856 `CLK`/`LE`
+  instead of using an external formatter clocked from the low-jitter domain.
 - Any short is measured between `3V3`, `5V0`, `GND`, or a selected signal.
 - `make -C ports/same70-xplained external-codec-preflight` fails.
 - `make -C ports/same70-xplained board-ready` fails on the stock board.
@@ -58,6 +60,9 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - Confirm reset polarity and optional control bus requirements.
 - For the mono AD1856 test, confirm the board exposes `DATA`, `CLK`, `LE`,
   bipolar supplies, common ground, and an analog output filter.
+- For the preferred low-jitter AD1856 path, confirm the formatter drives
+  AD1856 `DATA`, gated `CLK`, and low-going `LE`, while SAME70 only provides
+  sample data and accepts external transmit timing.
 - Confirm the 3.3 V current draw is safe if powered from SAME70 Xplained
   headers; otherwise use an external 3.3 V supply with common ground.
 
@@ -122,3 +127,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 For the AD1856 mono test, interpret the DAC-side candidates as `DATA` on `TD`,
 `CLK` on `TK`, and `LE` on `TF` only after `external-dac-ad1856-mono-test.md`
 timing checks are satisfied.
+
+For the preferred AD1856 low-jitter formatter path, `TD` goes to the formatter,
+external formatter timing goes into SAME70 `TK`/`TF`, and the formatter drives
+AD1856 `DATA`/`CLK`/`LE`. See
+`external-dac-ad1856-low-jitter-formatter.md`.

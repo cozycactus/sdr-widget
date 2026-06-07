@@ -25,10 +25,11 @@ preferred MCLK source for the external ADC/DAC board.
 
 The first selected DAC experiment is one AD1856 mono output test. AD1856 is not
 an I2S DAC; it needs `DATA`, `CLK`, and a low-going `LE` latch pulse after each
-16-bit word. Treat the AD1856 path as a mono timing/analog-output smoke test
-until a formatter or a second DAC channel exists. The final low-jitter version
-must derive AD1856 `CLK`/`LE` from the external audio clock domain, because the
-DAC latch edge is the jitter-sensitive event.
+16-bit word. Treat the direct SAME70-to-AD1856 path as a mono
+timing/analog-output smoke test only. The preferred low-jitter version uses an
+external formatter documented in `external-dac-ad1856-low-jitter-formatter.md`:
+the formatter owns AD1856 `DATA`/`CLK`/`LE`, captures samples from SAME70 `TD`,
+and derives every DAC latch edge from the external audio clock domain.
 
 ## Header Mapping
 
@@ -40,7 +41,8 @@ DAC latch edge is the jitter-sensitive event.
 | `LRCK` / original `AD_LRCK` + `DA_LRCK` | Clock board to SAME70/codecs | `RF` on `PD24`, `J504 pin 1`; `TF` on `PB0`, `J505 pin 7` or `J507 pin 5` | Shared serial frame clock domain |
 | `MCLK` / original `AD_MCLK` + `DA_MCLK` | Clock board to ADC/DAC | No preferred SAME70 header route | Feed codecs directly; do not route through SAME70 |
 | `AD_RSTN` / control | SAME70 to codec board | `PC17`, `EXT1 pin 10` | Reset/control bring-up GPIO |
-| AD1856 mono `DATA`/`CLK`/`LE` | SAME70 or formatter to DAC | `TD`/`TK`/`TF` on `PD26`/`PB1`/`PB0` | Mono DAC smoke-test candidate, not normal I2S |
+| AD1856 mono smoke-test `DATA`/`CLK`/`LE` | SAME70 to DAC | `TD`/`TK`/`TF` on `PD26`/`PB1`/`PB0` | Direct pin proof only, not final low-jitter |
+| AD1856 low-jitter formatter input | SAME70 to formatter, formatter to SAME70 timing | `TD` output plus external `TK`/`TF` inputs | Preferred AD1856 path; formatter drives DAC pins |
 
 Use a clock fanout/buffer, or at least source-side series resistors for each
 clock branch, before splitting `BCLK` and `LRCK` to ADC, DAC, and SAME70 pins.
@@ -58,6 +60,11 @@ For AD1856 mono, keep the first target at `44.1 kHz / 16-bit`. AD1856 has no
 MCLK input; it needs a 16-bit serial word clocked into `DATA` plus a correctly
 timed `LE` pulse. Do not wire `LRCK` directly to `LE` without measuring pulse
 polarity, width, and alignment.
+
+For the preferred formatter path, use the 44.1 kHz external clock family to
+clock SAME70 slave-TX and to generate a gated 16-pulse AD1856 `CLK` plus one
+low-going `LE` pulse per output sample. The formatter should use the left
+channel sample exactly for the first mono bit-perfect proof.
 
 Add the 48 kHz family after the 44.1 kHz path is stable:
 

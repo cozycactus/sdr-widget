@@ -67,6 +67,12 @@ Do not assume a normal `LRCK` signal can be wired directly to AD1856 `LE` until
 the pulse polarity, width, and alignment after the 16th data bit are verified on
 a scope.
 
+The preferred low-jitter version is documented in
+`external-dac-ad1856-low-jitter-formatter.md`: the formatter owns AD1856
+`DATA`, `CLK`, and `LE`; SAME70 is a slave-TX sample source into the formatter.
+The direct `TD`/`TK`/`TF` mapping remains useful only as a simpler mono smoke
+test before the formatter board exists.
+
 ## Bring-Up Order
 
 1. Keep `external-codec-preflight` passing on the stock board.

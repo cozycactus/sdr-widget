@@ -71,6 +71,23 @@ not an I2S DAC and not yet a stereo/IQ output path. See
 | `VOUT` pin 9 | -- | -- | -- | External analog low-pass/output stage |
 | `+VL/-VL`, `+VS/-VS` | -- | -- | -- | External bipolar supplies; do not power from SAME70 3V3 |
 
+## AD1856 Low-Jitter Formatter Signals
+
+The preferred low-jitter AD1856 path inserts a small external formatter between
+SAME70 and AD1856. In that path, SAME70 does not drive AD1856 pins directly.
+The formatter owns AD1856 `DATA`, `CLK`, and `LE`; SAME70 provides samples and
+accepts external transmit timing. See
+`external-dac-ad1856-low-jitter-formatter.md` before designing this board.
+
+| Signal | SAME70 pin | Board header pin | Direction at SAME70 | Notes |
+| --- | --- | --- | --- | --- |
+| Formatter sample input from SAME70 | PD26 | J502 pin 1 | Output, `TD` | Carries selected mono sample bits into formatter |
+| Formatter transmit clock to SAME70 | PB1 | J505 pin 8 or J507 pin 4 | Input, `TK` | External clock domain; do not drive from SAME70 |
+| Formatter transmit frame to SAME70 | PB0 | J505 pin 7 or J507 pin 5 | Input, `TF` | External frame/latch cadence; do not drive from SAME70 |
+| Formatter to AD1856 `DATA` | -- | -- | -- | Formatter output to AD1856 pin 7 |
+| Formatter to AD1856 `CLK` | -- | -- | -- | Gated 16-pulse formatter output to AD1856 pin 5 |
+| Formatter to AD1856 `LE` | -- | -- | -- | Low-going formatter output to AD1856 pin 6 after 16 bits |
+
 ## Bring-Up Order
 
 1. Confirm the exact external codec board pinout, clocking mode, and voltage.
