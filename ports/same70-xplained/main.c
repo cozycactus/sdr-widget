@@ -356,9 +356,18 @@ static void console_audio_source_name(uint32_t source)
 		usart1_write("silence");
 	} else if (source == SAME70_USB_AUDIO_SOURCE_TONE) {
 		usart1_write("tone");
+	} else if (source == SAME70_USB_AUDIO_SOURCE_SINE) {
+		usart1_write("sine");
 	} else {
 		usart1_write("loop");
 	}
+}
+
+static void console_audio_source_status(uint32_t source)
+{
+	usart1_write("audio source=");
+	console_audio_source_name(source);
+	usart1_write("\r\n");
 }
 
 static void console_audio_format_name(uint32_t format)
@@ -449,7 +458,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio silence\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio silence\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -473,16 +482,19 @@ static void console_handle_line(void)
 		console_usb_status();
 	} else if (text_equals(console_line, "audio loop")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_LOOPBACK);
-		console_usb_status();
+		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_LOOPBACK);
 	} else if (text_equals(console_line, "audio pattern")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_PATTERN);
-		console_usb_status();
+		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_PATTERN);
 	} else if (text_equals(console_line, "audio tone")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_TONE);
-		console_usb_status();
+		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_TONE);
+	} else if (text_equals(console_line, "audio sine")) {
+		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_SINE);
+		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SINE);
 	} else if (text_equals(console_line, "audio silence")) {
 		(void)same70_usb_set_audio_source(SAME70_USB_AUDIO_SOURCE_SILENCE);
-		console_usb_status();
+		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SILENCE);
 	} else {
 		usart1_write("unknown: ");
 		usart1_write(console_line);

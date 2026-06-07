@@ -473,6 +473,7 @@ static uint32_t audio_loopback_drop_bytes;
 static uint32_t audio_loopback_silence_bytes;
 static uint32_t audio_pattern_lcg;
 static uint32_t audio_tone_phase;
+static uint32_t audio_sine_phase;
 static uint32_t usb_address;
 static uint32_t usb_configuration;
 static uint8_t interface_alternate[USB_INTERFACE_COUNT];
@@ -923,6 +924,11 @@ static void reset_audio_tone(void)
 	audio_tone_phase = 0u;
 }
 
+static void reset_audio_sine(void)
+{
+	audio_sine_phase = 0u;
+}
+
 static int next_audio_tone_sample(void)
 {
 	int sample;
@@ -950,6 +956,42 @@ static uint32_t next_audio_tone_sample16(void)
 	return (next_audio_tone_sample() > 0) ? 0x2000u : 0xe000u;
 }
 
+static int next_audio_sine_sample16(void)
+{
+	static const int samples[96] = {
+		0, 536, 1069, 1598, 2120, 2633, 3135, 3623,
+		4096, 4551, 4987, 5401, 5793, 6159, 6499, 6811,
+		7094, 7347, 7568, 7757, 7913, 8035, 8122, 8174,
+		8192, 8174, 8122, 8035, 7913, 7757, 7568, 7347,
+		7094, 6811, 6499, 6159, 5793, 5401, 4987, 4551,
+		4096, 3623, 3135, 2633, 2120, 1598, 1069, 536,
+		0, -536, -1069, -1598, -2120, -2633, -3135, -3623,
+		-4096, -4551, -4987, -5401, -5793, -6159, -6499, -6811,
+		-7094, -7347, -7568, -7757, -7913, -8035, -8122, -8174,
+		-8192, -8174, -8122, -8035, -7913, -7757, -7568, -7347,
+		-7094, -6811, -6499, -6159, -5793, -5401, -4987, -4551,
+		-4096, -3623, -3135, -2633, -2120, -1598, -1069, -536,
+	};
+	int sample = samples[audio_sine_phase];
+
+	audio_sine_phase++;
+	if (audio_sine_phase >= 96u) {
+		audio_sine_phase = 0u;
+	}
+
+	return sample;
+}
+
+static uint32_t next_audio_sine_sample16u(void)
+{
+	return (uint32_t)next_audio_sine_sample16() & 0x0000ffffu;
+}
+
+static uint32_t next_audio_sine_sample24(void)
+{
+	return (uint32_t)(next_audio_sine_sample16() * 256) & 0x00ffffffu;
+}
+
 static void write_pcm16_le(volatile uint8_t *fifo, uint32_t offset, uint32_t value)
 {
 	fifo[offset] = (uint8_t)(value & 0xffu);
@@ -975,6 +1017,7 @@ static void reset_audio_interface_data_toggle(uint32_t interface)
 		reset_audio_loopback_buffer();
 		reset_audio_pattern();
 		reset_audio_tone();
+		reset_audio_sine();
 		reset_audio_in_packet_schedule();
 		USBHS_DEVEPTIER(USB_AUDIO_IN_EP) = USBHS_DEVEPTIER_RSTDTS;
 		clear_iso_status(USB_AUDIO_IN_EP, USBHS_DEVEPTISR(USB_AUDIO_IN_EP));
@@ -1126,6 +1169,34 @@ static void write_endpoint_tone_packet(uint32_t ep, uint32_t length)
 	} else {
 		for (index = 0u; (index + 2u) < length; index += 3u) {
 			write_pcm24_le(fifo, index, next_audio_tone_sample24());
+		}
+	}
+	for (; index < length; index++) {
+		fifo[index] = 0u;
+	}
+
+	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
+	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
+}
+
+static void write_endpoint_sine_packet(uint32_t ep, uint32_t length)
+{
+	volatile uint8_t *fifo = USBHS_EP_FIFO(ep);
+	uint32_t index;
+
+	if (audio_in_format == SAME70_USB_AUDIO_FORMAT_44K16) {
+		for (index = 0u; (index + 3u) < length; index += 4u) {
+			uint32_t sample = next_audio_sine_sample16u();
+
+			write_pcm16_le(fifo, index, sample);
+			write_pcm16_le(fifo, index + 2u, sample);
+		}
+	} else {
+		for (index = 0u; (index + 5u) < length; index += 6u) {
+			uint32_t sample = next_audio_sine_sample24();
+
+			write_pcm24_le(fifo, index, sample);
+			write_pcm24_le(fifo, index + 3u, sample);
 		}
 	}
 	for (; index < length; index++) {
@@ -1306,6 +1377,8 @@ static void poll_audio_in(void)
 			write_endpoint_pattern_packet(USB_AUDIO_IN_EP, packet_bytes);
 		} else if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_TONE) {
 			write_endpoint_tone_packet(USB_AUDIO_IN_EP, packet_bytes);
+		} else if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_SINE) {
+			write_endpoint_sine_packet(USB_AUDIO_IN_EP, packet_bytes);
 		} else if (audio_source_mode == SAME70_USB_AUDIO_SOURCE_SILENCE) {
 			write_endpoint_silence_packet(USB_AUDIO_IN_EP, packet_bytes);
 		} else {
@@ -1902,7 +1975,7 @@ void same70_usb_get_status(same70_usb_status_t *status)
 
 uint32_t same70_usb_set_audio_source(uint32_t source)
 {
-	if (source > SAME70_USB_AUDIO_SOURCE_TONE) {
+	if (source > SAME70_USB_AUDIO_SOURCE_SINE) {
 		return 0u;
 	}
 
@@ -1910,5 +1983,6 @@ uint32_t same70_usb_set_audio_source(uint32_t source)
 	reset_audio_loopback_buffer();
 	reset_audio_pattern();
 	reset_audio_tone();
+	reset_audio_sine();
 	return 1u;
 }

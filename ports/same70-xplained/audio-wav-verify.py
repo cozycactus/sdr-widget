@@ -11,6 +11,22 @@ VERIFY_MIN_SAMPLES = 4096
 VERIFY_HASH_OFFSET_BASIS = 1469598103934665603
 VERIFY_HASH_PRIME = 1099511628211
 TONE_PERIOD_SAMPLES = 96
+SINE_PERIOD_SAMPLES = 96
+SINE_ALIGN_MAX_SAMPLES = 4096
+SINE_SAMPLES_16 = (
+    0, 536, 1069, 1598, 2120, 2633, 3135, 3623,
+    4096, 4551, 4987, 5401, 5793, 6159, 6499, 6811,
+    7094, 7347, 7568, 7757, 7913, 8035, 8122, 8174,
+    8192, 8174, 8122, 8035, 7913, 7757, 7568, 7347,
+    7094, 6811, 6499, 6159, 5793, 5401, 4987, 4551,
+    4096, 3623, 3135, 2633, 2120, 1598, 1069, 536,
+    0, -536, -1069, -1598, -2120, -2633, -3135, -3623,
+    -4096, -4551, -4987, -5401, -5793, -6159, -6499, -6811,
+    -7094, -7347, -7568, -7757, -7913, -8035, -8122, -8174,
+    -8192, -8174, -8122, -8035, -7913, -7757, -7568, -7347,
+    -7094, -6811, -6499, -6159, -5793, -5401, -4987, -4551,
+    -4096, -3623, -3135, -2633, -2120, -1598, -1069, -536,
+)
 
 
 def hash_sample(value, sample):
@@ -78,6 +94,15 @@ def expected_tone_sample(index, bits):
 
 def fill_expected_tone(count, bits):
     return [expected_tone_sample(index, bits) for index in range(count)]
+
+
+def expected_sine_sample(index, bits):
+    sample = SINE_SAMPLES_16[(index // 2) % SINE_PERIOD_SAMPLES]
+    return sample if bits == 16 else sample * 256
+
+
+def fill_expected_sine(count, bits):
+    return [expected_sine_sample(index, bits) for index in range(count)]
 
 
 def first_nonzero_offset(samples):
@@ -201,6 +226,8 @@ def expected_for_source(source, sample_count, bits):
         return fill_expected_pattern(sample_count + PATTERN_ALIGN_MAX_SAMPLES, bits)
     if source == "tone":
         return fill_expected_tone(sample_count + TONE_ALIGN_MAX_SAMPLES, bits)
+    if source == "sine":
+        return fill_expected_sine(sample_count + SINE_ALIGN_MAX_SAMPLES, bits)
     return None
 
 
@@ -209,7 +236,7 @@ def main():
         description="Verify a SAME70 WAV capture from disk."
     )
     parser.add_argument("wav")
-    parser.add_argument("--source", choices=("loop", "pattern", "tone", "silence"), required=True)
+    parser.add_argument("--source", choices=("loop", "pattern", "tone", "sine", "silence"), required=True)
     parser.add_argument("--expected-wav")
     parser.add_argument("--rate", type=int)
     parser.add_argument("--bits", type=int)

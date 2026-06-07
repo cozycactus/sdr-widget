@@ -52,7 +52,8 @@ Verified firmware features:
 - USB audio loopback handlers are present: endpoint 3 stores output packets in
   a small byte ring, endpoint 4 returns feedback for the active rate, and
   endpoint 5 can send queued loopback bytes, a generated PCM24/PCM16 pattern, a
-  deterministic square-wave PCM tone, or silence. Default source is loopback.
+  deterministic square-wave PCM tone, a deterministic low-harmonic sine source,
+  or silence. Default source is loopback.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -89,11 +90,13 @@ Verified firmware features:
   verifies zero sample mismatches through the loopback path. `--verify pattern`
   aligns captured input against the firmware-generated LCG pattern for exact
   capture-side checks, `--verify tone` matches the firmware square-wave source,
-  and `--verify silence` proves the selected source returns quantized zero
-  samples only. `--verify input` remains a looser nonzero activity check. For
-  exact loopback, pattern, tone, and silence modes, the probe now prints 64-bit
-  `expected_hash` and `actual_hash` values over the quantized samples actually
-  compared, giving an audit-friendly fingerprint for bit-perfect checks. With
+  `--verify sine` matches the deterministic sine lookup source for less harsh
+  listening checks, and `--verify silence` proves the selected source returns
+  quantized zero samples only. `--verify input` remains a looser nonzero
+  activity check. For exact loopback, pattern, tone, sine, and silence modes,
+  the probe now prints 64-bit `expected_hash` and `actual_hash` values over the
+  quantized samples actually compared, giving an audit-friendly fingerprint for
+  bit-perfect checks. With
   `--dump-input-wav FILE --runs 1`, it also writes the quantized captured input
   stream as a PCM WAV artifact for inspection/listening; with
   `--dump-output-wav FILE --runs 1`, it also writes the quantized host output
@@ -101,12 +104,13 @@ Verified firmware features:
   counters remain the source of truth for hardware endpoint state.
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
-  pattern at both formats, generated tone at both formats, silence at both
-  formats, final switch back to `audio loop`, final 48 kHz/24-bit loopback, and
-  serial status confirmation for `source=loop` plus
-  `fmt=48k24/48k24`. It also captures a starting serial `usb` status and fails
-  if `stall`, `err`, `crc`, `over`, `under`, or `drop` increases by the final
-  status. Latest hash-audited default run reported `audio-verify: pass`, with
+  pattern at both formats, generated tone at both formats, generated sine at
+  both formats, silence at both formats, final switch back to `audio loop`,
+  final 48 kHz/24-bit loopback, and serial status confirmation for
+  `source=loop` plus `fmt=48k24/48k24`. It also captures a starting serial
+  `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or `drop`
+  increases by the final status. Latest hash-audited default run reported
+  `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2
   passed=2 failed=0 compared_samples=346648 mismatches=0`, plus pattern
@@ -138,11 +142,12 @@ Verified firmware features:
   stereo PCM at 48 kHz with 291884 total bytes.
 - `make -C ports/same70-xplained audio-capture` wraps the WAV dump path with
   serial source selection, exact verification, WAV verification from disk, final
-  `audio loop` restore, and final serial counter checks. `audio-wav-verify.py`
-  independently reopens dumped pattern, tone, or silence WAV files and compares
-  their PCM samples against the deterministic firmware source stream. For
-  `--source loop`, it compares the captured input WAV against the dumped host
-  output WAV after latency alignment. Latest CD-rate loopback artifact run used
+  `audio loop` restore unless `--leave-source` is passed, and final serial
+  counter checks. `audio-wav-verify.py` independently reopens dumped pattern,
+  tone, sine, or silence WAV files and compares their PCM samples against the
+  deterministic firmware source stream.
+  For `--source loop`, it compares the captured input WAV against the dumped
+  host output WAV after latency alignment. Latest CD-rate loopback artifact run used
   `--source loop --rate 44100 --bits 16 --seconds 1 --output
   /tmp/same70-loop-cd-input.wav --output-wav /tmp/same70-loop-cd-output.wav`;
   both the live probe and disk WAV-pair verifier passed with
@@ -151,6 +156,15 @@ Verified firmware features:
   output=/tmp/same70-loop-cd-input.wav output_wav=/tmp/same70-loop-cd-output.wav`,
   and `file` identified both dumps as 16-bit stereo PCM at 44.1 kHz with
   176172 total bytes each.
+- `audio sine` is the preferred listening sanity source; it now emits the same
+  sine sample on left and right, then advances once per stereo frame. `audio
+  pattern` is intentionally noise-like. Latest post-flash `audio-capture`
+  sine checks passed live and from disk at both formats: 48 kHz/24-bit and
+  44.1 kHz/16-bit both reported zero mismatches over full one-second captures.
+  Sine hashes can vary by run because capture starts at an aligned phase offset.
+  If live monitoring still sounds noisy, run
+  `make -C ports/same70-xplained audio-listen`; it captures, verifies, plays the
+  verified sine WAV through `afplay`, and leaves the board on `audio sine`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -164,7 +178,9 @@ Verified firmware features:
   resets so startup silence is skipped cleanly by the bit-perfect verifier.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio silence`.
+  `audio sine`, `audio silence`. Audio source commands now print a terse
+  `audio source=<source>` line instead of the full `usb` status block, so they
+  are safer while a host audio stream is active.
 
 Known SAME70/board quirks:
 
@@ -217,7 +233,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Verified host checks:
@@ -237,10 +253,13 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify sine"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-capture
+make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
@@ -255,7 +274,7 @@ Typical feature output:
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
-tone, and silence. The next practical SAME70 milestone is mapping the original
-SDR Widget audio pipeline onto SAME70 peripherals if matching hardware is
+tone, generated sine, and silence. The next practical SAME70 milestone is
+mapping the original SDR Widget audio pipeline onto SAME70 peripherals if matching hardware is
 available, or identifying the missing external codec/ADC path. Add real feature
 storage in SAME70 flash only if persistence matters for the next test.

@@ -12,6 +12,9 @@ STREAM_PROBE_ARGS ?=
 AUDIO_VERIFY_ARGS ?=
 AUDIO_CAPTURE_ARGS ?=
 AUDIO_WAV_VERIFY_ARGS ?=
+AUDIO_LISTEN_OUTPUT ?= /tmp/same70-sine-listen.wav
+AUDIO_LISTEN_ARGS ?= --source sine --rate 44100 --bits 16 --seconds 1 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
+AUDIO_PLAYER ?= afplay
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -37,7 +40,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe stream-probe audio-verify audio-capture audio-wav-verify
+.PHONY: all clean flash probe stream-probe audio-verify audio-capture audio-listen audio-wav-verify
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -65,6 +68,10 @@ audio-verify: $(STREAM_PROBE)
 
 audio-capture: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_CAPTURE_ARGS)
+
+audio-listen: $(STREAM_PROBE)
+	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_LISTEN_ARGS)
+	$(AUDIO_PLAYER) $(AUDIO_LISTEN_OUTPUT)
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)

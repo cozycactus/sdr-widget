@@ -24,10 +24,12 @@ def main():
     parser.add_argument("--loopback-runs", type=int, default=2)
     parser.add_argument("--pattern-runs", type=int, default=2)
     parser.add_argument("--tone-runs", type=int, default=1)
+    parser.add_argument("--sine-runs", type=int, default=1)
     parser.add_argument("--silence-runs", type=int, default=1)
     parser.add_argument("--skip-loopback", action="store_true")
     parser.add_argument("--skip-pattern", action="store_true")
     parser.add_argument("--skip-tone", action="store_true")
+    parser.add_argument("--skip-sine", action="store_true")
     parser.add_argument("--skip-silence", action="store_true")
     args = parser.parse_args()
 
@@ -57,6 +59,11 @@ def main():
             run_serial(port, "audio tone", args.serial_timeout)
             run_probe(args.probe, args.device, args.seconds, 48000, 24, args.tone_runs, "tone")
             run_probe(args.probe, args.device, args.seconds, 44100, 16, args.tone_runs, "tone")
+
+        if not args.skip_sine:
+            run_serial(port, "audio sine", args.serial_timeout)
+            run_probe(args.probe, args.device, args.seconds, 48000, 24, args.sine_runs, "sine")
+            run_probe(args.probe, args.device, args.seconds, 44100, 16, args.sine_runs, "sine")
 
         if not args.skip_silence:
             run_serial(port, "audio silence", args.serial_timeout)

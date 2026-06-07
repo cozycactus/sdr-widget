@@ -23,8 +23,8 @@ Current milestones:
   configured when the host sets configuration 1. The current handlers store
   output packets in a small byte ring, return feedback for the active rate, and
   send queued loopback bytes, generated PCM24/PCM16 pattern bytes, a
-  deterministic square-wave PCM tone, or silence on input packets. Loopback is
-  the default source.
+  deterministic square-wave PCM tone, a deterministic low-harmonic sine source,
+  or silence on input packets. Loopback is the default source.
 - DG8SAQ/vendor feature control compatibility for the existing
   `widget-control` host tool.
 
@@ -77,6 +77,7 @@ usb detach
 audio loop
 audio pattern
 audio tone
+audio sine
 audio silence
 ```
 
@@ -98,7 +99,7 @@ events reset=1 setup=<n> tx=<n> rxout=<n> stall=0
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Host checks:
@@ -118,10 +119,12 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify sine"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 44100 --bits 16 --verify loopback --dump-input-wav /tmp/same70-loop-cd-input.wav --dump-output-wav /tmp/same70-loop-cd-output.wav"
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-capture
+make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```
 
@@ -138,17 +141,20 @@ mask showing playback and capture streams were opened. The probe selects the
 requested nominal sample rate, writes exact integer test samples through
 CoreAudio Float32 buffers, captures the returned input samples, quantizes them
 back to the selected bit depth, aligns the loopback latency, and reports whether
-the aligned sample stream is bit-perfect. In exact loopback, pattern, tone, and
-silence modes, the verify line also includes 64-bit `expected_hash` and
+the aligned sample stream is bit-perfect. In exact loopback, pattern, tone,
+sine, and silence modes, the verify line also includes 64-bit `expected_hash` and
 `actual_hash` fingerprints over the quantized samples actually compared. Use
 `--verify pattern` when the firmware source is `audio pattern`; it aligns the
 captured samples against the firmware's deterministic LCG pattern and compares
 them sample-for-sample. Use `--verify tone` when the firmware source is
 `audio tone`; it aligns captured samples against the deterministic square-wave
-PCM source. Use `--verify silence` when the firmware source is `audio silence`;
-it requires all quantized input samples to be zero. Use `--verify input` for a
-looser nonzero input activity check. The serial `usb` counters remain the source
-of truth for USBHS endpoint state. Add `--dump-input-wav FILE --runs 1` to write
+PCM source. Use `--verify sine` when the firmware source is `audio sine`; it
+aligns captured samples against a deterministic low-harmonic sine lookup source
+for less harsh listening checks. Use `--verify silence` when the firmware
+source is `audio silence`; it requires all quantized input samples to be zero.
+Use `--verify input` for a looser nonzero input activity check. The serial `usb`
+counters remain the source of truth for USBHS endpoint state. Add
+`--dump-input-wav FILE --runs 1` to write
 the quantized captured input stream as a PCM WAV file for inspection or
 listening. Add `--dump-output-wav FILE --runs 1` to write the quantized host
 output stream too, which lets loopback be rechecked later from a WAV pair.
@@ -158,25 +164,45 @@ The `audio-verify` target wraps the same probe with serial source switching. It
 selects `audio loop`, verifies loopback at both advertised formats, selects
 `audio pattern`, verifies the generated input pattern at both formats, selects
 `audio tone`, verifies the generated tone at both formats, selects
+`audio sine`, verifies the generated sine at both formats, selects
 `audio silence`, verifies zero input at both formats, switches back to
 `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
 `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
 starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
 `drop` increases by the final status. Use `AUDIO_VERIFY_ARGS="--seconds N
---loopback-runs N --pattern-runs N --tone-runs N --silence-runs N --serial
-/dev/cu.usbmodem..."` to tune the run length, per-source run counts, or serial
-port.
+--loopback-runs N --pattern-runs N --tone-runs N --sine-runs N
+--silence-runs N --serial /dev/cu.usbmodem..."` to tune the run length,
+per-source run counts, or serial port.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
 WAV artifacts again from disk with `audio-wav-verify.py`, restores `audio loop`,
 checks the final serial `usb` status against the starting error counters, and
-prints `audio-capture: pass output=<path>` on success. Defaults capture the
-48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
-`AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path:
+prints `audio-capture: pass output=<path>` on success. Add `--leave-source` to
+keep the selected source active instead of restoring loopback. Defaults capture
+the 48 kHz/24-bit generated tone to `/tmp/same70-tone-48k24.wav`. Set
+`AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path. Add
+`--skip-serial-counter-check` for listening or monitoring sessions where slow
+9600-baud diagnostic status output could disturb an already-active stream:
 
 ```sh
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source tone --rate 48000 --bits 24 --seconds 1 --output /tmp/file.wav"
+```
+
+For a less harsh listening test than `audio pattern` or the square-wave
+`audio tone`, use the deterministic mono-in-stereo sine source:
+
+```sh
+make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"
+```
+
+To check the listening path without a live monitor app, use `audio-listen`. It
+captures the verified sine input, verifies the dumped WAV from disk, plays it
+through the Mac default output with `afplay`, and leaves the board source set to
+`audio sine`:
+
+```sh
+make -C ports/same70-xplained audio-listen
 ```
 
 For loopback, `audio-capture --source loop` also dumps the quantized host output
@@ -198,12 +224,12 @@ nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 dump_input_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
 dump_output_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input|pattern|tone|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern|tone|sine|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
-audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|silence> fmt=<48k24|44k16>/<48k24|44k16>
+audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
 
 Latest measured 48 kHz/24-bit check on the connected board: `--seconds 2
@@ -269,6 +295,13 @@ Latest WAV capture check used `audio-capture` with `--seconds 1`,
 `file` identified both as 16-bit stereo PCM at 44.1 kHz with 176172-byte
 RIFF/WAVE containers.
 
+Latest sine listening-source checks after flashing passed at both advertised
+formats. The sine source emits matching left/right samples and advances once per
+stereo frame. `audio-capture --source sine --rate 48000 --bits 24` and
+`audio-capture --source sine --rate 44100 --bits 16` both reported zero
+mismatches over full one-second captures. The exact sine hash can vary by run
+because capture starts at an aligned phase offset.
+
 ## Porting Notes
 
 The original SDR Widget firmware depends on AVR32-specific peripherals and
@@ -282,7 +315,7 @@ Audio streaming endpoints are now hardware-configured and loopback-serviced:
 endpoint 3 OUT stores received packets in an 8192-byte ring, endpoint 4
 feedback IN reports the active high-speed feedback value, and endpoint 5 audio
 IN sends queued loopback bytes, generated PCM24/PCM16 pattern bytes, a generated
-square-wave tone, or silence depending on the serial-selected source. The macOS
+square-wave tone, generated sine, or silence depending on the serial-selected source. The macOS
 HAL stream probe writes
 deterministic integer sample values through CoreAudio Float32 buffers, quantizes
 returned input back to the selected bit depth, aligns stream latency, and fails

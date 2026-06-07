@@ -18,6 +18,7 @@ from same70_audio import (
 VERIFY_MODES = {
     "loop": "loopback",
     "pattern": "pattern",
+    "sine": "sine",
     "tone": "tone",
     "silence": "silence",
 }
@@ -65,6 +66,8 @@ def main():
     parser.add_argument("--output")
     parser.add_argument("--output-wav")
     parser.add_argument("--skip-wav-verify", action="store_true")
+    parser.add_argument("--skip-serial-counter-check", action="store_true")
+    parser.add_argument("--leave-source", action="store_true")
     parser.add_argument("--serial-timeout", type=float, default=1.5)
     args = parser.parse_args()
 
@@ -87,8 +90,10 @@ def main():
         output_wav = default_output_wav_path(args.rate, args.bits)
 
     try:
-        baseline_status = run_serial(port, "usb", args.serial_timeout)
-        baseline_fields = parse_serial_fields(baseline_status)
+        baseline_fields = None
+        if not args.skip_serial_counter_check:
+            baseline_status = run_serial(port, "usb", args.serial_timeout)
+            baseline_fields = parse_serial_fields(baseline_status)
 
         source_status = run_serial(port, "audio " + args.source, args.serial_timeout)
         if f"source={args.source}" not in source_status:
@@ -112,10 +117,13 @@ def main():
         if not args.skip_wav_verify:
             run_wav_verify(output, args.source, args.rate, args.bits, output_wav)
 
-        run_serial(port, "audio loop", args.serial_timeout)
-        status = run_serial(port, "usb", args.serial_timeout)
-        if not require_serial_state(status, "loop", None, baseline_fields):
-            return 1
+        final_source = args.source if args.leave_source else "loop"
+        if not args.leave_source:
+            run_serial(port, "audio loop", args.serial_timeout)
+        if not args.skip_serial_counter_check:
+            status = run_serial(port, "usb", args.serial_timeout)
+            if not require_serial_state(status, final_source, None, baseline_fields):
+                return 1
     except subprocess.CalledProcessError as exc:
         return exc.returncode
 
