@@ -9,3 +9,7 @@
 *.elf
 widget-control
 ports/same70-xplained/build/
+Release-llvm/
+Release-gcc-sweep/
+gcc-sweep-toolwrap/
+Release/widget.hex
