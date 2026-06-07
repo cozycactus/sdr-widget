@@ -538,6 +538,16 @@ static uint32_t audio_feedback_busy_last;
 static uint32_t audio_feedback_busy_max;
 static uint32_t audio_in_count;
 static uint32_t audio_in_bytes;
+static uint32_t audio_in_diag_packets;
+static uint32_t audio_in_diag_bytes;
+static uint32_t audio_in_diag_nonzero_bytes;
+static uint32_t audio_in_diag_hash = AUDIO_OUT_DIAG_HASH_OFFSET;
+static uint32_t audio_in_diag_last_packet_bytes;
+static uint32_t audio_in_diag_captured_bytes;
+static uint32_t audio_in_diag_first_nonzero_offset = 0xffffffffu;
+static uint32_t audio_in_diag_captured_nonzero_bytes;
+static uint8_t audio_in_diag_captured[SAME70_USB_AUDIO_OUT_DIAG_BYTES];
+static uint8_t audio_in_diag_captured_nonzero[SAME70_USB_AUDIO_OUT_DIAG_BYTES];
 static uint32_t audio_in_busy_last;
 static uint32_t audio_in_busy_max;
 static uint32_t audio_error_count;
@@ -1007,6 +1017,42 @@ static void audio_out_diag_record_byte(uint8_t value)
 	audio_out_diag_hash *= AUDIO_OUT_DIAG_HASH_PRIME;
 }
 
+void same70_usb_reset_audio_in_diag(void)
+{
+	audio_in_diag_packets = 0u;
+	audio_in_diag_bytes = 0u;
+	audio_in_diag_nonzero_bytes = 0u;
+	audio_in_diag_hash = AUDIO_OUT_DIAG_HASH_OFFSET;
+	audio_in_diag_last_packet_bytes = 0u;
+	audio_in_diag_captured_bytes = 0u;
+	audio_in_diag_first_nonzero_offset = 0xffffffffu;
+	audio_in_diag_captured_nonzero_bytes = 0u;
+}
+
+static void audio_in_diag_record_byte(uint8_t value)
+{
+	uint32_t offset = audio_in_diag_bytes;
+
+	if (audio_in_diag_captured_bytes < SAME70_USB_AUDIO_OUT_DIAG_BYTES) {
+		audio_in_diag_captured[audio_in_diag_captured_bytes] = value;
+		audio_in_diag_captured_bytes++;
+	}
+	if ((value != 0u) && (audio_in_diag_first_nonzero_offset == 0xffffffffu)) {
+		audio_in_diag_first_nonzero_offset = offset;
+	}
+	if ((audio_in_diag_first_nonzero_offset != 0xffffffffu) &&
+	    (audio_in_diag_captured_nonzero_bytes < SAME70_USB_AUDIO_OUT_DIAG_BYTES)) {
+		audio_in_diag_captured_nonzero[audio_in_diag_captured_nonzero_bytes] = value;
+		audio_in_diag_captured_nonzero_bytes++;
+	}
+	audio_in_diag_bytes++;
+	if (value != 0u) {
+		audio_in_diag_nonzero_bytes++;
+	}
+	audio_in_diag_hash ^= value;
+	audio_in_diag_hash *= AUDIO_OUT_DIAG_HASH_PRIME;
+}
+
 static void audio_loopback_push(uint8_t value)
 {
 	if (audio_loopback_level >= AUDIO_LOOPBACK_BUFFER_BYTES) {
@@ -1462,10 +1508,13 @@ static void write_endpoint_silence_packet(uint32_t ep, uint32_t length)
 
 	for (index = 0u; index < length; index++) {
 		fifo[index] = 0u;
+		audio_in_diag_record_byte(0u);
 	}
 
 	USBHS_DEVEPTICR(ep) = USBHS_DEVEPTICR_TXINIC;
 	USBHS_DEVEPTIDR(ep) = USBHS_DEVEPTIDR_FIFOCONC;
+	audio_in_diag_packets++;
+	audio_in_diag_last_packet_bytes = length;
 }
 
 static uint32_t endpoint_byte_count(uint32_t isr)
@@ -2466,6 +2515,26 @@ void same70_usb_get_audio_out_diag(same70_usb_audio_out_diag_t *diag)
 	}
 	for (index = 0u; index < audio_out_diag_captured_nonzero_bytes; index++) {
 		diag->captured_nonzero[index] = audio_out_diag_captured_nonzero[index];
+	}
+}
+
+void same70_usb_get_audio_in_diag(same70_usb_audio_out_diag_t *diag)
+{
+	uint32_t index;
+
+	diag->packets = audio_in_diag_packets;
+	diag->bytes = audio_in_diag_bytes;
+	diag->nonzero_bytes = audio_in_diag_nonzero_bytes;
+	diag->hash = audio_in_diag_hash;
+	diag->last_packet_bytes = audio_in_diag_last_packet_bytes;
+	diag->captured_bytes = audio_in_diag_captured_bytes;
+	diag->first_nonzero_offset = audio_in_diag_first_nonzero_offset;
+	diag->captured_nonzero_bytes = audio_in_diag_captured_nonzero_bytes;
+	for (index = 0u; index < audio_in_diag_captured_bytes; index++) {
+		diag->captured[index] = audio_in_diag_captured[index];
+	}
+	for (index = 0u; index < audio_in_diag_captured_nonzero_bytes; index++) {
+		diag->captured_nonzero[index] = audio_in_diag_captured_nonzero[index];
 	}
 }
 

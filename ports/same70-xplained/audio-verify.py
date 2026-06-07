@@ -19,16 +19,35 @@ SILENT_OUTPUT_ARGS = ["--silent-output"]
 
 
 def run_checked_probe(args, port, rate, bits, runs, verify, extra_args=None, seconds=None):
-    duration = args.seconds if seconds is None else seconds
     if not args.skip_outdiag_check:
         run_serial(port, "audio outdiag reset", args.serial_timeout)
-    run_probe(args.probe, args.device, duration, rate, bits, runs, verify, extra_args)
+    run_probe(args.probe, args.device, args.seconds if seconds is None else seconds,
+              rate, bits, runs, verify, extra_args)
     if not args.skip_outdiag_check:
         output = run_serial(port, "audio outdiag", args.serial_timeout)
         expect_nonzero = (extra_args is None) or ("--silent-output" not in extra_args)
         label = f"{verify} {rate} Hz {bits}-bit"
         if not require_audio_outdiag(output, expect_nonzero, label):
             return False
+    return True
+
+
+def run_device_silence_probe(args, port, rate, bits, runs):
+    for _ in range(runs):
+        run_serial(port, "audio silence", args.serial_timeout)
+        if not args.skip_outdiag_check:
+            run_serial(port, "audio outdiag reset", args.serial_timeout)
+            run_serial(port, "audio indiag reset", args.serial_timeout)
+        run_probe(args.probe, args.device, args.seconds, rate, bits, 1, "start", SILENT_OUTPUT_ARGS)
+        if not args.skip_outdiag_check:
+            output = run_serial(port, "audio outdiag", args.serial_timeout)
+            label = f"silence output {rate} Hz {bits}-bit"
+            if not require_audio_outdiag(output, False, label):
+                return False
+            output = run_serial(port, "audio indiag", args.serial_timeout)
+            label = f"silence input {rate} Hz {bits}-bit"
+            if not require_audio_outdiag(output, False, label):
+                return False
     return True
 
 
@@ -135,14 +154,9 @@ def main():
             expected_fmt = "44k16/44k16"
 
         if not args.skip_silence:
-            run_serial(port, "audio silence", args.serial_timeout)
-            if not run_checked_probe(
-                    args, port, 48000, 24, args.silence_runs, "silence",
-                    SILENT_OUTPUT_ARGS):
+            if not run_device_silence_probe(args, port, 48000, 24, args.silence_runs):
                 return 1
-            if not run_checked_probe(
-                    args, port, 44100, 16, args.silence_runs, "silence",
-                    SILENT_OUTPUT_ARGS):
+            if not run_device_silence_probe(args, port, 44100, 16, args.silence_runs):
                 return 1
             expected_source = "silence"
             expected_fmt = "44k16/44k16"

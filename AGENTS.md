@@ -134,13 +134,13 @@ Verified firmware features:
   `make -C ports/same70-xplained audio-generated-verify` is the shorter quiet
   gate for all generated input sources; it verifies pattern, tone, sine, melody,
   and silence at both formats with silent USB OUT, no final loopback, and no
-  serial counter audit. Previous generated-gate run before adding melody passed
-  with `output_nonzero=0` on every probe and `mismatches=0` for pattern, tone,
-  sine, and silence at both advertised formats, with `hog_mode=1` on the host
-  probe. Current expanded generated gate was not accepted as a full pass because
-  the final silence probe repeatedly produced zero CoreAudio callbacks
-  (`compared_samples=0`), but pattern, tone, sine, and melody all passed before
-  that silence start issue.
+  serial counter audit. Current generated gate passes: pattern, tone, sine, and
+  melody are exact host-captured checks with zero mismatches at both advertised
+  formats, and the silence source is checked with `--verify start` plus
+  `audio outdiag`/`audio indiag` because macOS can suppress client callbacks for
+  sustained all-zero generated input. Latest silence diagnostics showed
+  `nonzero=0` for both OUT and IN at both formats, with IN byte counts `901448`
+  at 48 kHz/24-bit and `804144` at 44.1 kHz/16-bit.
   Previous full gate status before adding the melody source:
   `make -C ports/same70-xplained audio-verify
   AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
@@ -239,17 +239,17 @@ Verified firmware features:
   fill, dropped OUT bytes, inserted silence bytes, and selected formats as
   `fmt=<out>/<in>`. The loopback input prebuffers whole packets after stream
   resets so startup silence is skipped cleanly by the bit-perfect verifier.
-  `audio outdiag reset` and `audio outdiag` expose resettable endpoint-3 OUT
+  `audio outdiag reset`/`audio outdiag` expose resettable endpoint-3 OUT
   diagnostics: packets, bytes, nonzero bytes, FNV-1a hash, last packet length,
   first 256 stream bytes, and first 256 bytes starting at the first nonzero OUT
-  payload.
+  payload. `audio indiag reset`/`audio indiag` expose the same shape for
+  endpoint-5 IN bytes recorded by the generated silence source.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
   `audio sine`, `audio melody`, `audio silence`, `audio outdiag`,
-  `audio outdiag reset`. Audio source commands now print a terse
-  `audio source=<source>` line instead of the full `usb` status block, so they
-  are safer while a host audio stream is
-  active.
+  `audio outdiag reset`, `audio indiag`, `audio indiag reset`. Audio source
+  commands now print a terse `audio source=<source>` line instead of the full
+  `usb` status block, so they are safer while a host audio stream is active.
 
 Known SAME70/board quirks:
 

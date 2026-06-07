@@ -20,6 +20,7 @@
 #define VERIFY_MODE_TONE     4u
 #define VERIFY_MODE_SINE     5u
 #define VERIFY_MODE_MELODY   6u
+#define VERIFY_MODE_START    7u
 #define DEFAULT_SAMPLE_RATE_HZ 48000u
 #define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
@@ -873,6 +874,23 @@ static verify_result_t verify_input_silence(const io_state_t *state)
 	return result;
 }
 
+static verify_result_t verify_start(const io_state_t *state)
+{
+	verify_result_t result;
+	uint32_t index;
+
+	memset(&result, 0, sizeof(result));
+	result.aligned = 1u;
+	result.first_mismatch = UINT32_MAX;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
+	for (index = 0u; index < state->input_sample_count; index++) {
+		result.actual_hash = hash_sample(result.actual_hash, state->input_samples[index]);
+	}
+	result.compared = state->input_sample_count;
+	result.passed = (state->input_sample_overflow == 0u) && (state->output_sample_overflow == 0u);
+	return result;
+}
+
 static void print_osstatus(const char *label, OSStatus status)
 {
 	fprintf(stderr, "%s failed: %d (0x%08x)\n", label, (int)status, (unsigned int)status);
@@ -971,7 +989,7 @@ static void release_hog_mode(AudioDeviceID device)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|melody|silence] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|sine|melody|silence|start] [--silent-output] [--dump-input-wav FILE] [--dump-output-wav FILE] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -1067,6 +1085,10 @@ static int parse_verify_mode(const char *text, uint32_t *mode)
 		*mode = VERIFY_MODE_MELODY;
 		return 1;
 	}
+	if (strcmp(text, "start") == 0) {
+		*mode = VERIFY_MODE_START;
+		return 1;
+	}
 
 	return 0;
 }
@@ -1087,6 +1109,9 @@ static const char *verify_mode_name(uint32_t mode)
 	}
 	if (mode == VERIFY_MODE_MELODY) {
 		return "melody";
+	}
+	if (mode == VERIFY_MODE_START) {
+		return "start";
 	}
 
 	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
@@ -1377,6 +1402,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		summary->failed++;
 		return 0;
 	}
+	printf("run=%u stream_started=1\n", run);
+	fflush(stdout);
 
 	CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
 	AudioDeviceStop(device, proc_id);
@@ -1391,6 +1418,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		verify = verify_input_melody(&state, sample_rate_hz);
 	} else if (verify_mode == VERIFY_MODE_SILENCE) {
 		verify = verify_input_silence(&state);
+	} else if (verify_mode == VERIFY_MODE_START) {
+		verify = verify_start(&state);
 	} else if (verify_mode == VERIFY_MODE_INPUT) {
 		verify = verify_input_activity(&state);
 	} else {

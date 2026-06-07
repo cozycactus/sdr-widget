@@ -83,6 +83,8 @@ audio melody
 audio silence
 audio outdiag
 audio outdiag reset
+audio indiag
+audio indiag reset
 ```
 
 `status` reports the heartbeat counter, millisecond uptime, and USART status
@@ -194,9 +196,11 @@ The `audio-generated-verify` target is the quick quiet gate for generated input
 sources only. It runs `audio-verify` with `--seconds 1 --skip-loopback
 --skip-final-loopback --skip-serial-counter-check`, so pattern, tone, sine,
 melody, and silence are verified at both formats with silent USB OUT and no
-final loopback burst. Because the sequence ends with the silence source, run
-`audio-listen` or set `audio melody` afterward when you want an audible monitor
-signal again.
+final loopback burst. The dedicated `audio silence` source is checked with a
+stream-start probe plus device-side IN diagnostics because macOS can suppress
+client callbacks for sustained all-zero generated input. Because the sequence
+ends with the silence source, run `audio-listen` or set `audio melody` afterward
+when you want an audible monitor signal again.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
@@ -264,11 +268,12 @@ make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same7
 
 ```text
 nominal_sample_rate=<44100|48000>
+run=<n> stream_started=1
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
 dump_input_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
 dump_output_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|melody|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input|pattern|tone|sine|melody|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|sine|melody|silence|start> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern|tone|sine|melody|silence|start> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
@@ -345,17 +350,20 @@ output was zero on the device; exact loopback passes at both formats, with the
 first nonzero OUT payload starting after startup zeros. At that time the board
 was manually set back to `audio sine` afterward.
 
-The expanded generated-source gate now reaches melody as an exact source:
-pattern, tone, sine, and melody passed in the latest run with silent USB OUT and
-zero mismatches. That full `audio-generated-verify` run was not accepted as a
-complete pass because the later silence probe repeatedly produced zero CoreAudio
-callbacks (`compared_samples=0`), so silence needs a separate host-start
-follow-up before refreshing the full gate status.
+Current generated-source gate status: `make -C ports/same70-xplained
+audio-generated-verify` passes. Pattern, tone, sine, and melody are exact
+host-captured checks with zero mismatches at both advertised formats. The
+dedicated silence source uses `--verify start` plus `audio outdiag` and
+`audio indiag`; the latest run reported host all-zero input, OUT `nonzero=0`,
+and IN `nonzero=0` at both formats, including IN diagnostic byte counts
+`901448` at 48 kHz/24-bit and `804144` at 44.1 kHz/16-bit.
 
 Use `audio outdiag reset` before a host probe, then `audio outdiag` afterward to
 dump raw endpoint-3 OUT diagnostics since reset: packet count, byte count,
 nonzero byte count, FNV-1a hash, last packet length, the first 256 stream bytes,
 and a second 256-byte window starting at the first nonzero OUT byte.
+Use `audio indiag reset` and `audio indiag` the same way for endpoint-5 IN
+diagnostics recorded by the generated silence source.
 
 Latest WAV capture check used `audio-capture` with `--seconds 1`,
 `--source loop`, `--rate 44100`, `--bits 16`, captured input

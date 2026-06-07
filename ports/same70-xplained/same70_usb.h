@@ -109,5 +109,7 @@ void same70_usb_get_status(same70_usb_status_t *status);
 uint32_t same70_usb_set_audio_source(uint32_t source);
 void same70_usb_reset_audio_out_diag(void);
 void same70_usb_get_audio_out_diag(same70_usb_audio_out_diag_t *diag);
+void same70_usb_reset_audio_in_diag(void);
+void same70_usb_get_audio_in_diag(same70_usb_audio_out_diag_t *diag);
 
 #endif
