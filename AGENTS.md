@@ -101,10 +101,11 @@ Verified firmware features:
 - `make -C ports/same70-xplained board-verify` is the connected-board smoke
   gate. It builds the SAME70 firmware and CoreAudio probe, runs
   `widget-verify` with `--set-current-check`, then runs the quiet
-  `audio-generated-verify` gate. Latest run passed with feature-store
-  `writes=0` before/after the no-change set and zero mismatches for pattern,
-  tone, sine, and melody; silence reported host `input_nonzero=0`, OUT
-  `nonzero=0`, and IN `nonzero=0` at both formats.
+  `audio-generated-verify` gate, then runs `audio-hw` to assert the current
+  external-codec boundary. Latest run passed with feature-store `writes=0`
+  before/after the no-change set, zero mismatches for pattern, tone, sine, and
+  melody, silence host `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at
+  both formats, and `audio-hw` reporting `needs_external_codec_board`.
 - `make -C ports/same70-xplained board-ready` runs `board-verify` and then
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
@@ -228,7 +229,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x81f830e2c13746af`, played through `afplay`, and left the board on
+  `0xb546e27898b94d17`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1

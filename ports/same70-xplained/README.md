@@ -168,20 +168,21 @@ without consuming a flash record. The verifier checks serial `usb` status
 before/after and fails if feature-store `writes` changes. The host tool checks
 that every `-s` response byte equals the requested value.
 
-The connected-board smoke gate combines the guarded USB control check with the
-quiet generated-source audio gate:
+The connected-board smoke gate combines the guarded USB control check, the
+quiet generated-source audio gate, and the hardware-audio boundary check:
 
 ```sh
 make -C ports/same70-xplained board-verify
 ```
 
 It builds the SAME70 firmware and CoreAudio probe, runs `widget-verify` with
-`--set-current-check`, then runs `audio-generated-verify`. The latest run passed
-with feature-store `writes=0` before/after the no-change set and zero
-mismatches for pattern, tone, sine, and melody. Silence reported host
+`--set-current-check`, runs `audio-generated-verify`, then runs `audio-hw`. The
+latest run passed with feature-store `writes=0` before/after the no-change set
+and zero mismatches for pattern, tone, sine, and melody. Silence reported host
 `input_nonzero=0`, device OUT `nonzero=0`, and device IN `nonzero=0` at both
-formats. Because the generated-source gate ends on `audio silence`, run
-`audio-listen` afterward when you want the board back on melody.
+formats; `audio-hw` reported `needs_external_codec_board`. Because the
+generated-source gate ends on `audio silence`, run `audio-listen` afterward when
+you want the board back on melody.
 
 Use `board-ready` when you want both the connected-board smoke gate and the
 verified listening state in one command:
@@ -305,7 +306,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x81f830e2c13746af`, played it with `afplay`, and left the board on
+`0xb546e27898b94d17`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -460,7 +461,7 @@ audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
 `samples=177152 channels=2 rate=44100 bits=16 bytes=354304` for both WAVs;
 `file` identified both as 16-bit stereo PCM at 44.1 kHz with 354348-byte
 RIFF/WAVE containers. The wrapper then exact-verified
-`/tmp/same70-melody-listen.wav` with hash `0x81f830e2c13746af`, played it with
+`/tmp/same70-melody-listen.wav` with hash `0xb546e27898b94d17`, played it with
 `afplay`, and left the board on `audio melody`.
 
 Latest sine listening-source checks after flashing passed at both advertised
