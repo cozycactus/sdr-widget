@@ -2,6 +2,7 @@
 import argparse
 import glob
 import os
+import re
 import select
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import time
 
 DEFAULT_DEVICE_NAME = "Yoyodyne SDR-Widget"
 DEFAULT_SERIAL_PORT = "/dev/cu.usbmodem1462302"
+SERIAL_COUNTERS = ("stall", "err", "crc", "over", "under", "drop")
 
 
 def find_serial_port(requested):
@@ -78,6 +80,51 @@ def run_serial(port, command, timeout):
     return output
 
 
+def parse_serial_fields(output):
+    fields = {}
+
+    for key, value in re.findall(r"\b([A-Za-z_]+)=([^\s]+)", output):
+        fields[key] = value
+    return fields
+
+
+def parse_counter(fields, key):
+    value = fields.get(key)
+
+    if value is None:
+        return None
+    return int(value.split("/", 1)[0], 0)
+
+
+def require_serial_state(output, source, fmt, baseline=None):
+    fields = parse_serial_fields(output)
+    failures = []
+
+    if fields.get("config") != "1":
+        failures.append("config is not 1")
+    if fields.get("source") != source:
+        failures.append(f"source is not {source}")
+    if fields.get("fmt") != fmt:
+        failures.append(f"fmt is not {fmt}")
+    for key in SERIAL_COUNTERS:
+        current = parse_counter(fields, key)
+        if current is None:
+            failures.append(f"missing {key}")
+            continue
+        if baseline is not None:
+            start = parse_counter(baseline, key)
+            if start is None:
+                failures.append(f"missing baseline {key}")
+            elif current > start:
+                failures.append(f"{key} increased from {start} to {current}")
+
+    if failures:
+        for failure in failures:
+            print("serial status check failed: " + failure, file=sys.stderr)
+        return False
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run SAME70 USB audio verification.")
     parser.add_argument("--probe", default="build/coreaudio-stream-probe")
@@ -100,6 +147,9 @@ def main():
         return 1
 
     try:
+        baseline_status = run_serial(port, "usb", args.serial_timeout)
+        baseline_fields = parse_serial_fields(baseline_status)
+
         if not args.skip_loopback:
             run_serial(port, "audio loop", args.serial_timeout)
             run_probe(args.probe, args.device, args.seconds, 48000, 24, args.loopback_runs, "loopback")
@@ -113,8 +163,7 @@ def main():
         run_serial(port, "audio loop", args.serial_timeout)
         run_probe(args.probe, args.device, 1.0, 48000, 24, 1, "loopback")
         status = run_serial(port, "usb", args.serial_timeout)
-        if ("source=loop" not in status) or ("fmt=48k24/48k24" not in status):
-            print("final serial status did not report loop 48k24/48k24", file=sys.stderr)
+        if not require_serial_state(status, "loop", "48k24/48k24", baseline_fields):
             return 1
     except subprocess.CalledProcessError as exc:
         return exc.returncode
