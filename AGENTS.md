@@ -80,6 +80,12 @@ Verified firmware features:
 - `widget-control -a`, `-d`, `-g`, `-m`, `-l`, and `-r` have been verified
   against the connected SAME70 board. `-r` now performs a real software reset;
   the device re-enumerates afterward and `-d` still returns defaults.
+- `make -C ports/same70-xplained widget-verify` is the repeatable USB control
+  gate. The default read-only run builds `widget-control`, verifies enumeration
+  as `16c0:05dc 1.0.0.0.0.0.0`, checks matching default/NVRAM/RAM feature
+  output, and checks the feature listing. `WIDGET_VERIFY_ARGS="--reset-check"`
+  also exercises `widget-control -r` and waits for default readback after
+  re-enumeration; it does not write flash-backed NVRAM.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
@@ -194,7 +200,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x320834cbae489b57`, played through `afplay`, and left the board on
+  `0x428e42803109d7e3`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -309,6 +315,8 @@ make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
+make -C ports/same70-xplained widget-verify
+make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--reset-check"
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"
 ```

@@ -117,6 +117,8 @@ Host checks:
 ./widget-control -m
 ./widget-control -l
 ./widget-control -r
+make -C ports/same70-xplained widget-verify
+make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--reset-check"
 system_profiler SPAudioDataType
 make -C ports/same70-xplained stream-probe
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 10"
@@ -140,6 +142,18 @@ Typical `widget-control` feature output:
 ```text
 10 37 widget uac1_dg8saq normal normal ak5394a cs4344 hd44780 500ms
 ```
+
+The full read-only USB control gate builds `widget-control`, verifies device
+enumeration, confirms that default, flash-backed NVRAM, and RAM feature values
+all match, and checks the advertised feature listing:
+
+```sh
+make -C ports/same70-xplained widget-verify
+```
+
+Add `WIDGET_VERIFY_ARGS="--reset-check"` to also exercise `widget-control -r`
+and wait for default readback after USB re-enumeration. This reset check does
+not write flash-backed NVRAM.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -240,7 +254,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x320834cbae489b57`, played it with `afplay`, and left the board on
+`0x428e42803109d7e3`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
