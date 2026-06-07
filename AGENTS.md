@@ -132,8 +132,16 @@ Verified firmware features:
   nonzero USB OUT payload via `outnz=<bytes>`, but captured input does not align
   to the probe's host-output pattern. The latest debug WAVs are
   `/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
-  Loopback alignment is the current open audio issue; generated USB IN sources
-  remain exact. Earlier hash-audited default run reported
+  Loopback is not just an alignment miss: with `audio loop` selected and
+  `coreaudio-stream-probe --verify input --silent-output` at 44.1 kHz/16-bit,
+  the host probe reports `output_nonzero=0`, but serial `outnz` still grows by
+  roughly 75k nonzero OUT bytes per one-second run and by roughly 396k over a
+  five-second run. Exact loopback still fails at both advertised formats, while
+  generated USB IN sources remain exact. Experiments with one-bank OUT,
+  pre-write `TXINI` clearing, single queued feedback, RWALL-gated OUT reads,
+  and adaptive OUT descriptors did not remove the nonzero silent-OUT symptom
+  and were reverted; the adaptive descriptor also confused macOS interface
+  selection. Earlier hash-audited default run reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
   compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2

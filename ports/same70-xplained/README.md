@@ -308,8 +308,12 @@ After adding `outnz=<bytes>`, focused 48 kHz/24-bit loopback diagnostics showed
 the board receiving nonzero USB OUT payload, but the captured input did not
 align to the probe's host-output pattern. The latest debug WAVs were
 `/tmp/same70-loop-debug-input.wav` and `/tmp/same70-loop-debug-output.wav`.
-Loopback alignment is therefore the current open audio issue; generated USB IN
-sources remain exact.
+Loopback is therefore the current open audio issue, and current evidence points
+upstream of sample alignment: with `audio loop` selected and
+`coreaudio-stream-probe --verify input --silent-output` at 44.1 kHz/16-bit, the
+host probe reports `output_nonzero=0`, but serial `outnz` still grows by about
+75k nonzero OUT bytes per one-second run. Generated USB IN sources remain
+exact.
 
 Latest WAV capture check used `audio-capture` with `--seconds 1`,
 `--source loop`, `--rate 44100`, `--bits 16`, captured input
