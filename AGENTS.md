@@ -141,43 +141,22 @@ Verified firmware features:
   sustained all-zero generated input. Latest silence diagnostics showed
   `nonzero=0` for both OUT and IN at both formats, with IN byte counts `901448`
   at 48 kHz/24-bit and `804144` at 44.1 kHz/16-bit.
-  Previous full gate status before adding the melody source:
+  Latest full gate status:
   `make -C ports/same70-xplained audio-verify
-  AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
-  loopback, pattern, tone, sine, and silence at both advertised formats, plus a
-  final 48 kHz/24-bit loopback check. Final serial status reported `err=0`,
-  `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`. The latest checked run
-  reported nonzero OUT payload for loopback (`nonzero=561723` at 48 kHz/24-bit
-  and `nonzero=342917` at 44.1 kHz/16-bit) and `nonzero=0` for every pattern,
-  tone, sine, and silence probe at both formats. Focused `audio outdiag`
-  diagnostics also showed silent host output is zero at the device at both
-  advertised formats, while exact loopback passes at both formats. At that time
-  the board was manually set back to `audio sine` afterward. Earlier
-  hash-audited default run
-  reported
-  `audio-verify: pass`, with
-  loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
-  compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2
-  passed=2 failed=0 compared_samples=346648 mismatches=0`, plus pattern
-  summaries `rate=48000 bits=24 runs=2 passed=2 failed=0 compared_samples=384000
-  mismatches=0` and `rate=44100 bits=16 runs=2 passed=2 failed=0
-  compared_samples=353280 mismatches=0`, plus tone summaries
-  `rate=48000 bits=24 runs=1 passed=1 failed=0 compared_samples=192512
-  mismatches=0` and `rate=44100 bits=16 runs=1 passed=1 failed=0
-  compared_samples=176128 mismatches=0`, plus silence summaries
-  `rate=48000 bits=24 runs=1 passed=1 failed=0 compared_samples=192512
-  mismatches=0` and `rate=44100 bits=16 runs=1 passed=1 failed=0
-  compared_samples=177152 mismatches=0`. Representative matching hash pairs
-  were `0x4e3aa5b4af22bcb1`/`0xf5c67e41d99dc189` for the two 48 kHz/24-bit
-  loopback runs, `0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback,
-  `0x551ae4077d09e9ab`/`0xa9c113a2ca2eb3e4` for the two 48 kHz/24-bit pattern
-  runs, `0xe1198cc4ca20b3a7`/`0x65e279568d3cb0db` for the two 44.1 kHz/16-bit
-  pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit plus
-  `0xdcb5ab5fe5ce16e3` at 44.1 kHz/16-bit, and zero-stream silence hashes
-  `0x4c1b7a9a57ea0383` at 48 kHz/24-bit plus `0x620be961d8eec383` at
+  AUDIO_VERIFY_ARGS="--seconds 1"` passes with `hog_mode=1` and zero
+  mismatches for exact loopback, pattern, tone, sine, melody, and silence
+  checks at both advertised formats, plus the final 48 kHz/24-bit loopback.
+  Loopback summaries were `rate=48000 bits=24 runs=2 passed=2 failed=0
+  compared_samples=186960 mismatches=0` and `rate=44100 bits=16 runs=2
+  passed=2 failed=0 compared_samples=170520 mismatches=0`; generated-source
+  summaries all reported zero mismatches. Matching melody hashes were
+  `0x9ef75feb9a6e2b27` at 48 kHz/24-bit and `0x90c29364843c4d2b` at
+  44.1 kHz/16-bit. Silence used `--verify start`; it reported host
+  `input_nonzero=0`, device OUT `nonzero=0`, and device IN `nonzero=0` at both
+  formats, with IN byte counts `885776` at 48 kHz/24-bit and `794124` at
   44.1 kHz/16-bit. Final serial status stayed at `source=loop`,
-  `fmt=48k24/48k24`, `stall=0`, `err=0`, `crc=0`, `over=0`, `under=0`, and
-  `drop=0`.
+  `fmt=48k24/48k24`, `stall=0`, `crc=0`, `over=0`, `drop=0`, and paired
+  restart underflow counters `err=118 under=118`, which the gate accepts.
 - Latest WAV capture check selected `audio tone`, then ran
   `make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1
   --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav
@@ -215,7 +194,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x6b652800e1e6635b`, played through `afplay`, and left the board on
+  `0x320834cbae489b57`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
