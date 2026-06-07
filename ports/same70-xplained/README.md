@@ -224,7 +224,7 @@ It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
 The latest run programmed and verified flash with OpenOCD, passed the widget
 and UAC control gates plus the generated-audio gate, exact-verified
 `/tmp/same70-melody-listen.wav` with `compared_samples=353280 mismatches=0`
-and matching hash `0x400fe355405808e7`, played it with `afplay`, and ended on
+and matching hash `0xab4b79884dabf283`, played it with `afplay`, and ended on
 `audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
@@ -328,7 +328,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x400fe355405808e7`, played it with `afplay`, and left the board on
+`0xab4b79884dabf283`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -471,7 +471,11 @@ Use `audio hw`, or `make -C ports/same70-xplained audio-hw`, to print the
 current hardware-audio boundary. The expected output reports
 `external_codec=0`, `i2sc=not_configured`, and
 `needs_external_codec_board`; the port is still using only USB loopback or
-generated audio sources. Latest `audio-hw` run passed inside `flash-ready`.
+generated audio sources. The future stock-board wiring plan uses header-exposed
+digital-audio/SSC-style pins for the original AK5394A/CS4344-style codec path:
+TD on PD26/J502.1, RD/RF/RK on PA10/J504.2, PD24/J504.1, PA22/J504.3, TK/TF on
+PB1/PB0 via J505 or J507, and PCK0 on PB13 via J504.5 or J507.19. See
+`external-codec-pin-map.md` before wiring or enabling codec firmware.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
@@ -483,7 +487,7 @@ audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
 `samples=177152 channels=2 rate=44100 bits=16 bytes=354304` for both WAVs;
 `file` identified both as 16-bit stereo PCM at 44.1 kHz with 354348-byte
 RIFF/WAVE containers. The wrapper then exact-verified
-`/tmp/same70-melody-listen.wav` with hash `0xb546e27898b94d17`, played it with
+`/tmp/same70-melody-listen.wav` with hash `0xab4b79884dabf283`, played it with
 `afplay`, and left the board on `audio melody`.
 
 Latest sine listening-source checks after flashing passed at both advertised
@@ -501,10 +505,13 @@ Those need SAME70 equivalents before the full application can run here.
 The original audio path is the AK5394A/CS4344 external codec path driven by
 AVR32 SSC plus PDCA double buffers. On this SAME70 Xplained port, the codec
 side is deliberately not claimed yet: no external codec is configured, the
-SAME70 I2S/I2SC-style peripheral is not configured, and the missing signals are
+SAME70 digital-audio peripheral path is not configured, and the missing signals are
 MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset, and codec
-control. The current board can prove USB timing and bit-perfect sample movement,
-but not analog SDR input/output until that external codec path exists.
+control. The first stock-board wiring map intentionally uses exposed headers
+instead of non-header SDRAM/I2SC0 package pins; it is documented in
+`external-codec-pin-map.md`, with XDMAC double buffering still to be designed.
+The current board can prove USB timing and bit-perfect sample movement, but not
+analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.
 
 The USBHS bring-up code is intentionally tiny and separate from the original

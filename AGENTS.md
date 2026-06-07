@@ -60,8 +60,13 @@ Verified firmware features:
   audio-hw`, reports `external_codec=0`, `i2sc=not_configured`, and
   `needs_external_codec_board`. The old AVR32 path expects AK5394A/CS4344 style
   hardware with MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset,
-  and codec control wired to an SSC/I2S-capable peripheral. The status seam is
-  `same70_audio_hw.c`; latest `audio-hw` run passed inside `flash-ready`.
+  and codec control wired to an SSC/I2S-capable peripheral. The future stock
+  board wiring plan now uses header-exposed digital-audio/SSC-style signals:
+  TD on PD26/J502.1, RD/RF/RK on PA10/J504.2, PD24/J504.1, PA22/J504.3,
+  TK/TF on PB1/PB0 via J505 or J507, and PCK0 on PB13 via J504.5 or J507.19.
+  Details live in `ports/same70-xplained/external-codec-pin-map.md`. The status
+  seam is `same70_audio_hw.c`; `audio-hw` still passes while reporting
+  `needs_external_codec_board`.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -123,7 +128,7 @@ Verified firmware features:
   programmed and verified flash with OpenOCD, passed the widget/UAC control and
   generated-audio gates, verified `/tmp/same70-melody-listen.wav` with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x400fe355405808e7`, played it through `afplay`, and ended on
+  `0xab4b79884dabf283`, played it through `afplay`, and ended on
   `audio melody`.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
@@ -240,7 +245,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x400fe355405808e7`, played through `afplay`, and left the board on
+  `0xab4b79884dabf283`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -382,6 +387,7 @@ The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, generated melody, and silence. The next practical SAME70
-milestone is mapping the original SDR Widget audio pipeline onto SAME70
-peripherals if matching hardware is available, or identifying the missing
-external codec/ADC path.
+milestone is keeping the stock-board USB path verified while preparing the
+header-based external AK5394A/CS4344-style wiring map. Do not enable or claim
+analog SDR input/output until external hardware is connected and a separate
+external-codec gate proves real ADC/DAC movement.

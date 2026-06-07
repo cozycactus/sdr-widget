@@ -440,6 +440,26 @@ static void console_audio_hardware_status(void)
 	usart1_write(" ");
 	usart1_write(status.dac_path);
 	usart1_write("\r\n");
+	usart1_write("audio hw candidate=");
+	usart1_write(status.candidate_bus);
+	usart1_write(" pins=");
+	usart1_write(status.candidate_pins);
+	usart1_write("\r\n");
+	usart1_write("audio hw headers=");
+	usart1_write(status.candidate_headers);
+	usart1_write(" voltage=");
+	usart1_write(status.voltage_plan);
+	usart1_write("\r\n");
+	usart1_write("audio hw plan=");
+	usart1_write(status.clock_plan);
+	usart1_write(" ");
+	usart1_write(status.sample_frame);
+	usart1_write(" ");
+	usart1_write(status.dma_plan);
+	usart1_write("\r\n");
+	usart1_write("audio hw doc=");
+	usart1_write(status.wiring_doc);
+	usart1_write("\r\n");
 	usart1_write("audio hw required=");
 	usart1_write(status.required_signals);
 	usart1_write("\r\n");
@@ -449,6 +469,9 @@ static void console_audio_hardware_status(void)
 	usart1_write(status.original_transport);
 	usart1_write(" ");
 	usart1_write(status.boundary);
+	usart1_write("\r\n");
+	usart1_write("audio hw next=");
+	usart1_write(status.next_step);
 	usart1_write("\r\n");
 }
 

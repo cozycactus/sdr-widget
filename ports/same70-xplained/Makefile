@@ -109,7 +109,16 @@ audio-listen: $(STREAM_PROBE)
 	$(AUDIO_PLAYER) $(AUDIO_LISTEN_OUTPUT)
 
 audio-hw:
-	$(PYTHON) serial-command.py "audio hw" --expect "external_codec=0" --expect "i2sc=not_configured" --expect "needs_external_codec_board" $(SERIAL_COMMAND_ARGS)
+	$(PYTHON) serial-command.py "audio hw" \
+		--expect "external_codec=0" \
+		--expect "i2sc=not_configured" \
+		--expect "candidate=header_digital_audio_ssc_style" \
+		--expect "pins=TD=PD26/J502.1" \
+		--expect "headers=J502,J504,J505,J507,EXT1" \
+		--expect "voltage=3v3_only_no_5v_logic" \
+		--expect "external-codec-pin-map.md" \
+		--expect "needs_external_codec_board" \
+		$(SERIAL_COMMAND_ARGS)
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)
