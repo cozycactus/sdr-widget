@@ -22,6 +22,8 @@
 #define ALIGN_WINDOW_SAMPLES 128u
 #define PATTERN_ALIGN_MAX_SAMPLES 65536u
 #define VERIFY_MIN_SAMPLES 4096u
+#define VERIFY_HASH_OFFSET_BASIS 1469598103934665603ull
+#define VERIFY_HASH_PRIME 1099511628211ull
 
 typedef struct {
 	uint32_t callbacks;
@@ -49,6 +51,8 @@ typedef struct {
 	uint32_t expected_offset;
 	uint32_t compared;
 	uint32_t mismatches;
+	uint64_t expected_hash;
+	uint64_t actual_hash;
 	uint32_t first_mismatch;
 	int32_t first_expected;
 	int32_t first_actual;
@@ -174,6 +178,19 @@ static uint32_t samples_match(int32_t a, int32_t b)
 	return a == b;
 }
 
+static uint64_t hash_sample(uint64_t hash, int32_t sample)
+{
+	uint32_t value = (uint32_t)sample;
+	uint32_t index;
+
+	for (index = 0u; index < sizeof(value); index++) {
+		hash ^= (uint8_t)(value >> (index * 8u));
+		hash *= VERIFY_HASH_PRIME;
+	}
+
+	return hash;
+}
+
 static uint32_t min_u32(uint32_t a, uint32_t b)
 {
 	return (a < b) ? a : b;
@@ -277,9 +294,13 @@ static verify_result_t verify_loopback(const io_state_t *state)
 	result.aligned = 1u;
 	result.expected_offset = 0u;
 	result.compared = min_u32(state->output_sample_count, state->input_sample_count - result.input_offset);
+	result.expected_hash = VERIFY_HASH_OFFSET_BASIS;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
 	for (index = 0u; index < result.compared; index++) {
 		int32_t expected = state->output_samples[index];
 		int32_t actual = state->input_samples[result.input_offset + index];
+		result.expected_hash = hash_sample(result.expected_hash, expected);
+		result.actual_hash = hash_sample(result.actual_hash, actual);
 		if (!samples_match(actual, expected)) {
 			if (result.first_mismatch == UINT32_MAX) {
 				result.first_mismatch = index;
@@ -323,9 +344,13 @@ static verify_result_t verify_input_pattern(const io_state_t *state)
 	result.compared = min_u32(
 		state->input_sample_count - result.input_offset,
 		expected_count - result.expected_offset);
+	result.expected_hash = VERIFY_HASH_OFFSET_BASIS;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
 	for (index = 0u; index < result.compared; index++) {
 		int32_t expected_sample = expected[result.expected_offset + index];
 		int32_t actual = state->input_samples[result.input_offset + index];
+		result.expected_hash = hash_sample(result.expected_hash, expected_sample);
+		result.actual_hash = hash_sample(result.actual_hash, actual);
 		if (!samples_match(actual, expected_sample)) {
 			if (result.first_mismatch == UINT32_MAX) {
 				result.first_mismatch = index;
@@ -344,10 +369,15 @@ static verify_result_t verify_input_pattern(const io_state_t *state)
 static verify_result_t verify_input_activity(const io_state_t *state)
 {
 	verify_result_t result;
+	uint32_t index;
 
 	memset(&result, 0, sizeof(result));
 	result.first_mismatch = UINT32_MAX;
 	result.compared = state->input_sample_count;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
+	for (index = 0u; index < result.compared; index++) {
+		result.actual_hash = hash_sample(result.actual_hash, state->input_samples[index]);
+	}
 	result.passed =
 		(state->input_sample_overflow == 0u) &&
 		(state->input_sample_count >= VERIFY_MIN_SAMPLES) &&
@@ -762,7 +792,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
 	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u expected_offset_samples=%u compared_samples=%u "
-		"mismatches=%u first_mismatch=%u expected=%d actual=%d "
+		"mismatches=%u expected_hash=0x%016llx actual_hash=0x%016llx "
+		"first_mismatch=%u expected=%d actual=%d "
 		"input_samples=%u output_samples=%u input_overflow=%u output_overflow=%u\n",
 		run,
 		verify.passed ? "pass" : "fail",
@@ -772,6 +803,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		verify.expected_offset,
 		verify.compared,
 		verify.mismatches,
+		(unsigned long long)verify.expected_hash,
+		(unsigned long long)verify.actual_hash,
 		verify.first_mismatch,
 		verify.first_expected,
 		verify.first_actual,
