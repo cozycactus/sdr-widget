@@ -26,6 +26,7 @@ BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 FLASH_READY_DELAY ?= 2
 EXTERNAL_CODEC_PIN_MAP ?= external-codec-pin-map.md
 EXTERNAL_CODEC_WIRING_CHECKLIST ?= external-codec-wiring-checklist.md
+EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
 AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
@@ -60,7 +61,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify external-codec-original-map external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -118,16 +119,19 @@ audio-hw:
 		--expect "pins=TD=PD26/J502.1" \
 		--expect "headers=J502,J504,J505,J507,EXT1" \
 		--expect "voltage=3v3_only_no_5v_logic" \
+		--expect "external-codec-original-uc3a3-map.md" \
 		--expect "external-codec-pin-map.md" \
+		--expect "UC3A3_AK5394_ES9023" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
-external-codec-wiring-checklist:
+external-codec-wiring-checklist: external-codec-original-map
 	@test -f "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "needs_external_codec_board" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
-	@grep -q "AK5394A/CS4344-style" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "UC3A3 original AK5394" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "ES9023" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "generic USB/I2S audio module" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "The codec board drives any SAME70 I/O above 3.3 V logic" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external-codec-preflight" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -139,7 +143,7 @@ external-codec-wiring-checklist:
 	@grep -q "RK.*PA22.*J504 pin 3" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "TK.*PB1.*J505 pin 8 or J507 pin 4" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "TF.*PB0.*J505 pin 7 or J507 pin 5" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
-	@grep -q "PCK0.*PB13.*J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "AD_MCLK.*DA_MCLK.*PB13.*J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "PC17.*EXT1 pin 10" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@printf '%s\n' "external-codec-wiring-checklist: pass"
 
@@ -149,7 +153,8 @@ external-codec-preflight: external-codec-wiring-checklist
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "needs_external_codec_board" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "3.3 V logic" "$(EXTERNAL_CODEC_PIN_MAP)"
-	@grep -q "AK5394A/CS4344" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "UC3A3" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "ES9023" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "not a generic USB/I2S audio module" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PD26 | J502 pin 1" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PA10 | J504 pin 2" "$(EXTERNAL_CODEC_PIN_MAP)"
@@ -161,6 +166,23 @@ external-codec-preflight: external-codec-wiring-checklist
 	@grep -q "PC17 | EXT1 pin 10" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
+
+external-codec-original-map:
+	@test -f "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "DOCS-SDR-Widget-kit/UC3A3" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "AT32UC3A3256-2.12.pdf" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "MISC_IO-3.10.pdf" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "ES9023-DAC.pdf" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "AD_MCLK.*12.288 MHz" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "DA_MCLK.*24.576 MHz" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "1 | .*AD_SDATA" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "1 | .*DA_MCLK" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "ES9023" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "AK5394_AD_MCLK.*PC04" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "DA_SDATA.*TD.*PD26" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "AD_SDATA.*RD.*PA10" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@grep -q "Do not treat .*PCK0.*final master-clock answer" "$(EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP)"
+	@printf '%s\n' "external-codec-original-map: pass"
 
 audio-wav-verify:
 	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)

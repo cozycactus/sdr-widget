@@ -58,14 +58,20 @@ Verified firmware features:
 - The SAME70 port does not yet drive the original external codec path. The
   `audio hw` serial command, also wrapped by `make -C ports/same70-xplained
   audio-hw`, reports `external_codec=0`, `i2sc=not_configured`, and
-  `needs_external_codec_board`. The old AVR32 path expects AK5394A/CS4344 style
-  hardware with MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset,
-  and codec control wired to an SSC/I2S-capable peripheral. The future stock
-  board wiring plan now uses header-exposed digital-audio/SSC-style signals:
-  TD on PD26/J502.1, RD/RF/RK on PA10/J504.2, PD24/J504.1, PA22/J504.3,
-  TK/TF on PB1/PB0 via J505 or J507, and PCK0 on PB13 via J504.5 or J507.19.
-  Details live in `ports/same70-xplained/external-codec-pin-map.md`. The status
-  seam is `same70_audio_hw.c`; `audio-hw` still passes while reporting
+  `needs_external_codec_board`. The UC3A3 schematic path is an AK5394
+  ADC-board interface plus ES9023 DAC with AD_MCLK, DA_MCLK, ADC/DAC serial
+  clocks and frames, ADC serial data, DAC serial data, codec reset, and ADC
+  control wired to an SSC-capable peripheral. The future stock-board wiring
+  plan now uses header-exposed digital-audio/SSC-style signals: DA_SDATA/TD on
+  PD26/J502.1, AD_SDATA/RD on PA10/J504.2, AD_LRCK or AD_FSYNC/RF on
+  PD24/J504.1, AD_SCLK/RK on PA22/J504.3, and DA_SCLK/TK plus DA_LRCK/TF on
+  PB1/PB0 via J505 or J507. PCK0 on PB13 via J504.5 or J507.19 is only a
+  provisional clock probe until the UC3A3 AD_MCLK/DA_MCLK clock direction is
+  confirmed. Details live in
+  `ports/same70-xplained/external-codec-original-uc3a3-map.md` and
+  `ports/same70-xplained/external-codec-pin-map.md`. The status seam is
+  `same70_audio_hw.c`; latest `audio-hw` still passes while reporting
+  `external_codec=0`, `UC3A3_AK5394_ES9023`, and
   `needs_external_codec_board`.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
@@ -118,13 +124,21 @@ Verified firmware features:
   before/after the no-change set, UAC mute/volume round trips restored to zero,
   zero mismatches for pattern, tone, sine, and melody, silence host
   `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at both formats, and
-  `audio-hw` reporting `needs_external_codec_board`.
+  `audio-hw` reporting `UC3A3_AK5394_ES9023` plus
+  `needs_external_codec_board`.
 - `make -C ports/same70-xplained external-codec-preflight` is the pre-wiring
-  guard for future codec work. It checks
+  guard for future codec work. It checks the UC3A3 original map and
   `ports/same70-xplained/external-codec-pin-map.md` for the selected header
   route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw` to prove
-  the stock board still reports no external codec. Latest run passed and
-  reported `external codec remains disabled`.
+  the stock board still reports no external codec. Latest run passed after
+  flashing the updated status text and reported `external codec remains
+  disabled`.
+- `make -C ports/same70-xplained external-codec-original-map` is the offline
+  schematic-source gate for the UC3A3 AK5394 ADC-board plus ES9023 DAC signal
+  model. It checks `ports/same70-xplained/external-codec-original-uc3a3-map.md`
+  for the local UC3A3 PDF source set, J303/J304 nets, ES9023 I2S nets, legacy
+  firmware pin evidence, and the note that PCK0 is not yet the final
+  master-clock answer. Latest run passed.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
@@ -258,7 +272,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0xab4b79884dabf283`, played through `afplay`, and left the board on
+  `0xf3d2dda6c6e581df`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -389,6 +403,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
@@ -415,8 +430,9 @@ USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, generated melody, and silence. The next practical SAME70
 milestone is keeping the stock-board USB path verified while preparing the
-header-based external AK5394A/CS4344-style wiring map. The
-`external-codec-wiring-checklist` target is an offline staged wiring hold list,
-and `external-codec-preflight` is a live pre-wiring boundary check only. Do not
+header-based projection of the UC3A3 AK5394 ADC-board plus ES9023 DAC wiring.
+The `external-codec-original-map` target checks the schematic-source map,
+`external-codec-wiring-checklist` is an offline staged wiring hold list, and
+`external-codec-preflight` is a live pre-wiring boundary check only. Do not
 enable or claim analog SDR input/output until external hardware is connected
 and a separate external-codec acceptance gate proves real ADC/DAC movement.

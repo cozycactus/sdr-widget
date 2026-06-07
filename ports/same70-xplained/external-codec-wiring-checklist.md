@@ -6,9 +6,10 @@ No external codec board is connected yet. Until every relevant hold point below
 is passed with real measurements, firmware must keep reporting
 `external_codec=0`, `i2sc=not_configured`, and `needs_external_codec_board`.
 
-This checklist is for an AK5394A/CS4344-style ADC/DAC path with MCLK, BCLK,
-LRCK, ADC serial data, DAC serial data, reset, and optional control. It is not
-for a generic USB/I2S audio module.
+This checklist is for the UC3A3 original AK5394 ADC-board plus ES9023 DAC path
+with `AD_MCLK`, `DA_MCLK`, `AD_SCLK`, `AD_LRCK`/`AD_FSYNC`, `AD_SDATA`,
+`DA_SCLK`, `DA_LRCK`, `DA_SDATA`, reset, and ADC mode/control signals. It is
+not for a generic USB/I2S audio module.
 
 ## Stop Conditions
 
@@ -34,10 +35,14 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 
 - Confirm the board exposes separate serial ADC data and DAC data or a mode
   compatible with SAME70 SSC-style transmit/receive wiring.
+- Confirm the board follows the UC3A3 original signal model in
+  `external-codec-original-uc3a3-map.md`, including J303/J304 and ES9023 I2S
+  net names.
 - Confirm all digital I/O is 3.3 V-compatible, or add level shifting before any
   SAME70 signal connection.
-- Confirm the clock plan: who generates MCLK, BCLK, and LRCK, and at which
-  rates.
+- Confirm the clock plan follows the UC3A3 model: ADC-side audio clocking feeds
+  `AD_MCLK` at 12.288 MHz to the CPU clock domain and `DA_MCLK` at 24.576 MHz
+  to the ES9023 DAC.
 - Confirm reset polarity and optional control bus requirements.
 - Confirm the 3.3 V current draw is safe if powered from SAME70 Xplained
   headers; otherwise use an external 3.3 V supply with common ground.
@@ -85,13 +90,13 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 
 ## Candidate Header Summary
 
-| Signal | SAME70 pin | Header |
+| Original signal | SAME70 pin | Header |
 | --- | --- | --- |
-| DAC serial data `TD` | PD26 | J502 pin 1 |
-| ADC serial data `RD` | PA10 | J504 pin 2 |
-| ADC frame sync `RF` | PD24 | J504 pin 1 |
-| ADC bit clock `RK` | PA22 | J504 pin 3 |
-| DAC bit clock `TK` | PB1 | J505 pin 8 or J507 pin 4 |
-| DAC frame sync `TF` | PB0 | J505 pin 7 or J507 pin 5 |
-| Master clock `PCK0` | PB13 | J504 pin 5 or J507 pin 19 |
-| Reset/control GPIO default | PC17 | EXT1 pin 10 |
+| `DA_SDATA` to `TD` | PD26 | J502 pin 1 |
+| `AD_SDATA` to `RD` | PA10 | J504 pin 2 |
+| `AD_LRCK`/`AD_FSYNC` to `RF` | PD24 | J504 pin 1 |
+| `AD_SCLK` to `RK` | PA22 | J504 pin 3 |
+| `DA_SCLK` to `TK` | PB1 | J505 pin 8 or J507 pin 4 |
+| `DA_LRCK` to `TF` | PB0 | J505 pin 7 or J507 pin 5 |
+| `AD_MCLK`/`DA_MCLK` clock probe, direction TBD | PB13 | J504 pin 5 or J507 pin 19 |
+| `AD_RSTN`/control GPIO default | PC17 | EXT1 pin 10 |

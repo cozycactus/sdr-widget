@@ -152,6 +152,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained uac-verify
@@ -474,10 +475,14 @@ current hardware-audio boundary. The expected output reports
 `external_codec=0`, `i2sc=not_configured`, and
 `needs_external_codec_board`; the port is still using only USB loopback or
 generated audio sources. The future stock-board wiring plan uses header-exposed
-digital-audio/SSC-style pins for the original AK5394A/CS4344-style codec path:
-TD on PD26/J502.1, RD/RF/RK on PA10/J504.2, PD24/J504.1, PA22/J504.3, TK/TF on
-PB1/PB0 via J505 or J507, and PCK0 on PB13 via J504.5 or J507.19. See
-`external-codec-pin-map.md` before wiring or enabling codec firmware.
+digital-audio/SSC-style pins for the UC3A3 original AK5394 ADC-board plus
+ES9023 DAC path: DA_SDATA/TD on PD26/J502.1, AD_SDATA/RD on PA10/J504.2,
+AD_LRCK or AD_FSYNC/RF on PD24/J504.1, AD_SCLK/RK on PA22/J504.3, and
+DA_SCLK/TK plus DA_LRCK/TF on PB1/PB0 via J505 or J507. PCK0 on PB13 via
+J504.5 or J507.19 is only a provisional clock probe until the UC3A3
+AD_MCLK/DA_MCLK clock direction is confirmed. See
+`external-codec-original-uc3a3-map.md` and `external-codec-pin-map.md` before
+wiring or enabling codec firmware.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
@@ -514,13 +519,15 @@ because capture starts at an aligned phase offset.
 The original SDR Widget firmware depends on AVR32-specific peripherals and
 registers, including USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port.
 Those need SAME70 equivalents before the full application can run here.
-The original audio path is the AK5394A/CS4344 external codec path driven by
-AVR32 SSC plus PDCA double buffers. On this SAME70 Xplained port, the codec
-side is deliberately not claimed yet: no external codec is configured, the
-SAME70 digital-audio peripheral path is not configured, and the missing signals are
-MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset, and codec
-control. The first stock-board wiring map intentionally uses exposed headers
-instead of non-header SDRAM/I2SC0 package pins; it is documented in
+The original UC3A3 audio path is the AK5394 ADC-board plus ES9023 DAC path
+driven by AVR32 SSC plus PDCA double buffers. The source map for that schematic
+set is documented in `external-codec-original-uc3a3-map.md`. On this SAME70
+Xplained port, the codec side is deliberately not claimed yet: no external
+codec is configured, the SAME70 digital-audio peripheral path is not
+configured, and the missing original signals are AD_MCLK, DA_MCLK, BCLK/LRCK,
+ADC serial data, DAC serial data, codec reset, and codec control. The first
+stock-board wiring projection intentionally uses exposed headers instead of
+non-header SDRAM/I2SC0 package pins; it is documented in
 `external-codec-pin-map.md`, with staged wiring holds documented in
 `external-codec-wiring-checklist.md` and XDMAC double buffering still to be
 designed.
