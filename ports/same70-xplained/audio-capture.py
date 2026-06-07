@@ -23,6 +23,20 @@ VERIFY_MODES = {
 }
 
 
+def run_wav_verify(path, source, rate, bits):
+    script = os.path.join(os.path.dirname(__file__), "audio-wav-verify.py")
+    cmd = [
+        sys.executable,
+        script,
+        path,
+        "--source", source,
+        "--rate", str(rate),
+        "--bits", str(bits),
+    ]
+    print("+ " + " ".join(cmd), flush=True)
+    subprocess.run(cmd, check=True)
+
+
 def default_output_path(source, rate, bits):
     fmt = format_name(rate, bits)
     if fmt is None:
@@ -40,6 +54,7 @@ def main():
     parser.add_argument("--bits", type=int, default=24)
     parser.add_argument("--seconds", type=float, default=1.0)
     parser.add_argument("--output")
+    parser.add_argument("--skip-wav-verify", action="store_true")
     parser.add_argument("--serial-timeout", type=float, default=1.5)
     args = parser.parse_args()
 
@@ -77,6 +92,8 @@ def main():
             VERIFY_MODES[args.source],
             ["--dump-input-wav", output],
         )
+        if args.source != "loop" and not args.skip_wav_verify:
+            run_wav_verify(output, args.source, args.rate, args.bits)
 
         run_serial(port, "audio loop", args.serial_timeout)
         status = run_serial(port, "usb", args.serial_timeout)

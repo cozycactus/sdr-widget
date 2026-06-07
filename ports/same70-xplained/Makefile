@@ -11,6 +11,7 @@ STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
 STREAM_PROBE_ARGS ?=
 AUDIO_VERIFY_ARGS ?=
 AUDIO_CAPTURE_ARGS ?=
+AUDIO_WAV_VERIFY_ARGS ?=
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -36,7 +37,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash probe stream-probe audio-verify audio-capture
+.PHONY: all clean flash probe stream-probe audio-verify audio-capture audio-wav-verify
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -64,6 +65,9 @@ audio-verify: $(STREAM_PROBE)
 
 audio-capture: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_CAPTURE_ARGS)
+
+audio-wav-verify:
+	$(PYTHON) audio-wav-verify.py $(AUDIO_WAV_VERIFY_ARGS)
 
 probe:
 	openocd -f board/atmel_same70_xplained.cfg -c "init; targets; flash info 0; shutdown"
