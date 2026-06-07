@@ -355,6 +355,17 @@ static void console_usb_status(void)
 	usart1_write("/");
 	console_audio_format_name(status.audio_in_format);
 	usart1_write("\r\n");
+	usart1_write("feature store loaded=");
+	usart1_write_u32(status.feature_store_loaded);
+	usart1_write(" valid=");
+	usart1_write_u32(status.feature_store_valid);
+	usart1_write(" writes=");
+	usart1_write_u32(status.feature_store_write_count);
+	usart1_write(" err=");
+	usart1_write_u32(status.feature_store_error_count);
+	usart1_write(" fsr=");
+	usart1_write_hex32(status.feature_store_last_fsr);
+	usart1_write("\r\n");
 	console_write_hex_field("last", status.last_setup0);
 	console_write_hex_field("wValue", status.last_wvalue);
 	console_write_hex_field("wIndex", status.last_windex);

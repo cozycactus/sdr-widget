@@ -80,6 +80,11 @@ typedef struct {
 	uint32_t last_wvalue;
 	uint32_t last_windex;
 	uint32_t last_wlength;
+	uint32_t feature_store_loaded;
+	uint32_t feature_store_valid;
+	uint32_t feature_store_write_count;
+	uint32_t feature_store_error_count;
+	uint32_t feature_store_last_fsr;
 } same70_usb_status_t;
 
 typedef struct {

@@ -82,8 +82,13 @@ Verified firmware features:
   the device re-enumerates afterward and `-d` still returns defaults.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
-- Feature "NVRAM" on the SAME70 port is currently a volatile RAM
-  compatibility table, not persistent SAME70 flash storage.
+- Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
+  flash page at `0x004ffe00`, reserved out of the linker `FLASH` region.
+  Records are 32 bytes, so the page has 16 slots; unchanged `widget-control -s`
+  values are skipped to avoid burning slots. The latest persistence test set
+  only `log=1sec`, verified `widget-control -g` after reset, restored
+  `log=500ms`, reset again, and verified default readback. Serial `usb` reports
+  `feature store loaded=1 valid=1`.
 - The HAL stream probe opens the widget, drives SET_INTERFACE/endpoint traffic,
   selects the requested nominal sample rate, writes exact integer test samples
   through CoreAudio Float32 buffers, aligns the returned stream latency, and
@@ -318,5 +323,4 @@ USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
 tone, generated sine, and silence. The next practical SAME70 milestone is
 mapping the original SDR Widget audio pipeline onto SAME70 peripherals if matching hardware is
-available, or identifying the missing external codec/ADC path. Add real feature
-storage in SAME70 flash only if persistence matters for the next test.
+available, or identifying the missing external codec/ADC path.

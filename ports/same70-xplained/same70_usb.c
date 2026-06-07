@@ -9,12 +9,27 @@
 #define PMC_PCER1  REG32(0x400E0700u)
 #define PMC_PCSR1  REG32(0x400E0708u)
 
+#define EEFC_FMR   REG32(0x400E0C00u)
+#define EEFC_FCR   REG32(0x400E0C04u)
+#define EEFC_FSR   REG32(0x400E0C08u)
+
 #define CKGR_UCKR_UPLLEN       (1u << 16)
 #define CKGR_UCKR_UPLLCOUNT(x) ((x) << 20)
 #define PMC_USB_USBS_UPLL      (1u << 0)
 #define PMC_USB_USBDIV(x)      ((x) << 8)
 #define PMC_SCER_USBCLK        (1u << 5)
 #define PMC_SR_LOCKU           (1u << 6)
+
+#define EEFC_FCR_FCMD(command) ((command) << 0)
+#define EEFC_FCR_FARG(arg)     ((arg) << 8)
+#define EEFC_FCR_FKEY          (0x5au << 24)
+#define EEFC_FCMD_WP           0x01u
+#define EEFC_FSR_FRDY          (1u << 0)
+#define EEFC_FSR_FCMDE         (1u << 1)
+#define EEFC_FSR_FLOCKE        (1u << 2)
+#define EEFC_FSR_FLERR         (1u << 3)
+#define EEFC_FSR_ERROR_MASK    (EEFC_FSR_FCMDE | EEFC_FSR_FLOCKE | EEFC_FSR_FLERR)
+#define SAME70_IAP_ENTRY       REG32(0x00800008u)
 
 #define USBHS_BASE     0x40038000u
 #define USBHS_DEVCTRL  REG32(USBHS_BASE + 0x000u)
@@ -157,6 +172,12 @@
 #define FEATURE_DAC_CS4344        24u
 #define FEATURE_LCD_HD44780       28u
 #define FEATURE_LOG_500MS         33u
+#define FEATURE_FLASH_MAGIC       0x46575353u
+#define FEATURE_FLASH_VERSION     1u
+#define FEATURE_FLASH_PAGE_BYTES  512u
+#define FEATURE_FLASH_RECORD_BYTES 32u
+#define FEATURE_FLASH_RECORD_COUNT (FEATURE_FLASH_PAGE_BYTES / FEATURE_FLASH_RECORD_BYTES)
+#define FEATURE_FLASH_BASE        0x00400000u
 
 #define USB_DESC_DEVICE        1u
 #define USB_DESC_CONFIGURATION 2u
@@ -195,6 +216,19 @@ typedef struct {
 	uint16_t index;
 	uint16_t length;
 } usb_setup_t;
+
+typedef struct {
+	uint32_t magic;
+	uint32_t version;
+	uint32_t length;
+	uint32_t checksum;
+	uint8_t values[FEATURE_END_INDEX];
+	uint8_t reserved[FEATURE_FLASH_RECORD_BYTES - 16u - FEATURE_END_INDEX];
+} feature_flash_record_t;
+
+typedef uint32_t (*same70_iap_fn_t)(uint32_t eefc_index, uint32_t command);
+
+extern const uint8_t _same70_feature_store[];
 
 static const uint8_t device_descriptor[] = {
 	18, USB_DESC_DEVICE,
@@ -391,6 +425,32 @@ static const uint8_t feature_defaults[FEATURE_END_INDEX] = {
 	FEATURE_LOG_500MS
 };
 
+static const uint8_t feature_min_values[FEATURE_END_INDEX] = {
+	FEATURE_END_INDEX,
+	FEATURE_END_VALUES,
+	0u,
+	6u,
+	14u,
+	17u,
+	20u,
+	23u,
+	27u,
+	31u
+};
+
+static const uint8_t feature_max_values[FEATURE_END_INDEX] = {
+	FEATURE_END_INDEX,
+	FEATURE_END_VALUES,
+	4u,
+	12u,
+	15u,
+	18u,
+	21u,
+	25u,
+	29u,
+	35u
+};
+
 static uint8_t feature_nvram[FEATURE_END_INDEX] = {
 	FEATURE_END_INDEX,
 	FEATURE_END_VALUES,
@@ -416,6 +476,12 @@ static uint8_t feature_ram[FEATURE_END_INDEX] = {
 	FEATURE_LCD_HD44780,
 	FEATURE_LOG_500MS
 };
+
+static uint32_t feature_store_loaded;
+static uint32_t feature_store_valid;
+static uint32_t feature_store_write_count;
+static uint32_t feature_store_error_count;
+static uint32_t feature_store_last_fsr;
 
 static const uint8_t audio_sample_rate_48k[] = { 0x80, 0xbb, 0x00 };
 static const uint8_t audio_sample_rate_44k1[] = { 0x44, 0xac, 0x00 };
@@ -1530,6 +1596,208 @@ static void handle_get_descriptor(const usb_setup_t *setup)
 	ep0_start_in(data, length);
 }
 
+static uint32_t feature_value_valid(uint32_t index, uint32_t value)
+{
+	if (index >= FEATURE_END_INDEX) {
+		return 0u;
+	}
+
+	return (value >= feature_min_values[index]) && (value <= feature_max_values[index]);
+}
+
+static uint32_t feature_values_valid(const uint8_t *values)
+{
+	uint32_t index;
+
+	for (index = 0u; index < FEATURE_END_INDEX; index++) {
+		if (feature_value_valid(index, values[index]) == 0u) {
+			return 0u;
+		}
+	}
+	return 1u;
+}
+
+static uint32_t feature_store_checksum(uint32_t magic, uint32_t version,
+	uint32_t length, const uint8_t *values)
+{
+	uint32_t hash = AUDIO_OUT_DIAG_HASH_OFFSET;
+	uint32_t index;
+	uint32_t byte_index;
+	uint32_t fields[3];
+
+	fields[0] = magic;
+	fields[1] = version;
+	fields[2] = length;
+	for (index = 0u; index < 3u; index++) {
+		for (byte_index = 0u; byte_index < 4u; byte_index++) {
+			hash ^= (fields[index] >> (byte_index * 8u)) & 0xffu;
+			hash *= AUDIO_OUT_DIAG_HASH_PRIME;
+		}
+	}
+	for (index = 0u; index < FEATURE_END_INDEX; index++) {
+		hash ^= values[index];
+		hash *= AUDIO_OUT_DIAG_HASH_PRIME;
+	}
+	return hash;
+}
+
+static uint32_t feature_store_record_valid(const feature_flash_record_t *record)
+{
+	if (record->magic != FEATURE_FLASH_MAGIC) {
+		return 0u;
+	}
+	if (record->version != FEATURE_FLASH_VERSION) {
+		return 0u;
+	}
+	if (record->length != FEATURE_END_INDEX) {
+		return 0u;
+	}
+	if (record->checksum != feature_store_checksum(record->magic, record->version,
+			record->length, record->values)) {
+		return 0u;
+	}
+	return feature_values_valid(record->values);
+}
+
+static uint32_t feature_store_record_blank(const feature_flash_record_t *record)
+{
+	const uint32_t *words = (const uint32_t *)(const void *)record;
+	uint32_t index;
+
+	for (index = 0u; index < (FEATURE_FLASH_RECORD_BYTES / 4u); index++) {
+		if (words[index] != 0xffffffffu) {
+			return 0u;
+		}
+	}
+	return 1u;
+}
+
+static void feature_copy(uint8_t *dest, const uint8_t *src)
+{
+	uint32_t index;
+
+	for (index = 0u; index < FEATURE_END_INDEX; index++) {
+		dest[index] = src[index];
+	}
+}
+
+static void feature_store_load(void)
+{
+	const feature_flash_record_t *records =
+		(const feature_flash_record_t *)(const void *)_same70_feature_store;
+	uint32_t index;
+
+	if (feature_store_loaded != 0u) {
+		return;
+	}
+
+	feature_store_loaded = 1u;
+	feature_copy(feature_nvram, feature_defaults);
+	feature_copy(feature_ram, feature_defaults);
+	feature_store_valid = 0u;
+	for (index = 0u; index < FEATURE_FLASH_RECORD_COUNT; index++) {
+		if (feature_store_record_valid(&records[index]) != 0u) {
+			feature_copy(feature_nvram, records[index].values);
+			feature_copy(feature_ram, records[index].values);
+			feature_store_valid = 1u;
+		}
+	}
+}
+
+static void feature_flash_wait_ready(void)
+{
+	while ((EEFC_FSR & EEFC_FSR_FRDY) == 0u) {
+	}
+}
+
+static uint32_t feature_store_page_number(void)
+{
+	return (((uint32_t)_same70_feature_store) - FEATURE_FLASH_BASE) / FEATURE_FLASH_PAGE_BYTES;
+}
+
+static uint32_t feature_store_write_page(const uint32_t *page_words)
+{
+	volatile uint32_t *dest = (volatile uint32_t *)(void *)_same70_feature_store;
+	same70_iap_fn_t iap = (same70_iap_fn_t)SAME70_IAP_ENTRY;
+	uint32_t index;
+	uint32_t fsr;
+	uint32_t command;
+
+	feature_flash_wait_ready();
+	(void)EEFC_FSR;
+	for (index = 0u; index < (FEATURE_FLASH_PAGE_BYTES / 4u); index++) {
+		dest[index] = page_words[index];
+	}
+	command = EEFC_FCR_FKEY |
+		EEFC_FCR_FARG(feature_store_page_number()) |
+		EEFC_FCR_FCMD(EEFC_FCMD_WP);
+	fsr = iap(0u, command);
+	feature_store_last_fsr = fsr;
+	if ((fsr & EEFC_FSR_ERROR_MASK) != 0u) {
+		feature_store_error_count++;
+		return 0u;
+	}
+	return 1u;
+}
+
+static uint32_t feature_store_save(void)
+{
+	feature_flash_record_t *record;
+	feature_flash_record_t page_records[FEATURE_FLASH_RECORD_COUNT];
+	uint32_t *page_words = (uint32_t *)(void *)page_records;
+	uint32_t index;
+	uint32_t record_index = FEATURE_FLASH_RECORD_COUNT;
+	const feature_flash_record_t *stored =
+		(const feature_flash_record_t *)(const void *)_same70_feature_store;
+
+	if (feature_values_valid(feature_nvram) == 0u) {
+		feature_store_error_count++;
+		return 0u;
+	}
+
+	for (index = 0u; index < FEATURE_FLASH_RECORD_COUNT; index++) {
+		if (feature_store_record_blank(&stored[index]) != 0u) {
+			record_index = index;
+			break;
+		}
+	}
+	if (record_index >= FEATURE_FLASH_RECORD_COUNT) {
+		feature_store_error_count++;
+		return 0u;
+	}
+
+	for (index = 0u; index < (FEATURE_FLASH_PAGE_BYTES / 4u); index++) {
+		page_words[index] = 0xffffffffu;
+	}
+	record = &page_records[record_index];
+	record->magic = FEATURE_FLASH_MAGIC;
+	record->version = FEATURE_FLASH_VERSION;
+	record->length = FEATURE_END_INDEX;
+	record->checksum = 0u;
+	for (index = 0u; index < FEATURE_END_INDEX; index++) {
+		record->values[index] = feature_nvram[index];
+	}
+	for (index = 0u; index < sizeof(record->reserved); index++) {
+		record->reserved[index] = 0xffu;
+	}
+	record->checksum = feature_store_checksum(record->magic, record->version,
+		record->length, record->values);
+
+	if (feature_store_write_page(page_words) == 0u) {
+		feature_store_valid = 0u;
+		return 0u;
+	}
+	if (feature_store_record_valid(&stored[record_index]) == 0u) {
+		feature_store_valid = 0u;
+		feature_store_error_count++;
+		return 0u;
+	}
+
+	feature_store_write_count++;
+	feature_store_valid = 1u;
+	return 1u;
+}
+
 static uint8_t feature_get(const uint8_t *features, uint32_t index)
 {
 	if (index >= FEATURE_END_INDEX) {
@@ -1544,7 +1812,7 @@ static uint8_t feature_set(uint8_t *features, uint32_t encoded_index_value)
 	uint32_t index = encoded_index_value & 0xffu;
 	uint32_t value = (encoded_index_value >> 8) & 0xffu;
 
-	if ((index <= FEATURE_MINOR_INDEX) || (index >= FEATURE_END_INDEX) || (value >= FEATURE_END_VALUES)) {
+	if ((index <= FEATURE_MINOR_INDEX) || (feature_value_valid(index, value) == 0u)) {
 		return 0xffu;
 	}
 
@@ -1560,6 +1828,8 @@ static void ep0_start_in_clipped(const usb_setup_t *setup, const uint8_t *data, 
 static void handle_feature_request(const usb_setup_t *setup)
 {
 	uint32_t index = setup->index;
+	uint32_t feature_index = index & 0xffu;
+	uint8_t previous_value;
 	uint32_t length = 1u;
 
 	vendor_response[0] = 0u;
@@ -1570,7 +1840,13 @@ static void handle_feature_request(const usb_setup_t *setup)
 		vendor_response[0] = 0u;
 		break;
 	case FEATURE_DG8SAQ_SET_NVRAM:
+		previous_value = feature_get(feature_nvram, feature_index);
 		vendor_response[0] = feature_set(feature_nvram, index);
+		if ((vendor_response[0] != 0xffu) &&
+		    (vendor_response[0] != previous_value) &&
+		    (feature_store_save() == 0u)) {
+			vendor_response[0] = 0xffu;
+		}
 		break;
 	case FEATURE_DG8SAQ_GET_NVRAM:
 		vendor_response[0] = feature_get(feature_nvram, index);
@@ -1860,6 +2136,8 @@ static void poll_setup_packet(void)
 
 void same70_usb_init(void)
 {
+	feature_store_load();
+
 	CKGR_UCKR = CKGR_UCKR_UPLLEN | CKGR_UCKR_UPLLCOUNT(0xfu);
 	wait_for_locku();
 
@@ -2029,6 +2307,11 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->last_wvalue = last_wvalue;
 	status->last_windex = last_windex;
 	status->last_wlength = last_wlength;
+	status->feature_store_loaded = feature_store_loaded;
+	status->feature_store_valid = feature_store_valid;
+	status->feature_store_write_count = feature_store_write_count;
+	status->feature_store_error_count = feature_store_error_count;
+	status->feature_store_last_fsr = feature_store_last_fsr;
 }
 
 void same70_usb_get_audio_out_diag(same70_usb_audio_out_diag_t *diag)

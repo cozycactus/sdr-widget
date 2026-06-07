@@ -374,8 +374,14 @@ prebuffers whole packets after stream resets so startup silence is skipped
 cleanly by the bit-perfect verifier.
 This is not yet the real SDR Widget audio pipeline.
 
-Feature "NVRAM" is currently an in-RAM compatibility table. It is not persisted
-to SAME70 flash.
+Feature "NVRAM" is backed by an append-only flash page reserved at
+`0x004ffe00`. Each persisted record is 32 bytes, giving 16 slots in the
+512-byte page; unchanged `widget-control -s` values are skipped so a normal
+full-table write consumes a slot only for features that actually change. The
+latest persistence check set `log=1sec`, verified `widget-control -g` after
+reset, restored `log=500ms`, reset again, and verified default readback. Serial
+`usb` reports the storage state as `feature store loaded=<n> valid=<n>
+writes=<n> err=<n> fsr=<hex>`.
 
 The EDBG virtual COM port uses the target's USART1 pins: PA21/RXD1 and
 PB4/TXD1. PB4 resets as the JTAG TDI system pin, so the firmware must set
