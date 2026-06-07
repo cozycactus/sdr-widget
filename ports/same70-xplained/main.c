@@ -86,6 +86,7 @@ static void console_clock_status(void);
 static void console_audio_out_diag(void);
 static void console_audio_in_diag(void);
 static void console_audio_hardware_status(void);
+static void console_audio_control_status(void);
 static void console_audio_source_name(uint32_t source);
 static void console_audio_format_name(uint32_t format);
 
@@ -400,6 +401,26 @@ static void console_audio_source_status(uint32_t source)
 	usart1_write("\r\n");
 }
 
+static void console_audio_control_status(void)
+{
+	same70_usb_status_t status;
+
+	same70_usb_get_status(&status);
+	usart1_write("audio ctl mic_mute=");
+	usart1_write_u32(status.audio_mic_mute);
+	usart1_write(" spk_mute=");
+	usart1_write_u32(status.audio_spk_mute);
+	usart1_write(" mic_vol=");
+	usart1_write_hex32(status.audio_mic_volume_left);
+	usart1_write("/");
+	usart1_write_hex32(status.audio_mic_volume_right);
+	usart1_write(" spk_vol=");
+	usart1_write_hex32(status.audio_spk_volume_left);
+	usart1_write("/");
+	usart1_write_hex32(status.audio_spk_volume_right);
+	usart1_write("\r\n");
+}
+
 static void console_audio_hardware_status(void)
 {
 	same70_audio_hw_status_t status;
@@ -597,7 +618,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio ctl, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -639,6 +660,8 @@ static void console_handle_line(void)
 		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SILENCE);
 	} else if (text_equals(console_line, "audio hw")) {
 		console_audio_hardware_status();
+	} else if (text_equals(console_line, "audio ctl")) {
+		console_audio_control_status();
 	} else if (text_equals(console_line, "audio outdiag")) {
 		console_audio_out_diag();
 	} else if (text_equals(console_line, "audio outdiag reset")) {

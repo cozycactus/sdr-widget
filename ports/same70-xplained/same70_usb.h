@@ -65,6 +65,12 @@ typedef struct {
 	uint32_t audio_loopback_peak;
 	uint32_t audio_loopback_drop_bytes;
 	uint32_t audio_loopback_silence_bytes;
+	uint32_t audio_mic_mute;
+	uint32_t audio_spk_mute;
+	uint32_t audio_mic_volume_left;
+	uint32_t audio_mic_volume_right;
+	uint32_t audio_spk_volume_left;
+	uint32_t audio_spk_volume_right;
 	uint32_t descriptor_count;
 	uint32_t set_address_count;
 	uint32_t set_configuration_count;

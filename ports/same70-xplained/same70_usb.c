@@ -146,6 +146,14 @@
 #define AUDIO_CONTROL_SAMPLE_FREQ 0x01u
 #define AUDIO_MIC_FEATURE_UNIT    0x02u
 #define AUDIO_SPK_FEATURE_UNIT    0x12u
+#define AUDIO_CONTROL_INTERFACE   0x01u
+#define AUDIO_CHANNEL_MASTER      0u
+#define AUDIO_CHANNEL_LEFT        1u
+#define AUDIO_CHANNEL_RIGHT       2u
+#define AUDIO_FEATURE_UNIT_COUNT  2u
+#define AUDIO_FEATURE_CHANNELS    3u
+#define AUDIO_FEATURE_MIC_INDEX   0u
+#define AUDIO_FEATURE_SPK_INDEX   1u
 
 #define WIDGET_REQ_RESET          0x0fu
 
@@ -493,8 +501,9 @@ static uint32_t feature_store_last_fsr;
 static const uint8_t audio_sample_rate_48k[] = { 0x80, 0xbb, 0x00 };
 static const uint8_t audio_sample_rate_44k1[] = { 0x44, 0xac, 0x00 };
 static const uint8_t audio_sample_rate_res[] = { 0x01, 0x00, 0x00 };
-static const uint8_t audio_mute_off[] = { 0x00 };
-static const uint8_t audio_volume_current[] = { 0x00, 0x00 };
+static const uint8_t audio_mute_min[] = { 0x00 };
+static const uint8_t audio_mute_max[] = { 0x01 };
+static const uint8_t audio_mute_res[] = { 0x01 };
 static const uint8_t audio_volume_min[] = { 0x00, 0x80 };
 static const uint8_t audio_volume_max[] = { 0xff, 0x7f };
 static const uint8_t audio_volume_res[] = { 0x0a, 0x00 };
@@ -567,6 +576,8 @@ static uint32_t audio_loopback_primed;
 static uint32_t audio_loopback_peak;
 static uint32_t audio_loopback_drop_bytes;
 static uint32_t audio_loopback_silence_bytes;
+static uint8_t audio_feature_mute[AUDIO_FEATURE_UNIT_COUNT][AUDIO_FEATURE_CHANNELS];
+static uint16_t audio_feature_volume[AUDIO_FEATURE_UNIT_COUNT][AUDIO_FEATURE_CHANNELS];
 static uint32_t audio_pattern_lcg;
 static uint32_t audio_tone_phase;
 static uint32_t audio_sine_phase;
@@ -581,6 +592,11 @@ static uint32_t pending_address;
 static uint32_t pending_device_reset;
 static uint32_t pending_audio_sample_rate_valid;
 static uint32_t pending_audio_sample_rate_endpoint;
+static uint32_t pending_audio_feature_valid;
+static uint32_t pending_audio_feature_unit;
+static uint32_t pending_audio_feature_control;
+static uint32_t pending_audio_feature_channel;
+static uint32_t pending_audio_feature_length;
 static uint32_t last_setup0;
 static uint32_t last_wvalue;
 static uint32_t last_windex;
@@ -627,6 +643,95 @@ static uint16_t read_le16(const uint8_t *data)
 static uint32_t min_u32(uint32_t a, uint32_t b)
 {
 	return (a < b) ? a : b;
+}
+
+static uint32_t audio_feature_unit_index(uint32_t unit, uint32_t *index)
+{
+	if (unit == AUDIO_MIC_FEATURE_UNIT) {
+		*index = AUDIO_FEATURE_MIC_INDEX;
+		return 1u;
+	}
+	if (unit == AUDIO_SPK_FEATURE_UNIT) {
+		*index = AUDIO_FEATURE_SPK_INDEX;
+		return 1u;
+	}
+
+	return 0u;
+}
+
+static uint32_t audio_feature_control_length(uint32_t control, uint32_t *length)
+{
+	if (control == AUDIO_CONTROL_MUTE) {
+		*length = sizeof(audio_mute_min);
+		return 1u;
+	}
+	if (control == AUDIO_CONTROL_VOLUME) {
+		*length = sizeof(audio_volume_min);
+		return 1u;
+	}
+
+	return 0u;
+}
+
+static uint32_t audio_feature_request_valid(const usb_setup_t *setup,
+    uint32_t *unit_index, uint32_t *control, uint32_t *channel, uint32_t *length)
+{
+	uint32_t unit = setup->index >> 8;
+
+	if (((setup->bm_request_type & 0x1fu) != 1u) ||
+	    ((setup->index & 0xffu) != AUDIO_CONTROL_INTERFACE)) {
+		return 0u;
+	}
+	if (audio_feature_unit_index(unit, unit_index) == 0u) {
+		return 0u;
+	}
+
+	*control = setup->value >> 8;
+	*channel = setup->value & 0xffu;
+	if (*channel >= AUDIO_FEATURE_CHANNELS) {
+		return 0u;
+	}
+
+	return audio_feature_control_length(*control, length);
+}
+
+static void clear_pending_audio_class_out(void)
+{
+	pending_audio_sample_rate_valid = 0u;
+	pending_audio_feature_valid = 0u;
+	pending_audio_feature_length = 0u;
+}
+
+static void put_le16(uint8_t *data, uint16_t value)
+{
+	data[0] = (uint8_t)(value & 0xffu);
+	data[1] = (uint8_t)((value >> 8) & 0xffu);
+}
+
+static const uint8_t *audio_feature_current_data(uint32_t unit_index,
+    uint32_t control, uint32_t channel, uint32_t *length)
+{
+	if (control == AUDIO_CONTROL_MUTE) {
+		vendor_response[0] = audio_feature_mute[unit_index][channel];
+		*length = sizeof(audio_mute_min);
+		return vendor_response;
+	}
+
+	put_le16(vendor_response, audio_feature_volume[unit_index][channel]);
+	*length = sizeof(audio_volume_min);
+	return vendor_response;
+}
+
+static void set_audio_feature_current(uint32_t unit_index,
+    uint32_t control, uint32_t channel, const volatile uint8_t *data)
+{
+	if (control == AUDIO_CONTROL_MUTE) {
+		audio_feature_mute[unit_index][channel] = (data[0] == 0u) ? 0u : 1u;
+		return;
+	}
+
+	audio_feature_volume[unit_index][channel] =
+	    (uint16_t)data[0] | ((uint16_t)data[1] << 8);
 }
 
 static void reset_audio_in_packet_schedule(void)
@@ -771,8 +876,17 @@ static void handle_ep0_out_data(uint32_t length)
 	uint8_t rate[3];
 	uint32_t format;
 
+	if (pending_audio_feature_valid != 0u) {
+		if (length >= pending_audio_feature_length) {
+			set_audio_feature_current(pending_audio_feature_unit,
+			    pending_audio_feature_control, pending_audio_feature_channel, fifo);
+		}
+		clear_pending_audio_class_out();
+		return;
+	}
+
 	if ((pending_audio_sample_rate_valid == 0u) || (length < sizeof(rate))) {
-		pending_audio_sample_rate_valid = 0u;
+		clear_pending_audio_class_out();
 		return;
 	}
 
@@ -782,7 +896,7 @@ static void handle_ep0_out_data(uint32_t length)
 	if (audio_format_from_sample_rate_data(rate, &format) != 0u) {
 		set_audio_endpoint_format(pending_audio_sample_rate_endpoint, format);
 	}
-	pending_audio_sample_rate_valid = 0u;
+	clear_pending_audio_class_out();
 }
 
 static uint32_t string_length(const char *text)
@@ -882,7 +996,7 @@ static void clear_ep0_state(void)
 	ep0_tx_remaining = 0u;
 	pending_address_valid = 0u;
 	pending_device_reset = 0u;
-	pending_audio_sample_rate_valid = 0u;
+	clear_pending_audio_class_out();
 }
 
 static void configure_ep0(void)
@@ -2088,7 +2202,8 @@ static void handle_audio_class_in_request(const usb_setup_t *setup)
 	uint32_t length = 0u;
 	uint32_t recipient = setup->bm_request_type & 0x1fu;
 	uint32_t control = setup->value >> 8;
-	uint32_t unit = setup->index >> 8;
+	uint32_t channel = setup->value & 0xffu;
+	uint32_t unit_index;
 
 	if (recipient == 2u) {
 		if (control != AUDIO_CONTROL_SAMPLE_FREQ) {
@@ -2115,19 +2230,33 @@ static void handle_audio_class_in_request(const usb_setup_t *setup)
 		return;
 	}
 
-	if ((recipient != 1u) || ((unit != AUDIO_MIC_FEATURE_UNIT) && (unit != AUDIO_SPK_FEATURE_UNIT))) {
+	if (audio_feature_request_valid(setup, &unit_index, &control, &channel, &length) == 0u) {
 		ep0_stall();
 		return;
 	}
 
 	if (control == AUDIO_CONTROL_MUTE) {
-		data = audio_mute_off;
-		length = sizeof(audio_mute_off);
-	} else if (control == AUDIO_CONTROL_VOLUME) {
-		length = sizeof(audio_volume_current);
 		switch (setup->request) {
 		case AUDIO_REQ_GET_CUR:
-			data = audio_volume_current;
+			data = audio_feature_current_data(unit_index, control, channel, &length);
+			break;
+		case AUDIO_REQ_GET_MIN:
+			data = audio_mute_min;
+			break;
+		case AUDIO_REQ_GET_MAX:
+			data = audio_mute_max;
+			break;
+		case AUDIO_REQ_GET_RES:
+			data = audio_mute_res;
+			break;
+		default:
+			ep0_stall();
+			return;
+		}
+	} else if (control == AUDIO_CONTROL_VOLUME) {
+		switch (setup->request) {
+		case AUDIO_REQ_GET_CUR:
+			data = audio_feature_current_data(unit_index, control, channel, &length);
 			break;
 		case AUDIO_REQ_GET_MIN:
 			data = audio_volume_min;
@@ -2152,18 +2281,33 @@ static void handle_audio_class_in_request(const usb_setup_t *setup)
 
 static void handle_class_request(const usb_setup_t *setup)
 {
+	uint32_t unit_index;
+	uint32_t control;
+	uint32_t channel;
+	uint32_t length;
+
 	if ((setup->bm_request_type & 0x80u) != 0u) {
 		handle_audio_class_in_request(setup);
 		return;
 	}
 
-	pending_audio_sample_rate_valid = 0u;
+	clear_pending_audio_class_out();
 	if ((setup->request == AUDIO_REQ_SET_CUR) && (setup->length <= EP0_SIZE)) {
 		if (((setup->bm_request_type & 0x1fu) == 2u) &&
 		    ((setup->value >> 8) == AUDIO_CONTROL_SAMPLE_FREQ) &&
 		    (setup->length == sizeof(audio_sample_rate_48k))) {
 			pending_audio_sample_rate_valid = 1u;
 			pending_audio_sample_rate_endpoint = setup->index & 0xffu;
+		} else if ((audio_feature_request_valid(setup, &unit_index, &control,
+		    &channel, &length) != 0u) && (setup->length == length)) {
+			pending_audio_feature_valid = 1u;
+			pending_audio_feature_unit = unit_index;
+			pending_audio_feature_control = control;
+			pending_audio_feature_channel = channel;
+			pending_audio_feature_length = length;
+		} else {
+			ep0_stall();
+			return;
 		}
 		if (setup->length == 0u) {
 			ep0_start_status_in();
@@ -2475,6 +2619,12 @@ void same70_usb_get_status(same70_usb_status_t *status)
 	status->audio_loopback_peak = audio_loopback_peak;
 	status->audio_loopback_drop_bytes = audio_loopback_drop_bytes;
 	status->audio_loopback_silence_bytes = audio_loopback_silence_bytes;
+	status->audio_mic_mute = audio_feature_mute[AUDIO_FEATURE_MIC_INDEX][AUDIO_CHANNEL_MASTER];
+	status->audio_spk_mute = audio_feature_mute[AUDIO_FEATURE_SPK_INDEX][AUDIO_CHANNEL_MASTER];
+	status->audio_mic_volume_left = audio_feature_volume[AUDIO_FEATURE_MIC_INDEX][AUDIO_CHANNEL_LEFT];
+	status->audio_mic_volume_right = audio_feature_volume[AUDIO_FEATURE_MIC_INDEX][AUDIO_CHANNEL_RIGHT];
+	status->audio_spk_volume_left = audio_feature_volume[AUDIO_FEATURE_SPK_INDEX][AUDIO_CHANNEL_LEFT];
+	status->audio_spk_volume_right = audio_feature_volume[AUDIO_FEATURE_SPK_INDEX][AUDIO_CHANNEL_RIGHT];
 	status->descriptor_count = usb_descriptor_count;
 	status->set_address_count = usb_set_address_count;
 	status->set_configuration_count = usb_set_configuration_count;

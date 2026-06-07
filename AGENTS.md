@@ -44,8 +44,9 @@ Verified firmware features:
   channels and 2 output channels. The SAME70 descriptor now exposes
   48 kHz/24-bit and 44.1 kHz/16-bit streaming modes.
 - Endpoint 0 handles standard enumeration, interface alternate-setting
-  requests, SDR Widget vendor feature requests, and basic UAC1 mute/volume and
-  sample-rate control requests.
+  requests, SDR Widget vendor feature requests, UAC1 sample-rate requests, and
+  mutable UAC1 mute/volume GET_CUR/SET_CUR state for the mic and speaker
+  feature units. The control state is intentionally not applied to sample bytes.
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. Verified serial status shows
   `audio cfg=1 cfgok=0x00000038 ...`.
@@ -99,22 +100,31 @@ Verified firmware features:
   equals the requested value. Latest guarded run reported `writes=0` before and
   after the no-change set. Shared serial host helpers flush stale console input
   immediately before sending each command, avoiding old reset/status fragments.
+- `make -C ports/same70-xplained uac-verify` builds `uac-control`, opens the
+  connected `16c0:05dc` device with libusb, verifies mic/speaker mute plus
+  left/right volume SET_CUR/GET_CUR round trips, restores all values to zero,
+  and checks serial `audio ctl` for `mic_mute=0`, `spk_mute=0`, and zero
+  mic/speaker volumes. Latest run passed inside `flash-ready`.
 - `make -C ports/same70-xplained board-verify` is the connected-board smoke
   gate. It builds the SAME70 firmware and CoreAudio probe, runs
-  `widget-verify` with `--set-current-check`, then runs the quiet
+  `widget-verify` with `--set-current-check`, runs `uac-verify`, runs the quiet
   `audio-generated-verify` gate, then runs `audio-hw` to assert the current
   external-codec boundary. Latest run passed with feature-store `writes=0`
-  before/after the no-change set, zero mismatches for pattern, tone, sine, and
-  melody, silence host `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at
-  both formats, and `audio-hw` reporting `needs_external_codec_board`.
+  before/after the no-change set, UAC mute/volume round trips restored to zero,
+  zero mismatches for pattern, tone, sine, and melody, silence host
+  `input_nonzero=0`, OUT `nonzero=0`, IN `nonzero=0` at both formats, and
+  `audio-hw` reporting `needs_external_codec_board`.
 - `make -C ports/same70-xplained board-ready` runs `board-verify` and then
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
   run passed and ended on `audio melody`.
 - `make -C ports/same70-xplained flash-ready` flashes the connected SAME70,
   waits briefly for USB re-enumeration, then runs `board-ready`. Latest run
-  programmed and verified flash with OpenOCD, passed the control and generated
-  audio gates, and ended on `audio melody`.
+  programmed and verified flash with OpenOCD, passed the widget/UAC control and
+  generated-audio gates, verified `/tmp/same70-melody-listen.wav` with
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x400fe355405808e7`, played it through `afplay`, and ended on
+  `audio melody`.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
@@ -230,7 +240,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x136fe76e0d7bfb07`, played through `afplay`, and left the board on
+  `0x400fe355405808e7`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -261,8 +271,9 @@ Verified firmware features:
   endpoint-5 IN bytes recorded by the generated silence source.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio sine`, `audio melody`, `audio silence`, `audio hw`, `audio outdiag`,
-  `audio outdiag reset`, `audio indiag`, `audio indiag reset`. Audio source
+  `audio sine`, `audio melody`, `audio silence`, `audio hw`, `audio ctl`,
+  `audio outdiag`, `audio outdiag reset`, `audio indiag`, `audio indiag reset`.
+  Audio source
   commands now print a terse `audio source=<source>` line instead of the full
   `usb` status block, so they are safer while a host audio stream is active.
 
@@ -348,6 +359,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
 make -C ports/same70-xplained flash-ready

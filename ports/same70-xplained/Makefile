@@ -8,7 +8,9 @@ PYTHON ?= python3
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/same70-blinky
 STREAM_PROBE := $(BUILD_DIR)/coreaudio-stream-probe
+UAC_CONTROL := $(BUILD_DIR)/uac-control
 STREAM_PROBE_ARGS ?=
+UAC_VERIFY_ARGS ?= --verify
 AUDIO_VERIFY_ARGS ?=
 AUDIO_GENERATED_VERIFY_ARGS ?= --seconds 1 --skip-loopback --skip-final-loopback --skip-serial-counter-check
 AUDIO_CAPTURE_ARGS ?=
@@ -17,6 +19,7 @@ SERIAL_COMMAND_ARGS ?=
 WIDGET_VERIFY_ARGS ?=
 WIDGET_CONTROL ?= ../../widget-control
 BOARD_WIDGET_VERIFY_ARGS ?= --set-current-check
+BOARD_UAC_VERIFY_ARGS ?= $(UAC_VERIFY_ARGS)
 BOARD_AUDIO_VERIFY_ARGS ?= $(AUDIO_GENERATED_VERIFY_ARGS)
 BOARD_AUDIO_HW_ARGS ?= $(SERIAL_COMMAND_ARGS)
 BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
@@ -28,6 +31,8 @@ AUDIO_CD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 AUDIO_LISTEN_OUTPUT ?= /tmp/same70-melody-listen.wav
 AUDIO_LISTEN_ARGS ?= --source melody --rate 44100 --bits 16 --seconds 4 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
 AUDIO_PLAYER ?= afplay
+LIBUSB_CFLAGS ?= $(shell pkg-config --cflags libusb-1.0 2>/dev/null)
+LIBUSB_LIBS ?= $(shell pkg-config --libs libusb-1.0 2>/dev/null || echo -lusb-1.0)
 
 CFLAGS := \
 	-mcpu=cortex-m7 \
@@ -53,7 +58,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -73,8 +78,15 @@ $(TARGET).bin: $(TARGET).elf
 $(STREAM_PROBE): coreaudio-stream-probe.c | $(BUILD_DIR)
 	$(HOST_CC) -Wall -Wextra -std=c11 $< -o $@ -framework CoreAudio -framework CoreFoundation
 
+$(UAC_CONTROL): uac-control.c | $(BUILD_DIR)
+	$(HOST_CC) -Wall -Wextra -std=c11 $(LIBUSB_CFLAGS) $< -o $@ $(LIBUSB_LIBS)
+
 stream-probe: $(STREAM_PROBE)
 	$(STREAM_PROBE) $(STREAM_PROBE_ARGS)
+
+uac-verify: $(UAC_CONTROL)
+	$(UAC_CONTROL) $(UAC_VERIFY_ARGS)
+	$(PYTHON) serial-command.py "audio ctl" --expect "mic_mute=0" --expect "spk_mute=0" --expect "mic_vol=0x00000000/0x00000000" --expect "spk_vol=0x00000000/0x00000000" $(SERIAL_COMMAND_ARGS)
 
 audio-verify: $(STREAM_PROBE)
 	$(PYTHON) audio-verify.py --probe $(STREAM_PROBE) $(AUDIO_VERIFY_ARGS)
@@ -106,8 +118,9 @@ widget-verify:
 	$(MAKE) -C ../.. widget-control
 	$(PYTHON) widget-verify.py --widget-control $(WIDGET_CONTROL) $(WIDGET_VERIFY_ARGS)
 
-board-verify: all $(STREAM_PROBE)
+board-verify: all $(STREAM_PROBE) $(UAC_CONTROL)
 	$(MAKE) widget-verify WIDGET_VERIFY_ARGS="$(BOARD_WIDGET_VERIFY_ARGS)"
+	$(MAKE) uac-verify UAC_VERIFY_ARGS="$(BOARD_UAC_VERIFY_ARGS)"
 	$(MAKE) audio-generated-verify AUDIO_GENERATED_VERIFY_ARGS="$(BOARD_AUDIO_VERIFY_ARGS)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(BOARD_AUDIO_HW_ARGS)"
 

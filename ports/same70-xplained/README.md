@@ -19,6 +19,9 @@ Current milestones:
 - UAC1 SDR Widget composite descriptor on endpoint 0. macOS lists
   `Yoyodyne SDR-Widget` as a USB audio device with 2 input channels, 2 output
   channels, with selectable 48 kHz/24-bit and 44.1 kHz/16-bit streaming modes.
+- Mutable UAC1 mic/speaker mute and left/right volume class-control state,
+  verified by the SAME70-only `uac-control` host probe. The state is not
+  applied to sample bytes.
 - USBHS isochronous endpoints 3 OUT, 4 feedback IN, and 5 audio IN are
   configured when the host sets configuration 1. The current handlers store
   output packets in a small byte ring, return feedback for the active rate, and
@@ -82,6 +85,7 @@ audio sine
 audio melody
 audio silence
 audio hw
+audio ctl
 audio outdiag
 audio outdiag reset
 audio indiag
@@ -108,6 +112,15 @@ audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<
 audio last_out=<bytes> max_out=<bytes> outnz=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
 audio loop=<level>/<peak> drop=<bytes> silence=<bytes> source=<loop|pattern|tone|sine|melody|silence> fmt=<48k24|44k16>/<48k24|44k16>
 ```
+
+`audio ctl` reports the remembered UAC1 feature-unit state:
+
+```text
+audio ctl mic_mute=<0|1> spk_mute=<0|1> mic_vol=<hex>/<hex> spk_vol=<hex>/<hex>
+```
+
+Mute and volume GET_CUR/SET_CUR values are stored for control-plane
+compatibility and are not applied to the sample bytes.
 
 Host checks:
 
@@ -139,6 +152,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
 make -C ports/same70-xplained flash-ready
@@ -170,21 +184,24 @@ that every `-s` response byte equals the requested value.
 Shared serial host helpers flush stale console input immediately before sending
 each command, which avoids old reset/status fragments after flashing or resets.
 
-The connected-board smoke gate combines the guarded USB control check, the
-quiet generated-source audio gate, and the hardware-audio boundary check:
+The connected-board smoke gate combines the guarded USB control check, the UAC
+feature-unit control check, the quiet generated-source audio gate, and the
+hardware-audio boundary check:
 
 ```sh
 make -C ports/same70-xplained board-verify
 ```
 
-It builds the SAME70 firmware and CoreAudio probe, runs `widget-verify` with
-`--set-current-check`, runs `audio-generated-verify`, then runs `audio-hw`. The
-latest run passed with feature-store `writes=0` before/after the no-change set
-and zero mismatches for pattern, tone, sine, and melody. Silence reported host
-`input_nonzero=0`, device OUT `nonzero=0`, and device IN `nonzero=0` at both
-formats; `audio-hw` reported `needs_external_codec_board`. Because the
-generated-source gate ends on `audio silence`, run `audio-listen` afterward when
-you want the board back on melody.
+It builds the SAME70 firmware, CoreAudio probe, and libusb UAC probe, runs
+`widget-verify` with `--set-current-check`, runs `uac-verify`, runs
+`audio-generated-verify`, then runs `audio-hw`. The latest run passed with
+feature-store `writes=0` before/after the no-change set, UAC mic/speaker mute
+and left/right volume round trips restored to zero, and zero mismatches for
+pattern, tone, sine, and melody. Silence reported host `input_nonzero=0`,
+device OUT `nonzero=0`, and device IN `nonzero=0` at both formats; `audio-hw`
+reported `needs_external_codec_board`. Because the generated-source gate ends
+on `audio silence`, run `audio-listen` afterward when you want the board back
+on melody.
 
 Use `board-ready` when you want both the connected-board smoke gate and the
 verified listening state in one command:
@@ -204,8 +221,11 @@ make -C ports/same70-xplained flash-ready
 ```
 
 It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
-The latest run programmed and verified flash with OpenOCD, passed the control
-and generated-audio gates, and ended on `audio melody`.
+The latest run programmed and verified flash with OpenOCD, passed the widget
+and UAC control gates plus the generated-audio gate, exact-verified
+`/tmp/same70-melody-listen.wav` with `compared_samples=353280 mismatches=0`
+and matching hash `0x400fe355405808e7`, played it with `afplay`, and ended on
+`audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
 opens the `Yoyodyne SDR-Widget` device directly. It requests hog mode, unmuted
@@ -308,7 +328,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x136fe76e0d7bfb07`, played it with `afplay`, and left the board on
+`0x400fe355405808e7`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
