@@ -305,8 +305,8 @@ make -C ports/same70-xplained audio-listen
 
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
-`compared_samples=353280 mismatches=0` and matching hash
-`0xb546e27898b94d17`, played it with `afplay`, and left the board on
+`compared_samples=352256 mismatches=0` and matching hash
+`0x4ce04309eba16113`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -449,7 +449,7 @@ Use `audio hw`, or `make -C ports/same70-xplained audio-hw`, to print the
 current hardware-audio boundary. The expected output reports
 `external_codec=0`, `i2sc=not_configured`, and
 `needs_external_codec_board`; the port is still using only USB loopback or
-generated audio sources. Latest `audio-hw` run passed after `board-ready`.
+generated audio sources. Latest `audio-hw` run passed inside `flash-ready`.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
@@ -483,6 +483,7 @@ SAME70 I2S/I2SC-style peripheral is not configured, and the missing signals are
 MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset, and codec
 control. The current board can prove USB timing and bit-perfect sample movement,
 but not analog SDR input/output until that external codec path exists.
+`same70_audio_hw.c` is the status seam to extend when codec hardware is added.
 
 The USBHS bring-up code is intentionally tiny and separate from the original
 AVR32 USBB driver. It currently proves clocks, device mode, endpoint 0

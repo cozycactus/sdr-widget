@@ -1,4 +1,5 @@
 #include "types.h"
+#include "same70_audio_hw.h"
 #include "same70_clock.h"
 #include "same70_usb.h"
 
@@ -401,10 +402,33 @@ static void console_audio_source_status(uint32_t source)
 
 static void console_audio_hardware_status(void)
 {
-	usart1_write("audio hw usb_path=1 external_codec=0 i2sc=not_configured\r\n");
-	usart1_write("audio hw current=usb_loopback_or_generated no_adc no_dac\r\n");
-	usart1_write("audio hw required=mclk,bclk,lrck,adc_sdata,dac_sdata,codec_reset,codec_control\r\n");
-	usart1_write("audio hw original=AK5394A_CS4344 AVR32_SSC_PDCA needs_external_codec_board\r\n");
+	same70_audio_hw_status_t status;
+
+	same70_audio_hw_get_status(&status);
+	usart1_write("audio hw usb_path=");
+	usart1_write_u32(status.usb_path);
+	usart1_write(" external_codec=");
+	usart1_write_u32(status.external_codec);
+	usart1_write(" i2sc=");
+	usart1_write(status.i2sc_configured != 0u ? "configured" : "not_configured");
+	usart1_write("\r\n");
+	usart1_write("audio hw current=");
+	usart1_write(status.current_path);
+	usart1_write(" ");
+	usart1_write(status.adc_path);
+	usart1_write(" ");
+	usart1_write(status.dac_path);
+	usart1_write("\r\n");
+	usart1_write("audio hw required=");
+	usart1_write(status.required_signals);
+	usart1_write("\r\n");
+	usart1_write("audio hw original=");
+	usart1_write(status.original_codec);
+	usart1_write(" ");
+	usart1_write(status.original_transport);
+	usart1_write(" ");
+	usart1_write(status.boundary);
+	usart1_write("\r\n");
 }
 
 static void console_audio_out_diag(void)

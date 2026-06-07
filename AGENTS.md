@@ -59,8 +59,8 @@ Verified firmware features:
   audio-hw`, reports `external_codec=0`, `i2sc=not_configured`, and
   `needs_external_codec_board`. The old AVR32 path expects AK5394A/CS4344 style
   hardware with MCLK, BCLK, LRCK, ADC serial data, DAC serial data, codec reset,
-  and codec control wired to an SSC/I2S-capable peripheral. Latest
-  `audio-hw` run passed after `board-ready`.
+  and codec control wired to an SSC/I2S-capable peripheral. The status seam is
+  `same70_audio_hw.c`; latest `audio-hw` run passed inside `flash-ready`.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -228,8 +228,8 @@ Verified firmware features:
   USB OUT silent during capture, and leaves the board on `audio melody`.
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
-  `compared_samples=353280 mismatches=0` and matching hash
-  `0xb546e27898b94d17`, played through `afplay`, and left the board on
+  `compared_samples=352256 mismatches=0` and matching hash
+  `0x4ce04309eba16113`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1

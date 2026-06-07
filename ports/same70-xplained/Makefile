@@ -50,7 +50,7 @@ LDFLAGS := \
 	-Wl,--gc-sections \
 	-Wl,-Map,$(TARGET).map
 
-SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
+SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
 .PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify widget-verify board-verify board-ready
