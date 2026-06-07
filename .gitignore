@@ -10,6 +10,7 @@
 __pycache__/
 widget-control
 ports/same70-xplained/build/
+ports/same70-xplained/hdl/ad1856_formatter/build/
 Release-llvm/
 Release-gcc-sweep/
 gcc-sweep-toolwrap/

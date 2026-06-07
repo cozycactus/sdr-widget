@@ -65,7 +65,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-synth external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -267,6 +267,9 @@ audio-wav-verify:
 
 ad1856-formatter-sim:
 	$(MAKE) -C $(AD1856_FORMATTER_HDL_DIR) sim
+
+ad1856-formatter-synth:
+	$(MAKE) -C $(AD1856_FORMATTER_HDL_DIR) synth-ice40
 
 widget-verify:
 	$(MAKE) -C ../.. widget-control

@@ -507,6 +507,10 @@ generic Verilog starter for the AD1856 low-jitter formatter. The HDL lives in
 `TK`/`TF`, captures the left 16-bit sample from `TD`, and emits AD1856
 `DATA`/gated `CLK`/low-going `LE`. Latest simulation passed six known sample
 words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
+Use `make -C ports/same70-xplained ad1856-formatter-synth` for a
+board-neutral iCE40/Yosys synthesis sanity check with OSS CAD Suite. This does
+not create a final bitstream until the exact external logic board and pin
+constraints are selected.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input

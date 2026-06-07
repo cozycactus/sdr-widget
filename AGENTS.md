@@ -171,6 +171,12 @@ Verified firmware features:
   generates SAME70 `TK`/`TF`, captures the left 16-bit sample from `TD`, and
   emits AD1856 `DATA`/gated `CLK`/low-going `LE`. Latest simulation passed
   six known sample words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
+- `make -C ports/same70-xplained ad1856-formatter-synth` runs a
+  board-neutral iCE40/Yosys synthesis sanity check for the same HDL. OSS CAD
+  Suite is installed locally at `/Users/cozy/cozycactus/oss-cad-suite`; this
+  target proves the Verilog lowers into tiny-FPGA primitives but does not make
+  a final bitstream until the exact external logic board and pin constraints
+  are selected.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
@@ -443,6 +449,8 @@ make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
+make -C ports/same70-xplained ad1856-formatter-sim
+make -C ports/same70-xplained ad1856-formatter-synth
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready

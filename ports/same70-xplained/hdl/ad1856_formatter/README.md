@@ -46,3 +46,33 @@ make -C ports/same70-xplained ad1856-formatter-sim
 
 The testbench feeds known left-channel samples on `TD`, checks the AD1856
 serial output word at each `LE` pulse, and fails on mismatch.
+
+## Toolchain
+
+The local Makefile prefers OSS CAD Suite when it is installed at:
+
+```text
+/Users/cozy/cozycactus/oss-cad-suite
+```
+
+Override the location with `OSS_CAD_SUITE=/path/to/oss-cad-suite`, or put
+compatible `iverilog`, `vvp`, and `yosys` binaries in `PATH`.
+
+Check the bundled tool versions with:
+
+```sh
+make -C ports/same70-xplained/hdl/ad1856_formatter tool-versions
+```
+
+## Synthesis Sanity Check
+
+Run a board-neutral iCE40 synthesis check with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-synth
+```
+
+This proves the generic Verilog lowers into tiny-FPGA primitives and writes
+`build/ad1856_formatter-ice40.json`. It is not a finished bitstream yet:
+the exact FPGA/CPLD board still needs pin constraints, voltage checks, and a
+place-and-route target.

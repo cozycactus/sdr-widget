@@ -88,3 +88,13 @@ Run the formatter simulation with:
 ```sh
 make -C ports/same70-xplained ad1856-formatter-sim
 ```
+
+Run the iCE40 synthesis sanity check with OSS CAD Suite/Yosys:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-synth
+```
+
+This is only a board-neutral HDL check. A real CPLD/FPGA module still needs
+pin constraints for `clk_xo`, `same_tk`, `same_tf`, `same_td`, and AD1856
+`DATA`/`CLK`/`LE`.
