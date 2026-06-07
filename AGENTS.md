@@ -85,7 +85,11 @@ Verified firmware features:
   as `16c0:05dc 1.0.0.0.0.0.0`, checks matching default/NVRAM/RAM feature
   output, and checks the feature listing. `WIDGET_VERIFY_ARGS="--reset-check"`
   also exercises `widget-control -r` and waits for default readback after
-  re-enumeration; it does not write flash-backed NVRAM.
+  re-enumeration. `WIDGET_VERIFY_ARGS="--set-current-check"` sends the current
+  feature table through `widget-control -s` to cover SET_NVRAM without changing
+  values; latest serial `usb` status still reported `feature store ... writes=0`.
+  The host tool now checks that every `-s` response byte equals the requested
+  value.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
 - Feature "NVRAM" on the SAME70 port is now backed by an append-only 512-byte
@@ -200,7 +204,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x428e42803109d7e3`, played through `afplay`, and left the board on
+  `0x1bd023e412245bd3`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -316,6 +320,7 @@ make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained widget-verify
+make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--set-current-check"
 make -C ports/same70-xplained widget-verify WIDGET_VERIFY_ARGS="--reset-check"
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"
 make -C ports/same70-xplained audio-wav-verify AUDIO_WAV_VERIFY_ARGS="/tmp/same70-loop-cd-input.wav --source loop --rate 44100 --bits 16 --expected-wav /tmp/same70-loop-cd-output.wav"

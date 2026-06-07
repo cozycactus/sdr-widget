@@ -32,11 +32,13 @@ def format_command(command):
     return " ".join(shlex.quote(part) for part in command)
 
 
-def run_control(args, option, timeout=None, check=True, log_failure=True):
+def run_control(args, option, extra_args=None, timeout=None, check=True, log_failure=True):
     command = [args.widget_control]
     if args.serial:
         command.extend(["-u", args.serial])
     command.append(option)
+    if extra_args:
+        command.extend(extra_args)
     print(f"+ {format_command(command)}", flush=True)
     completed = subprocess.run(
         command,
@@ -101,6 +103,8 @@ def main():
     parser.add_argument("--timeout", type=float, default=3.0)
     parser.add_argument("--reset-check", action="store_true",
                         help="Also exercise widget-control -r and wait for feature readback.")
+    parser.add_argument("--set-current-check", action="store_true",
+                        help="Also send the current feature values through widget-control -s.")
     parser.add_argument("--reset-timeout", type=float, default=10.0)
     args = parser.parse_args()
 
@@ -126,6 +130,14 @@ def main():
     output = run_control(args, "-l")
     if output is None or not verify_listing(output):
         return 1
+
+    if args.set_current_check:
+        output = run_control(args, "-s", extra_args=outputs["nvram"].split())
+        if output is None:
+            return 1
+        output = run_control(args, "-g")
+        if output is None or not verify_feature_line("nvram after set-current", output, expected_features):
+            return 1
 
     if args.reset_check:
         output = run_control(args, "-r")
