@@ -97,7 +97,8 @@ Verified firmware features:
   values, checks serial `usb` status before/after, and fails if feature-store
   `writes` changes. The host tool now checks that every `-s` response byte
   equals the requested value. Latest guarded run reported `writes=0` before and
-  after the no-change set.
+  after the no-change set. Shared serial host helpers flush stale console input
+  immediately before sending each command, avoiding old reset/status fragments.
 - `make -C ports/same70-xplained board-verify` is the connected-board smoke
   gate. It builds the SAME70 firmware and CoreAudio probe, runs
   `widget-verify` with `--set-current-check`, then runs the quiet
@@ -228,8 +229,8 @@ Verified firmware features:
   USB OUT silent during capture, and leaves the board on `audio melody`.
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
-  `compared_samples=352256 mismatches=0` and matching hash
-  `0x4ce04309eba16113`, played through `afplay`, and left the board on
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x136fe76e0d7bfb07`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1

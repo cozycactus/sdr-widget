@@ -167,6 +167,8 @@ table through `widget-control -s`; unchanged values are accepted by the device
 without consuming a flash record. The verifier checks serial `usb` status
 before/after and fails if feature-store `writes` changes. The host tool checks
 that every `-s` response byte equals the requested value.
+Shared serial host helpers flush stale console input immediately before sending
+each command, which avoids old reset/status fragments after flashing or resets.
 
 The connected-board smoke gate combines the guarded USB control check, the
 quiet generated-source audio gate, and the hardware-audio boundary check:
@@ -305,8 +307,8 @@ make -C ports/same70-xplained audio-listen
 
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
-`compared_samples=352256 mismatches=0` and matching hash
-`0x4ce04309eba16113`, played it with `afplay`, and left the board on
+`compared_samples=353280 mismatches=0` and matching hash
+`0x136fe76e0d7bfb07`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used

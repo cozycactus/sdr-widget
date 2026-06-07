@@ -41,6 +41,7 @@ def send_serial_command(port, command, timeout):
     try:
         configure_serial(fd)
         time.sleep(0.2)
+        termios.tcflush(fd, termios.TCIFLUSH)
         os.write(fd, (command + "\r").encode("ascii"))
         deadline = time.time() + timeout
         while time.time() < deadline:
