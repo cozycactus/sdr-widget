@@ -195,6 +195,107 @@ static uint64_t hash_sample(uint64_t hash, int32_t sample)
 	return hash;
 }
 
+static int write_bytes(FILE *file, const void *data, size_t length)
+{
+	return fwrite(data, 1u, length, file) == length;
+}
+
+static int write_le16(FILE *file, uint32_t value)
+{
+	uint8_t bytes[2];
+
+	bytes[0] = (uint8_t)(value & 0xffu);
+	bytes[1] = (uint8_t)((value >> 8) & 0xffu);
+	return write_bytes(file, bytes, sizeof(bytes));
+}
+
+static int write_le32(FILE *file, uint32_t value)
+{
+	uint8_t bytes[4];
+
+	bytes[0] = (uint8_t)(value & 0xffu);
+	bytes[1] = (uint8_t)((value >> 8) & 0xffu);
+	bytes[2] = (uint8_t)((value >> 16) & 0xffu);
+	bytes[3] = (uint8_t)((value >> 24) & 0xffu);
+	return write_bytes(file, bytes, sizeof(bytes));
+}
+
+static int write_input_wav(const char *path, const io_state_t *state,
+	uint32_t sample_rate_hz, uint32_t sample_bits, uint32_t channels)
+{
+	FILE *file;
+	uint32_t bytes_per_sample;
+	uint32_t sample_count;
+	uint32_t data_size;
+	uint32_t block_align;
+	uint32_t byte_rate;
+	uint32_t index;
+	int ok;
+
+	if (path == NULL) {
+		return 1;
+	}
+	if ((sample_bits != 16u) && (sample_bits != 24u)) {
+		fprintf(stderr, "cannot dump %u-bit samples as WAV\n", sample_bits);
+		return 0;
+	}
+	if (channels == 0u) {
+		channels = 1u;
+	}
+
+	bytes_per_sample = sample_bits / 8u;
+	sample_count = state->input_sample_count - (state->input_sample_count % channels);
+	data_size = sample_count * bytes_per_sample;
+	block_align = channels * bytes_per_sample;
+	byte_rate = sample_rate_hz * block_align;
+
+	file = fopen(path, "wb");
+	if (file == NULL) {
+		fprintf(stderr, "failed to open WAV dump: %s\n", path);
+		return 0;
+	}
+
+	ok =
+		write_bytes(file, "RIFF", 4u) &&
+		write_le32(file, 36u + data_size) &&
+		write_bytes(file, "WAVE", 4u) &&
+		write_bytes(file, "fmt ", 4u) &&
+		write_le32(file, 16u) &&
+		write_le16(file, 1u) &&
+		write_le16(file, channels) &&
+		write_le32(file, sample_rate_hz) &&
+		write_le32(file, byte_rate) &&
+		write_le16(file, block_align) &&
+		write_le16(file, sample_bits) &&
+		write_bytes(file, "data", 4u) &&
+		write_le32(file, data_size);
+
+	for (index = 0u; ok && (index < sample_count); index++) {
+		uint32_t value = (uint32_t)state->input_samples[index];
+
+		if (sample_bits == 16u) {
+			ok = write_le16(file, value & 0xffffu);
+		} else {
+			ok =
+				fputc((int)(value & 0xffu), file) != EOF &&
+				fputc((int)((value >> 8) & 0xffu), file) != EOF &&
+				fputc((int)((value >> 16) & 0xffu), file) != EOF;
+		}
+	}
+
+	if (fclose(file) != 0) {
+		ok = 0;
+	}
+	if (!ok) {
+		fprintf(stderr, "failed to write WAV dump: %s\n", path);
+		return 0;
+	}
+
+	printf("dump_input_wav=%s samples=%u channels=%u rate=%u bits=%u bytes=%u\n",
+		path, sample_count, channels, sample_rate_hz, sample_bits, data_size);
+	return 1;
+}
+
 static uint32_t min_u32(uint32_t a, uint32_t b)
 {
 	return (a < b) ? a : b;
@@ -497,7 +598,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|silence] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|tone|silence] [--dump-input-wav FILE] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -845,7 +946,8 @@ static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID pro
 	AudioObjectPropertyScope scope);
 
 static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_rate_hz,
-	uint32_t sample_bits, uint32_t verify_mode, uint32_t run, probe_summary_t *summary)
+	uint32_t sample_bits, uint32_t verify_mode, uint32_t input_channels,
+	const char *dump_input_wav, uint32_t run, probe_summary_t *summary)
 {
 	AudioDeviceIOProcID proc_id = NULL;
 	io_state_t state;
@@ -914,6 +1016,9 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 		(unsigned long long)state.output_nonzero,
 		(unsigned long long)state.input_checksum,
 		(unsigned long long)state.output_checksum);
+	if (!write_input_wav(dump_input_wav, &state, sample_rate_hz, sample_bits, input_channels)) {
+		verify.passed = 0u;
+	}
 	printf("run=%u verify=%s mode=%s aligned=%u input_offset_samples=%u expected_offset_samples=%u compared_samples=%u "
 		"mismatches=%u expected_hash=0x%016llx actual_hash=0x%016llx "
 		"first_mismatch=%u expected=%d actual=%d "
@@ -991,6 +1096,7 @@ static void enable_io_proc_streams(AudioDeviceID device, AudioDeviceIOProcID pro
 int main(int argc, char **argv)
 {
 	const char *device_name = DEFAULT_DEVICE_NAME;
+	const char *dump_input_wav = NULL;
 	double seconds = DEFAULT_PROBE_SECONDS;
 	uint32_t runs = DEFAULT_PROBE_RUNS;
 	uint32_t sample_rate_hz = DEFAULT_SAMPLE_RATE_HZ;
@@ -1000,6 +1106,7 @@ int main(int argc, char **argv)
 	uint32_t verify_mode = VERIFY_MODE_LOOPBACK;
 	AudioDeviceID device = kAudioObjectUnknown;
 	probe_summary_t summary;
+	uint32_t input_channels;
 	int index;
 	uint32_t run;
 
@@ -1045,6 +1152,13 @@ int main(int argc, char **argv)
 			}
 			device_name = argv[index + 1];
 			index++;
+		} else if (strcmp(argv[index], "--dump-input-wav") == 0) {
+			if ((index + 1) >= argc) {
+				print_usage(argv[0]);
+				return 1;
+			}
+			dump_input_wav = argv[index + 1];
+			index++;
 		} else if ((strcmp(argv[index], "-h") == 0) || (strcmp(argv[index], "--help") == 0)) {
 			print_usage(argv[0]);
 			return 0;
@@ -1066,6 +1180,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "supported pairs are 44100/16 and 48000/24\n");
 		return 1;
 	}
+	if ((dump_input_wav != NULL) && (runs != 1u)) {
+		fprintf(stderr, "--dump-input-wav requires --runs 1\n");
+		return 1;
+	}
 
 	if (!find_device(device_name, &device)) {
 		fprintf(stderr, "device containing \"%s\" not found\n", device_name);
@@ -1075,10 +1193,15 @@ int main(int argc, char **argv)
 		fprintf(stderr, "failed to select %u Hz\n", sample_rate_hz);
 		return 1;
 	}
+	input_channels = channel_count(device, kAudioDevicePropertyScopeInput);
+	if (input_channels == 0u) {
+		input_channels = 1u;
+	}
 
 	memset(&summary, 0, sizeof(summary));
 	for (run = 1u; run <= runs; run++) {
-		(void)run_hal_probe(device, seconds, sample_rate_hz, sample_bits, verify_mode, run, &summary);
+		(void)run_hal_probe(device, seconds, sample_rate_hz, sample_bits, verify_mode,
+			input_channels, dump_input_wav, run, &summary);
 	}
 	printf("summary mode=%s rate=%u bits=%u runs=%u passed=%u failed=%u compared_samples=%llu mismatches=%llu\n",
 		verify_mode_name(verify_mode),

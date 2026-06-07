@@ -93,8 +93,10 @@ Verified firmware features:
   samples only. `--verify input` remains a looser nonzero activity check. For
   exact loopback, pattern, tone, and silence modes, the probe now prints 64-bit
   `expected_hash` and `actual_hash` values over the quantized samples actually
-  compared, giving an audit-friendly fingerprint for bit-perfect checks. Serial
-  `usb` counters remain the source of truth for hardware endpoint state.
+  compared, giving an audit-friendly fingerprint for bit-perfect checks. With
+  `--dump-input-wav FILE --runs 1`, it also writes the quantized captured input
+  stream as a PCM WAV artifact for inspection/listening. Serial `usb` counters
+  remain the source of truth for hardware endpoint state.
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
   pattern at both formats, generated tone at both formats, silence at both
@@ -125,6 +127,13 @@ Verified firmware features:
   44.1 kHz/16-bit. Final serial status stayed at `source=loop`,
   `fmt=48k24/48k24`, `stall=0`, `err=0`, `crc=0`, `over=0`, `under=0`, and
   `drop=0`.
+- Latest WAV capture check selected `audio tone`, then ran
+  `make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1
+  --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav
+  /tmp/same70-tone-48k24.wav"`. The exact tone verifier passed with
+  `compared_samples=97280 mismatches=0 expected_hash=0xb89840f63a4ab703
+  actual_hash=0xb89840f63a4ab703`, and `file` identified the dump as 24-bit
+  stereo PCM at 48 kHz with 291884 total bytes.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -211,6 +220,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained audio-verify
 ```
 

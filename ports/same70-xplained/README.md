@@ -118,6 +118,7 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --runs
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify input"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify pattern"
 make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 2 --verify tone"
+make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav /tmp/same70-tone-48k24.wav"
 make -C ports/same70-xplained audio-verify
 ```
 
@@ -144,7 +145,9 @@ them sample-for-sample. Use `--verify tone` when the firmware source is
 PCM source. Use `--verify silence` when the firmware source is `audio silence`;
 it requires all quantized input samples to be zero. Use `--verify input` for a
 looser nonzero input activity check. The serial `usb` counters remain the source
-of truth for USBHS endpoint state.
+of truth for USBHS endpoint state. Add `--dump-input-wav FILE --runs 1` to write
+the quantized captured input stream as a PCM WAV file for inspection or
+listening; multi-run WAV dumps are rejected so the output file is unambiguous.
 
 The `audio-verify` target wraps the same probe with serial source switching. It
 selects `audio loop`, verifies loopback at both advertised formats, selects
@@ -162,6 +165,7 @@ port.
 ```text
 nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
+dump_input_wav=<path> samples=<n> channels=<n> rate=<44100|48000> bits=<16|24> bytes=<n>
 run=<n> verify=<pass|fail> mode=<loopback|input|pattern|tone|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
 summary mode=<loopback|input|pattern|tone|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
@@ -221,6 +225,15 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 44.1 kHz/16-bit. Final serial status reported `source=loop`, `fmt=48k24/48k24`,
 `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
 increase from the starting baseline.
+
+Latest WAV capture check: after selecting `audio tone`,
+`make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1
+--runs 1 --rate 48000 --bits 24 --verify tone --dump-input-wav
+/tmp/same70-tone-48k24.wav"` reported `verify=pass`, `compared_samples=97280`,
+`mismatches=0`, and matching hash `0xb89840f63a4ab703`. The dump line reported
+`samples=97280 channels=2 rate=48000 bits=24 bytes=291840`; `file` identified
+the resulting `/tmp/same70-tone-48k24.wav` as 24-bit stereo PCM at 48 kHz with a
+291884-byte RIFF/WAVE container.
 
 ## Porting Notes
 
