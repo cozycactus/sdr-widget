@@ -131,30 +131,33 @@ mask showing playback and capture streams were opened. The probe selects the
 requested nominal sample rate, writes exact integer test samples through
 CoreAudio Float32 buffers, captures the returned input samples, quantizes them
 back to the selected bit depth, aligns the loopback latency, and reports whether
-the aligned sample stream is bit-perfect. In exact loopback and pattern modes,
-the verify line also includes 64-bit `expected_hash` and `actual_hash`
-fingerprints over the aligned quantized samples actually compared. Use
+the aligned sample stream is bit-perfect. In exact loopback, pattern, and
+silence modes, the verify line also includes 64-bit `expected_hash` and
+`actual_hash` fingerprints over the quantized samples actually compared. Use
 `--verify pattern` when the firmware source is `audio pattern`; it aligns the
 captured samples against the firmware's deterministic LCG pattern and compares
-them sample-for-sample. Use `--verify input` for a looser nonzero input activity
-check. The serial `usb` counters remain the source of truth for USBHS endpoint
-state.
+them sample-for-sample. Use `--verify silence` when the firmware source is
+`audio silence`; it requires all quantized input samples to be zero. Use
+`--verify input` for a looser nonzero input activity check. The serial `usb`
+counters remain the source of truth for USBHS endpoint state.
 
 The `audio-verify` target wraps the same probe with serial source switching. It
 selects `audio loop`, verifies loopback at both advertised formats, selects
-`audio pattern`, verifies the generated input pattern at both formats, switches
-back to `audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms
-the serial `usb` status reports `source=loop` and `fmt=48k24/48k24`. It also
-captures a starting `usb` status and fails if `stall`, `err`, `crc`, `over`,
-`under`, or `drop` increases by the final status. Use `AUDIO_VERIFY_ARGS="--seconds
-N --loopback-runs N --pattern-runs N --serial /dev/cu.usbmodem..."` to tune the
-run length or serial port.
+`audio pattern`, verifies the generated input pattern at both formats, selects
+`audio silence`, verifies zero input at both formats, switches back to
+`audio loop`, runs a final 48 kHz/24-bit loopback check, and confirms the serial
+`usb` status reports `source=loop` and `fmt=48k24/48k24`. It also captures a
+starting `usb` status and fails if `stall`, `err`, `crc`, `over`, `under`, or
+`drop` increases by the final status. Use `AUDIO_VERIFY_ARGS="--seconds N
+--loopback-runs N --pattern-runs N --silence-runs N --serial
+/dev/cu.usbmodem..."` to tune the run length, per-source run counts, or serial
+port.
 
 ```text
 nominal_sample_rate=<44100|48000>
 run=<n> started=1 seconds=<n> rate=<44100|48000> bits=<16|24> callbacks=<n> input_bytes=<n> output_bytes=<n> input_nonzero=<n> output_nonzero=<n> input_checksum=<n> output_checksum=<n>
-run=<n> verify=<pass|fail> mode=<loopback|input|pattern> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
-summary mode=<loopback|input|pattern> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
+run=<n> verify=<pass|fail> mode=<loopback|input|pattern|silence> aligned=<0|1> input_offset_samples=<n> expected_offset_samples=<n> compared_samples=<n> mismatches=<n> expected_hash=<hex> actual_hash=<hex> first_mismatch=<n> expected=<n> actual=<n> input_samples=<n> output_samples=<n> input_overflow=<n> output_overflow=<n>
+summary mode=<loopback|input|pattern|silence> rate=<44100|48000> bits=<16|24> runs=<n> passed=<n> failed=<n> compared_samples=<n> mismatches=<n>
 ctrl address=<n> config=1 ep0_state=0 desc=<n> set_addr=1 set_cfg=1 set_int=<n> alt=0x00000000 peak_alt=0x0000000c last_int=<i>:<alt>
 audio cfg=1 set_int=<n> cfgok=0x00000038 out=<n>/<bytes> fb=<n>/<bytes> in=<n>/<bytes> err=<n>
 audio last_out=<bytes> max_out=<bytes> short=<n> crc=0 over=0 under=<n> fb_busy=<n>/<n> in_busy=<n>/<n>
@@ -190,18 +193,23 @@ Latest full automated gate with strict serial-diagnostic delta checks and
 hash-audited sample comparisons:
 `make -C ports/same70-xplained audio-verify` reported `audio-verify: pass`. It
 measured 48 kHz/24-bit loopback `runs=2 passed=2 failed=0
-compared_samples=377424 mismatches=0`, 44.1 kHz/16-bit
+compared_samples=378448 mismatches=0`, 44.1 kHz/16-bit
 loopback `runs=2 passed=2 failed=0 compared_samples=346648 mismatches=0`,
-48 kHz/24-bit pattern `runs=2 passed=2 failed=0 compared_samples=385024
+48 kHz/24-bit pattern `runs=2 passed=2 failed=0 compared_samples=384000
 mismatches=0`, and 44.1 kHz/16-bit pattern `runs=2 passed=2 failed=0
-compared_samples=353280 mismatches=0`. Matching `expected_hash`/`actual_hash`
-pairs were `0xf5c67e41d99dc189` for 48 kHz/24-bit loopback,
-`0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback,
-`0x807c89e0beb418fd` and `0x16c4f0c00e6d84c2` for the two 48 kHz/24-bit pattern
-runs, and `0xb73a8d7c270a3488` and `0x35312caa4a21dc26` for the two
-44.1 kHz/16-bit pattern runs. Final serial status reported `source=loop`,
-`fmt=48k24/48k24`, `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and
-`stall=0`, with no increase from the starting baseline.
+compared_samples=353280 mismatches=0`. It also measured 48 kHz/24-bit silence
+`runs=1 passed=1 failed=0 compared_samples=192512 mismatches=0` and
+44.1 kHz/16-bit silence `runs=1 passed=1 failed=0 compared_samples=177152
+mismatches=0`, both with `input_nonzero=0`. Matching
+`expected_hash`/`actual_hash` pairs were `0x4e3aa5b4af22bcb1` and
+`0xf5c67e41d99dc189` for the two 48 kHz/24-bit loopback runs,
+`0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback, `0x809db1fb024fde84` and
+`0x62ceb60938c410d9` for the two 48 kHz/24-bit pattern runs,
+`0x876d1049b97fe09a` and `0x6dd11a9f9959525c` for the two 44.1 kHz/16-bit
+pattern runs, and zero-stream silence hashes `0x4c1b7a9a57ea0383` at
+48 kHz/24-bit plus `0x620be961d8eec383` at 44.1 kHz/16-bit. Final serial status
+reported `source=loop`, `fmt=48k24/48k24`, `err=0`, `crc=0`, `over=0`,
+`under=0`, `drop=0`, and `stall=0`, with no increase from the starting baseline.
 
 ## Porting Notes
 

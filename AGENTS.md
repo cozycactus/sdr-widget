@@ -88,31 +88,38 @@ Verified firmware features:
   through CoreAudio Float32 buffers, aligns the returned stream latency, and
   verifies zero sample mismatches through the loopback path. `--verify pattern`
   aligns captured input against the firmware-generated LCG pattern for exact
-  capture-side checks, while `--verify input` remains a looser nonzero activity
-  check. For exact loopback and pattern modes, the probe now prints 64-bit
-  `expected_hash` and `actual_hash` values over the aligned quantized samples
-  actually compared, giving an audit-friendly fingerprint for bit-perfect
-  checks. Serial `usb` counters remain the source of truth for hardware endpoint
-  state.
+  capture-side checks, and `--verify silence` proves the selected source returns
+  quantized zero samples only. `--verify input` remains a looser nonzero
+  activity check. For exact loopback, pattern, and silence modes, the probe now
+  prints 64-bit `expected_hash` and `actual_hash` values over the quantized
+  samples actually compared, giving an audit-friendly fingerprint for
+  bit-perfect checks. Serial `usb` counters remain the source of truth for
+  hardware endpoint state.
 - `make -C ports/same70-xplained audio-verify` now runs the serial-controlled
   full audio gate: loopback at 48 kHz/24-bit and 44.1 kHz/16-bit, generated
-  pattern at both formats, final switch back to `audio loop`, final 48 kHz/24-bit
-  loopback, and serial status confirmation for `source=loop` plus
+  pattern at both formats, silence at both formats, final switch back to
+  `audio loop`, final 48 kHz/24-bit loopback, and serial status confirmation for
+  `source=loop` plus
   `fmt=48k24/48k24`. It also captures a starting serial `usb` status and fails
   if `stall`, `err`, `crc`, `over`, `under`, or `drop` increases by the final
   status. Latest hash-audited default run reported `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
-  compared_samples=377424 mismatches=0` and `rate=44100 bits=16 runs=2
+  compared_samples=378448 mismatches=0` and `rate=44100 bits=16 runs=2
   passed=2 failed=0 compared_samples=346648 mismatches=0`, plus pattern
-  summaries `rate=48000 bits=24 runs=2 passed=2 failed=0 compared_samples=385024
+  summaries `rate=48000 bits=24 runs=2 passed=2 failed=0 compared_samples=384000
   mismatches=0` and `rate=44100 bits=16 runs=2 passed=2 failed=0
-  compared_samples=353280 mismatches=0`. Representative matching hash pairs
-  were `0xf5c67e41d99dc189` for 48 kHz/24-bit loopback,
-  `0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback,
-  `0x807c89e0beb418fd`/`0x16c4f0c00e6d84c2` for the two 48 kHz/24-bit pattern
-  runs, and `0xb73a8d7c270a3488`/`0x35312caa4a21dc26` for the two 44.1 kHz/16-bit
-  pattern runs. Final serial status stayed at `source=loop`, `fmt=48k24/48k24`,
-  `stall=0`, `err=0`, `crc=0`, `over=0`, `under=0`, and `drop=0`.
+  compared_samples=353280 mismatches=0`, plus silence summaries
+  `rate=48000 bits=24 runs=1 passed=1 failed=0 compared_samples=192512
+  mismatches=0` and `rate=44100 bits=16 runs=1 passed=1 failed=0
+  compared_samples=177152 mismatches=0`. Representative matching hash pairs
+  were `0x4e3aa5b4af22bcb1`/`0xf5c67e41d99dc189` for the two 48 kHz/24-bit
+  loopback runs, `0xb8a05d32ba828363` for 44.1 kHz/16-bit loopback,
+  `0x809db1fb024fde84`/`0x62ceb60938c410d9` for the two 48 kHz/24-bit pattern
+  runs, `0x876d1049b97fe09a`/`0x6dd11a9f9959525c` for the two 44.1 kHz/16-bit
+  pattern runs, and zero-stream silence hashes `0x4c1b7a9a57ea0383` at
+  48 kHz/24-bit plus `0x620be961d8eec383` at 44.1 kHz/16-bit. Final serial
+  status stayed at `source=loop`, `fmt=48k24/48k24`, `stall=0`, `err=0`,
+  `crc=0`, `over=0`, `under=0`, and `drop=0`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint

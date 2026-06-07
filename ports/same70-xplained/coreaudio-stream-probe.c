@@ -15,6 +15,7 @@
 #define VERIFY_MODE_LOOPBACK 0u
 #define VERIFY_MODE_INPUT    1u
 #define VERIFY_MODE_PATTERN  2u
+#define VERIFY_MODE_SILENCE  3u
 #define DEFAULT_SAMPLE_RATE_HZ 48000u
 #define DEFAULT_SAMPLE_BITS 24u
 #define CAPTURE_SAMPLES_PER_SECOND 128000u
@@ -385,6 +386,36 @@ static verify_result_t verify_input_activity(const io_state_t *state)
 	return result;
 }
 
+static verify_result_t verify_input_silence(const io_state_t *state)
+{
+	verify_result_t result;
+	uint32_t index;
+
+	memset(&result, 0, sizeof(result));
+	result.aligned = 1u;
+	result.first_mismatch = UINT32_MAX;
+	result.compared = state->input_sample_count;
+	result.expected_hash = VERIFY_HASH_OFFSET_BASIS;
+	result.actual_hash = VERIFY_HASH_OFFSET_BASIS;
+	for (index = 0u; index < result.compared; index++) {
+		int32_t actual = state->input_samples[index];
+		result.expected_hash = hash_sample(result.expected_hash, 0);
+		result.actual_hash = hash_sample(result.actual_hash, actual);
+		if (actual != 0) {
+			if (result.first_mismatch == UINT32_MAX) {
+				result.first_mismatch = index;
+				result.first_actual = actual;
+			}
+			result.mismatches++;
+		}
+	}
+	result.passed =
+		(state->input_sample_overflow == 0u) &&
+		(state->input_sample_count >= VERIFY_MIN_SAMPLES) &&
+		(result.mismatches == 0u);
+	return result;
+}
+
 static void print_osstatus(const char *label, OSStatus status)
 {
 	fprintf(stderr, "%s failed: %d (0x%08x)\n", label, (int)status, (unsigned int)status);
@@ -392,7 +423,7 @@ static void print_osstatus(const char *label, OSStatus status)
 
 static void print_usage(const char *program)
 {
-	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern] [--device NAME]\n", program);
+	fprintf(stderr, "usage: %s [--seconds N] [--runs N] [--rate 44100|48000] [--bits 16|24] [--verify loopback|input|pattern|silence] [--device NAME]\n", program);
 	fprintf(stderr, "       %s [DEVICE_NAME]\n", program);
 }
 
@@ -472,6 +503,10 @@ static int parse_verify_mode(const char *text, uint32_t *mode)
 		*mode = VERIFY_MODE_PATTERN;
 		return 1;
 	}
+	if (strcmp(text, "silence") == 0) {
+		*mode = VERIFY_MODE_SILENCE;
+		return 1;
+	}
 
 	return 0;
 }
@@ -480,6 +515,9 @@ static const char *verify_mode_name(uint32_t mode)
 {
 	if (mode == VERIFY_MODE_PATTERN) {
 		return "pattern";
+	}
+	if (mode == VERIFY_MODE_SILENCE) {
+		return "silence";
 	}
 
 	return (mode == VERIFY_MODE_INPUT) ? "input" : "loopback";
@@ -773,6 +811,8 @@ static int run_hal_probe(AudioDeviceID device, double seconds, uint32_t sample_r
 	AudioDeviceDestroyIOProcID(device, proc_id);
 	if (verify_mode == VERIFY_MODE_PATTERN) {
 		verify = verify_input_pattern(&state);
+	} else if (verify_mode == VERIFY_MODE_SILENCE) {
+		verify = verify_input_silence(&state);
 	} else if (verify_mode == VERIFY_MODE_INPUT) {
 		verify = verify_input_activity(&state);
 	} else {
