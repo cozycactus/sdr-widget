@@ -170,13 +170,24 @@ Verified firmware features:
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
   generates SAME70 `TK`/`TF`, captures the left 16-bit sample from `TD`, and
   emits AD1856 `DATA`/gated `CLK`/low-going `LE`. Latest simulation passed
-  six known sample words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
+  six known sample words plus strict timing checks for `same_tk`, `same_tf`,
+  AD1856 `CLK`, `DATA`, and `LE`.
+- `make -C ports/same70-xplained ad1856-formatter-vcd` runs the same formatter
+  test with waveform dumping and writes
+  `ports/same70-xplained/hdl/ad1856_formatter/build/ad1856_formatter.vcd`.
 - `make -C ports/same70-xplained ad1856-formatter-synth` runs a
   board-neutral iCE40/Yosys synthesis sanity check for the same HDL. OSS CAD
   Suite is installed locally at `/Users/cozy/cozycactus/oss-cad-suite`; this
   target proves the Verilog lowers into tiny-FPGA primitives but does not make
   a final bitstream until the exact external logic board and pin constraints
   are selected.
+- `make -C ports/same70-xplained ad1856-formatter-board-synth` synthesizes the
+  no-debug board wrapper in `hdl/ad1856_formatter/ad1856_formatter_board.v`.
+  This is the top-level intended for the first real iCE40 bitstream.
+- `make -C ports/same70-xplained ad1856-formatter-bitstream-help` prints the
+  required iCE40 bitstream variables. The bitstream skeleton requires a
+  board-specific PCF made from
+  `ports/same70-xplained/hdl/ad1856_formatter/constraints/ad1856_formatter-ice40.pcf.example`.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
@@ -450,7 +461,10 @@ make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained ad1856-formatter-sim
+make -C ports/same70-xplained ad1856-formatter-vcd
 make -C ports/same70-xplained ad1856-formatter-synth
+make -C ports/same70-xplained ad1856-formatter-board-synth
+make -C ports/same70-xplained ad1856-formatter-bitstream-help
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready

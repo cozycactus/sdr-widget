@@ -156,6 +156,11 @@ make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
+make -C ports/same70-xplained ad1856-formatter-sim
+make -C ports/same70-xplained ad1856-formatter-vcd
+make -C ports/same70-xplained ad1856-formatter-synth
+make -C ports/same70-xplained ad1856-formatter-board-synth
+make -C ports/same70-xplained ad1856-formatter-bitstream-help
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
@@ -506,11 +511,16 @@ generic Verilog starter for the AD1856 low-jitter formatter. The HDL lives in
 `hdl/ad1856_formatter`; it targets an 11.2896 MHz XO, generates SAME70
 `TK`/`TF`, captures the left 16-bit sample from `TD`, and emits AD1856
 `DATA`/gated `CLK`/low-going `LE`. Latest simulation passed six known sample
-words: `1234`, `a55a`, `0000`, `7fff`, `8000`, and `55aa`.
+words plus strict timing checks for `same_tk`, `same_tf`, AD1856 `CLK`,
+`DATA`, and `LE`. Use `make -C ports/same70-xplained ad1856-formatter-vcd`
+to write `hdl/ad1856_formatter/build/ad1856_formatter.vcd`.
 Use `make -C ports/same70-xplained ad1856-formatter-synth` for a
 board-neutral iCE40/Yosys synthesis sanity check with OSS CAD Suite. This does
 not create a final bitstream until the exact external logic board and pin
-constraints are selected.
+constraints are selected. Use `make -C ports/same70-xplained
+ad1856-formatter-board-synth` to synthesize the no-debug board wrapper that the
+future bitstream path uses. Use `make -C ports/same70-xplained
+ad1856-formatter-bitstream-help` for the required board-specific PCF variables.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input

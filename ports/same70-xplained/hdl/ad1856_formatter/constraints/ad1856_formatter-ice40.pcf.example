@@ -1,0 +1,21 @@
+# Board-specific iCE40 pin constraint template for the AD1856 formatter.
+#
+# Copy this file to a board-specific .pcf and replace every <PIN> with the
+# exact FPGA package pin from that board's schematic. Do not wire this to the
+# SAME70 or AD1856 until the selected board is confirmed to use 3.3 V I/O.
+
+# External low-jitter XO input, 11.2896 MHz for the first 44.1 kHz test.
+# set_io clk_xo <PIN>
+
+# Optional external reset. Tie high through a 3.3 V-safe pull-up if unused.
+# set_io reset_n <PIN>
+
+# SAME70 slave-TX side.
+# set_io same_td <PIN>
+# set_io same_tk <PIN>
+# set_io same_tf <PIN>
+
+# AD1856 serial control side.
+# set_io ad1856_data <PIN>
+# set_io ad1856_clk <PIN>
+# set_io ad1856_le <PIN>

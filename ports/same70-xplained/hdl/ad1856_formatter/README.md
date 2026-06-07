@@ -45,7 +45,23 @@ make -C ports/same70-xplained ad1856-formatter-sim
 ```
 
 The testbench feeds known left-channel samples on `TD`, checks the AD1856
-serial output word at each `LE` pulse, and fails on mismatch.
+serial output word at each `LE` pulse, and fails on mismatch. It also checks
+the formatter timing:
+
+- `same_tk` stays at `clk_xo / 4`.
+- `same_tf` toggles every 32 `same_tk` periods.
+- AD1856 `CLK` emits exactly 16 rising edges per word.
+- AD1856 `DATA` is stable before each `CLK` rising edge.
+- AD1856 `LE` falls only while `CLK` is low and stays low for two `clk_xo`
+  cycles.
+
+Generate a waveform dump with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-vcd
+```
+
+The VCD file is written to `build/ad1856_formatter.vcd` inside this directory.
 
 ## Toolchain
 
@@ -76,3 +92,35 @@ This proves the generic Verilog lowers into tiny-FPGA primitives and writes
 `build/ad1856_formatter-ice40.json`. It is not a finished bitstream yet:
 the exact FPGA/CPLD board still needs pin constraints, voltage checks, and a
 place-and-route target.
+
+Run the board-wrapper synthesis check with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-board-synth
+```
+
+The wrapper in `ad1856_formatter_board.v` removes simulation/debug outputs
+from the top-level pinout so the first real bitstream only needs pins for
+`clk_xo`, `reset_n`, `same_td`, `same_tk`, `same_tf`, and AD1856
+`DATA`/`CLK`/`LE`.
+
+## Bitstream Skeleton
+
+The Makefile includes an iCE40 bitstream path, but it intentionally refuses to
+run until a real board and pin map are selected:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-bitstream-help
+```
+
+Copy `constraints/ad1856_formatter-ice40.pcf.example` to a board-specific PCF,
+fill in the actual package pins from the board schematic, then run:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-bitstream \
+  ICE40_DEVICE=up5k ICE40_PACKAGE=sg48 PCF=path/to/board.pcf
+```
+
+Use the actual `ICE40_DEVICE` and `ICE40_PACKAGE` values for the selected
+board; `up5k/sg48` is only an example. The bitstream path uses the board
+wrapper, not the debug-heavy simulation top.

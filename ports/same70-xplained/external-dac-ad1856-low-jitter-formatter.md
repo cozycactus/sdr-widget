@@ -89,12 +89,30 @@ Run the formatter simulation with:
 make -C ports/same70-xplained ad1856-formatter-sim
 ```
 
+The testbench checks the sample words plus formatter timing: `clk_xo / 4`
+`same_tk`, 32-bit left/right `same_tf` slots, 16 AD1856 `CLK` edges per word,
+stable `DATA` before each `CLK` edge, and a low-going `LE` pulse while `CLK`
+is low. Generate a waveform with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-vcd
+```
+
 Run the iCE40 synthesis sanity check with OSS CAD Suite/Yosys:
 
 ```sh
 make -C ports/same70-xplained ad1856-formatter-synth
+make -C ports/same70-xplained ad1856-formatter-board-synth
 ```
 
 This is only a board-neutral HDL check. A real CPLD/FPGA module still needs
 pin constraints for `clk_xo`, `same_tk`, `same_tf`, `same_td`, and AD1856
-`DATA`/`CLK`/`LE`.
+`DATA`/`CLK`/`LE`. The board-wrapper synthesis uses
+`ad1856_formatter_board.v`, which leaves debug-only outputs off the package
+pinout.
+
+The bitstream skeleton is present but requires a board-specific PCF:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-bitstream-help
+```
