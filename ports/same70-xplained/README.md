@@ -134,6 +134,8 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
+make -C ports/same70-xplained audio-cd-bitperfect
+make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
@@ -266,9 +268,11 @@ serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
 WAV artifacts again from disk with `audio-wav-verify.py`, restores `audio loop`
 unless `--leave-source` is passed, checks the final serial `usb` status against
 the starting error counters, and prints `audio-capture: pass output=<path>` on
-success. Non-loop sources pass `--silent-output` to the CoreAudio probe so host
-USB OUT does not add a noisy monitor signal while generated USB IN is being
-verified. Defaults capture the 48 kHz/24-bit generated tone to
+success. As with `audio-verify`, paired `err`/`under` increases from CoreAudio
+stream restarts are accepted; add `--strict-serial-counter-check` to fail on
+those too. Non-loop sources pass `--silent-output` to the CoreAudio probe so
+host USB OUT does not add a noisy monitor signal while generated USB IN is
+being verified. Defaults capture the 48 kHz/24-bit generated tone to
 `/tmp/same70-tone-48k24.wav`. Set
 `AUDIO_CAPTURE_ARGS` to choose source, format, duration, or output path. Add
 `--skip-serial-counter-check` for listening or monitoring sessions where slow
@@ -299,7 +303,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x400fe355405808e7`, played it with `afplay`, and left the board on
+`0xdf077d4010892593`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -316,6 +320,22 @@ WAV and verifies the captured input against it after latency alignment:
 
 ```sh
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source loop --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-loop-cd-input.wav --output-wav /tmp/same70-loop-cd-output.wav"
+```
+
+Use `audio-cd-bitperfect` for the named 44.1 kHz/16-bit loopback proof. It
+captures `/tmp/same70-loop-cd-input.wav` from the device, dumps the host output
+reference to `/tmp/same70-loop-cd-output.wav`, and verifies the WAV pair live
+and again from disk:
+
+```sh
+make -C ports/same70-xplained audio-cd-bitperfect
+```
+
+Use `audio-cd-ready` to run that CD-rate proof and then restore the verified
+44.1 kHz/16-bit melody listening state:
+
+```sh
+make -C ports/same70-xplained audio-cd-ready
 ```
 
 Use `audio-wav-verify` to recheck dumped generated-source WAVs or loopback WAV
@@ -423,16 +443,18 @@ and a second 256-byte window starting at the first nonzero OUT byte.
 Use `audio indiag reset` and `audio indiag` the same way for endpoint-5 IN
 diagnostics recorded by the generated silence source.
 
-Latest WAV capture check used `audio-capture` with `--seconds 1`,
-`--source loop`, `--rate 44100`, `--bits 16`, captured input
-`/tmp/same70-loop-cd-input.wav`, and host output
-`/tmp/same70-loop-cd-output.wav`. The live probe and the independent
+Latest CD bit-perfect check used `make -C ports/same70-xplained
+audio-cd-ready`. The `audio-cd-bitperfect` phase captured input
+`/tmp/same70-loop-cd-input.wav` and host output
+`/tmp/same70-loop-cd-output.wav`; the live probe and independent
 `audio-wav-verify.py` disk check both reported `input_offset_samples=2804`,
-`compared_samples=85260`, `mismatches=0`, and matching hash
-`0x9cf8dd957a3b65c2`. The dump lines reported
-`samples=88064 channels=2 rate=44100 bits=16 bytes=176128` for both WAVs;
-`file` identified both as 16-bit stereo PCM at 44.1 kHz with 176172-byte
-RIFF/WAVE containers.
+`compared_samples=174348`, `mismatches=0`, and matching hash
+`0x21d4ae0f385bce93`. The dump lines reported
+`samples=177152 channels=2 rate=44100 bits=16 bytes=354304` for both WAVs;
+`file` identified both as 16-bit stereo PCM at 44.1 kHz with 354348-byte
+RIFF/WAVE containers. The wrapper then exact-verified
+`/tmp/same70-melody-listen.wav` with hash `0xdf077d4010892593`, played it with
+`afplay`, and left the board on `audio melody`.
 
 Latest sine listening-source checks after flashing passed at both advertised
 formats. The sine source emits matching left/right samples and advances once per

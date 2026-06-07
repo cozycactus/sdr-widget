@@ -68,6 +68,7 @@ def main():
     parser.add_argument("--output-wav")
     parser.add_argument("--skip-wav-verify", action="store_true")
     parser.add_argument("--skip-serial-counter-check", action="store_true")
+    parser.add_argument("--strict-serial-counter-check", action="store_true")
     parser.add_argument("--leave-source", action="store_true")
     parser.add_argument("--serial-timeout", type=float, default=1.5)
     args = parser.parse_args()
@@ -125,7 +126,9 @@ def main():
             run_serial(port, "audio loop", args.serial_timeout)
         if not args.skip_serial_counter_check:
             status = run_serial(port, "usb", args.serial_timeout)
-            if not require_serial_state(status, final_source, None, baseline_fields):
+            if not require_serial_state(
+                    status, final_source, None, baseline_fields,
+                    allow_underflow_restart=not args.strict_serial_counter_check):
                 return 1
     except subprocess.CalledProcessError as exc:
         return exc.returncode

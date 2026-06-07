@@ -193,22 +193,23 @@ Verified firmware features:
 - `make -C ports/same70-xplained audio-capture` wraps the WAV dump path with
   serial source selection, exact verification, WAV verification from disk, final
   `audio loop` restore unless `--leave-source` is passed, and final serial
-  counter checks. For non-loop sources, it passes `--silent-output` to the
-  CoreAudio probe so the host USB OUT pattern cannot be heard as monitor noise
-  while the generated USB IN stream is being verified. `audio-wav-verify.py`
-  independently reopens dumped pattern, tone, sine, melody, or silence WAV files
-  and compares their PCM samples against the deterministic firmware source
-  stream.
+  counter checks. As in `audio-verify`, paired `err`/`under` increases from
+  CoreAudio stream restarts are accepted unless `--strict-serial-counter-check`
+  is passed. For non-loop sources, it passes `--silent-output` to the CoreAudio
+  probe so the host USB OUT pattern cannot be heard as monitor noise while the
+  generated USB IN stream is being verified. `audio-wav-verify.py` independently
+  reopens dumped pattern, tone, sine, melody, or silence WAV files and compares
+  their PCM samples against the deterministic firmware source stream.
   For `--source loop`, it compares the captured input WAV against the dumped
-  host output WAV after latency alignment. Latest CD-rate loopback artifact run used
-  `--source loop --rate 44100 --bits 16 --seconds 1 --output
-  /tmp/same70-loop-cd-input.wav --output-wav /tmp/same70-loop-cd-output.wav`;
-  both the live probe and disk WAV-pair verifier passed with
-  `input_offset_samples=2804 compared_samples=85260 mismatches=0` and matching
-  hash `0x9cf8dd957a3b65c2`. It printed `audio-capture: pass
-  output=/tmp/same70-loop-cd-input.wav output_wav=/tmp/same70-loop-cd-output.wav`,
-  and `file` identified both dumps as 16-bit stereo PCM at 44.1 kHz with
-  176172 total bytes each.
+  host output WAV after latency alignment. `make -C ports/same70-xplained
+  audio-cd-bitperfect` is the named 44.1 kHz/16-bit loopback artifact proof,
+  and `make -C ports/same70-xplained audio-cd-ready` runs that proof before
+  restoring the verified `audio melody` listening state. Latest `audio-cd-ready`
+  run captured `/tmp/same70-loop-cd-input.wav` and
+  `/tmp/same70-loop-cd-output.wav`; both the live probe and disk WAV-pair
+  verifier passed with `input_offset_samples=2804 compared_samples=174348
+  mismatches=0` and matching hash `0x21d4ae0f385bce93`. `file` identified both
+  dumps as 16-bit stereo PCM at 44.1 kHz with 354348 total bytes each.
 - `audio melody` is the preferred listening sanity source; it steps the existing
   low-harmonic sine lookup through a short original note phrase with a small
   attack/release envelope, emits mono-in-stereo, and loops continuously.
@@ -220,7 +221,7 @@ Verified firmware features:
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x400fe355405808e7`, played through `afplay`, and left the board on
+  `0xdf077d4010892593`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -334,6 +335,8 @@ make -C ports/same70-xplained stream-probe STREAM_PROBE_ARGS="--seconds 1 --runs
 make -C ports/same70-xplained audio-verify
 make -C ports/same70-xplained audio-generated-verify
 make -C ports/same70-xplained audio-capture
+make -C ports/same70-xplained audio-cd-bitperfect
+make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready

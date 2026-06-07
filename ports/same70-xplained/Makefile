@@ -19,6 +19,10 @@ BOARD_WIDGET_VERIFY_ARGS ?= --set-current-check
 BOARD_AUDIO_VERIFY_ARGS ?= $(AUDIO_GENERATED_VERIFY_ARGS)
 BOARD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 FLASH_READY_DELAY ?= 2
+AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
+AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
+AUDIO_CD_BITPERFECT_ARGS ?= --source loop --rate 44100 --bits 16 --seconds 2 --output $(AUDIO_CD_INPUT_WAV) --output-wav $(AUDIO_CD_OUTPUT_WAV)
+AUDIO_CD_READY_AUDIO_LISTEN_ARGS ?= $(AUDIO_LISTEN_ARGS)
 AUDIO_LISTEN_OUTPUT ?= /tmp/same70-melody-listen.wav
 AUDIO_LISTEN_ARGS ?= --source melody --rate 44100 --bits 16 --seconds 4 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
 AUDIO_PLAYER ?= afplay
@@ -47,7 +51,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-listen audio-wav-verify widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-wav-verify widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -78,6 +82,13 @@ audio-generated-verify: $(STREAM_PROBE)
 
 audio-capture: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_CAPTURE_ARGS)
+
+audio-cd-bitperfect: $(STREAM_PROBE)
+	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_CD_BITPERFECT_ARGS)
+
+audio-cd-ready:
+	$(MAKE) audio-cd-bitperfect
+	$(MAKE) audio-listen AUDIO_LISTEN_ARGS="$(AUDIO_CD_READY_AUDIO_LISTEN_ARGS)"
 
 audio-listen: $(STREAM_PROBE)
 	$(PYTHON) audio-capture.py --probe $(STREAM_PROBE) $(AUDIO_LISTEN_ARGS)
