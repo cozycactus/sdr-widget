@@ -136,7 +136,8 @@ Verified firmware features:
   `mismatches=0` for pattern, tone, sine, and silence at both advertised
   formats, with `hog_mode=1` on the host probe; the target ends on
   `audio silence`, then the board was manually set back to `audio sine`.
-  Latest full gate status: `make -C ports/same70-xplained audio-verify
+  Previous full gate status before adding the melody source:
+  `make -C ports/same70-xplained audio-verify
   AUDIO_VERIFY_ARGS="--seconds 1"` passes with zero mismatches for exact
   loopback, pattern, tone, sine, and silence at both advertised formats, plus a
   final 48 kHz/24-bit loopback check. Final serial status reported `err=0`,
@@ -145,8 +146,9 @@ Verified firmware features:
   and `nonzero=342917` at 44.1 kHz/16-bit) and `nonzero=0` for every pattern,
   tone, sine, and silence probe at both formats. Focused `audio outdiag`
   diagnostics also showed silent host output is zero at the device at both
-  advertised formats, while exact loopback passes at both formats. The board was
-  manually set back to `audio sine` afterward. Earlier hash-audited default run
+  advertised formats, while exact loopback passes at both formats. At that time
+  the board was manually set back to `audio sine` afterward. Earlier
+  hash-audited default run
   reported
   `audio-verify: pass`, with
   loopback summaries `rate=48000 bits=24 runs=2 passed=2 failed=0
@@ -196,16 +198,18 @@ Verified firmware features:
   output=/tmp/same70-loop-cd-input.wav output_wav=/tmp/same70-loop-cd-output.wav`,
   and `file` identified both dumps as 16-bit stereo PCM at 44.1 kHz with
   176172 total bytes each.
-- `audio sine` is the preferred listening sanity source; it now emits the same
-  sine sample on left and right, then advances once per stereo frame. `audio
-  pattern` is intentionally noise-like. Latest post-flash `audio-capture`
-  sine checks passed live and from disk at both formats: 48 kHz/24-bit and
-  44.1 kHz/16-bit both reported zero mismatches over full one-second captures.
-  Sine hashes can vary by run because capture starts at an aligned phase offset.
-  If live monitoring still sounds noisy, run
-  `make -C ports/same70-xplained audio-listen`; it captures, verifies, plays the
-  verified sine WAV through `afplay`, keeps USB OUT silent during capture, and
-  leaves the board on `audio sine`.
+- `audio melody` is the preferred listening sanity source; it steps the existing
+  low-harmonic sine lookup through a short original note phrase with a small
+  attack/release envelope, emits mono-in-stereo, and loops continuously.
+  `audio sine` remains the exact deterministic one-note source; `audio pattern`
+  is intentionally noise-like. If live monitoring sounds noisy, run
+  `make -C ports/same70-xplained audio-listen`; it captures, exact-verifies the
+  melody WAV against the generated note phrase, plays it through `afplay`, keeps
+  USB OUT silent during capture, and leaves the board on `audio melody`.
+  Latest checked post-flash run wrote `/tmp/same70-melody-listen.wav`, passed
+  WAV verification with `compared_samples=353280 mismatches=0` and matching hash
+  `0xf9e64757ade0199b`, then serial `usb` confirmed
+  `source=melody fmt=44k16/44k16`.
 - Audio diagnostics now include byte totals from USBHS BYCT, last/max OUT
   packet sizes, and short/CRC/overflow/underflow counters. Short OUT packets
   are expected for the observed 288-byte packets under the 294-byte endpoint
@@ -223,9 +227,10 @@ Verified firmware features:
   payload.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio sine`, `audio silence`, `audio outdiag`, `audio outdiag reset`. Audio
-  source commands now print a terse `audio source=<source>` line instead of the
-  full `usb` status block, so they are safer while a host audio stream is
+  `audio sine`, `audio melody`, `audio silence`, `audio outdiag`,
+  `audio outdiag reset`. Audio source commands now print a terse
+  `audio source=<source>` line instead of the full `usb` status block, so they
+  are safer while a host audio stream is
   active.
 
 Known SAME70/board quirks:
@@ -321,6 +326,7 @@ Typical feature output:
 The original AVR32 firmware depends on AVR32-specific ASF components including
 USBB, PDCA, TWIM, SSC, FLASHC, and the AVR32 FreeRTOS port. The SAME70 USB audio
 source gate now covers loopback, generated LCG pattern, generated square-wave
-tone, generated sine, and silence. The next practical SAME70 milestone is
-mapping the original SDR Widget audio pipeline onto SAME70 peripherals if matching hardware is
-available, or identifying the missing external codec/ADC path.
+tone, generated sine, generated melody, and silence. The next practical SAME70
+milestone is mapping the original SDR Widget audio pipeline onto SAME70
+peripherals if matching hardware is available, or identifying the missing
+external codec/ADC path.

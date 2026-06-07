@@ -13,8 +13,8 @@ AUDIO_VERIFY_ARGS ?=
 AUDIO_GENERATED_VERIFY_ARGS ?= --seconds 1 --skip-loopback --skip-final-loopback --skip-serial-counter-check
 AUDIO_CAPTURE_ARGS ?=
 AUDIO_WAV_VERIFY_ARGS ?=
-AUDIO_LISTEN_OUTPUT ?= /tmp/same70-sine-listen.wav
-AUDIO_LISTEN_ARGS ?= --source sine --rate 44100 --bits 16 --seconds 1 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
+AUDIO_LISTEN_OUTPUT ?= /tmp/same70-melody-listen.wav
+AUDIO_LISTEN_ARGS ?= --source melody --rate 44100 --bits 16 --seconds 4 --output $(AUDIO_LISTEN_OUTPUT) --skip-serial-counter-check --leave-source
 AUDIO_PLAYER ?= afplay
 
 CFLAGS := \

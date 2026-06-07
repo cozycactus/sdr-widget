@@ -13,6 +13,9 @@ VERIFY_HASH_PRIME = 1099511628211
 TONE_PERIOD_SAMPLES = 96
 SINE_PERIOD_SAMPLES = 96
 SINE_ALIGN_MAX_SAMPLES = 4096
+MELODY_ALIGN_MAX_SAMPLES = 1048576
+MELODY_NOTE_FRAMES_48K = 9600
+MELODY_NOTE_FRAMES_44K = 8820
 SINE_SAMPLES_16 = (
     0, 536, 1069, 1598, 2120, 2633, 3135, 3623,
     4096, 4551, 4987, 5401, 5793, 6159, 6499, 6811,
@@ -26,6 +29,18 @@ SINE_SAMPLES_16 = (
     -8192, -8174, -8122, -8035, -7913, -7757, -7568, -7347,
     -7094, -6811, -6499, -6159, -5793, -5401, -4987, -4551,
     -4096, -3623, -3135, -2633, -2120, -1598, -1069, -536,
+)
+MELODY_NOTES_48K = (
+    34292, 43205, 51380, 68584, 64734, 51380,
+    43205, 38491, 34292, 38491, 43205, 51380,
+    57672, 51380, 43205, 34292, 38491, 43205,
+    51380, 57672, 51380, 43205, 38491, 34292,
+)
+MELODY_NOTES_44K = (
+    37324, 47026, 55923, 74649, 70459, 55923,
+    47026, 41895, 37324, 41895, 47026, 55923,
+    62772, 55923, 47026, 37324, 41895, 47026,
+    55923, 62772, 55923, 47026, 41895, 37324,
 )
 
 
@@ -103,6 +118,66 @@ def expected_sine_sample(index, bits):
 
 def fill_expected_sine(count, bits):
     return [expected_sine_sample(index, bits) for index in range(count)]
+
+
+def div_trunc(value, divisor):
+    if value >= 0:
+        return value // divisor
+    return -((-value) // divisor)
+
+
+def melody_note_frames(rate):
+    if rate == 44100:
+        return MELODY_NOTE_FRAMES_44K
+    return MELODY_NOTE_FRAMES_48K
+
+
+def melody_note_table(rate):
+    if rate == 44100:
+        return MELODY_NOTES_44K
+    return MELODY_NOTES_48K
+
+
+def melody_apply_envelope(sample, frame, frames):
+    attack = frames // 20
+    release = frames // 8
+    gain = 256
+
+    if attack > 0 and frame < attack:
+        gain = (frame * 256) // attack
+    elif release > 0 and frame >= frames - release:
+        gain = ((frames - frame) * 256) // release
+
+    return div_trunc(sample * gain, 256)
+
+
+def fill_expected_melody(count, bits, rate):
+    frames = melody_note_frames(rate)
+    notes = melody_note_table(rate)
+    note = 0
+    frame = 0
+    phase = 0
+    phase_period = SINE_PERIOD_SAMPLES << 16
+    frame_sample = 0
+    expected = []
+
+    for index in range(count):
+        if index % 2 == 0:
+            if frame >= frames:
+                frame = 0
+                phase = 0
+                note = (note + 1) % len(notes)
+
+            sample = SINE_SAMPLES_16[phase >> 16]
+            sample = melody_apply_envelope(sample, frame, frames)
+            phase += notes[note]
+            if phase >= phase_period:
+                phase -= phase_period
+            frame += 1
+            frame_sample = sample if bits == 16 else sample * 256
+        expected.append(frame_sample)
+
+    return expected
 
 
 def first_nonzero_offset(samples):
@@ -221,13 +296,17 @@ def verify_silence(samples):
     return result
 
 
-def expected_for_source(source, sample_count, bits):
+def expected_for_source(source, sample_count, bits, rate):
     if source == "pattern":
         return fill_expected_pattern(sample_count + PATTERN_ALIGN_MAX_SAMPLES, bits)
     if source == "tone":
         return fill_expected_tone(sample_count + TONE_ALIGN_MAX_SAMPLES, bits)
     if source == "sine":
         return fill_expected_sine(sample_count + SINE_ALIGN_MAX_SAMPLES, bits)
+    if source == "melody":
+        if rate not in (44100, 48000):
+            return None
+        return fill_expected_melody(sample_count + MELODY_ALIGN_MAX_SAMPLES, bits, rate)
     return None
 
 
@@ -236,7 +315,7 @@ def main():
         description="Verify a SAME70 WAV capture from disk."
     )
     parser.add_argument("wav")
-    parser.add_argument("--source", choices=("loop", "pattern", "tone", "sine", "silence"), required=True)
+    parser.add_argument("--source", choices=("loop", "pattern", "tone", "sine", "silence", "melody"), required=True)
     parser.add_argument("--expected-wav")
     parser.add_argument("--rate", type=int)
     parser.add_argument("--bits", type=int)
@@ -280,7 +359,10 @@ def main():
                 return 1
         result = verify_loopback(samples, expected_wav["samples"])
     else:
-        expected = expected_for_source(args.source, len(samples), wav["bits"])
+        expected = expected_for_source(args.source, len(samples), wav["bits"], wav["rate"])
+        if expected is None:
+            print(f"audio-wav-verify: unsupported source: {args.source}", file=sys.stderr)
+            return 1
         result = verify_expected(samples, expected)
 
     status = "pass" if result["passed"] else "fail"

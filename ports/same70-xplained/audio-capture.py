@@ -18,6 +18,7 @@ from same70_audio import (
 VERIFY_MODES = {
     "loop": "loopback",
     "pattern": "pattern",
+    "melody": "input",
     "sine": "sine",
     "tone": "tone",
     "silence": "silence",

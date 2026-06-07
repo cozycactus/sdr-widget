@@ -78,6 +78,7 @@ audio loop
 audio pattern
 audio tone
 audio sine
+audio melody
 audio silence
 audio outdiag
 audio outdiag reset
@@ -189,7 +190,7 @@ sources only. It runs `audio-verify` with `--seconds 1 --skip-loopback
 --skip-final-loopback --skip-serial-counter-check`, so pattern, tone, sine, and
 silence are verified at both formats with silent USB OUT and no final loopback
 burst. Because the sequence ends with the silence source, run `audio-listen` or
-set `audio sine` afterward when you want an audible monitor signal again.
+set `audio melody` afterward when you want an audible monitor signal again.
 
 The `audio-capture` target is the repeatable WAV-dump wrapper. It selects a
 serial audio source, runs one exact probe pass with `--dump-input-wav`, verifies
@@ -209,20 +210,28 @@ make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source tone --
 ```
 
 For a less harsh listening test than `audio pattern` or the square-wave
-`audio tone`, use the deterministic mono-in-stereo sine source:
+`audio tone`, use the deterministic mono-in-stereo sine or melody sources:
 
 ```sh
 make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source sine --rate 44100 --bits 16 --seconds 1 --output /tmp/same70-sine-cd-capture.wav --skip-serial-counter-check"
+make -C ports/same70-xplained audio-capture AUDIO_CAPTURE_ARGS="--source melody --rate 44100 --bits 16 --seconds 4 --output /tmp/same70-melody-cd-capture.wav --skip-serial-counter-check --leave-source"
 ```
 
 To check the listening path without a live monitor app, use `audio-listen`. It
-captures the verified sine input, verifies the dumped WAV from disk, plays it
-through the Mac default output with `afplay`, keeps the probe's USB OUT stream
-silent during capture, and leaves the board source set to `audio sine`:
+captures the generated 44.1 kHz/16-bit melody input, verifies the dumped WAV
+from disk against the deterministic note phrase, plays it through the Mac
+default output with `afplay`, keeps the probe's USB OUT stream silent during
+capture, and leaves the board source set to `audio melody`:
 
 ```sh
 make -C ports/same70-xplained audio-listen
 ```
+
+Latest checked run after flashing the melody firmware captured four seconds to
+`/tmp/same70-melody-listen.wav`, exact-verified the WAV with
+`compared_samples=353280 mismatches=0` and matching hash
+`0xf9e64757ade0199b`, played it with `afplay`, and left serial status at
+`source=melody fmt=44k16/44k16`.
 
 For loopback, `audio-capture --source loop` also dumps the quantized host output
 WAV and verifies the captured input against it after latency alignment:
@@ -303,7 +312,8 @@ pattern runs, tone hashes `0x3da4df0d98155bc3` at 48 kHz/24-bit and
 `err=0`, `crc=0`, `over=0`, `under=0`, `drop=0`, and `stall=0`, with no
 increase from the starting baseline.
 
-Current full gate status: `make -C ports/same70-xplained audio-verify
+Previous full gate status before adding the melody source:
+`make -C ports/same70-xplained audio-verify
 AUDIO_VERIFY_ARGS="--seconds 1"` passes with `hog_mode=1` and zero mismatches
 for exact loopback, pattern, tone, sine, and silence at both advertised formats.
 The final gate restores `audio loop`, verifies 48 kHz/24-bit loopback again, and
@@ -317,8 +327,8 @@ payload for loopback (`nonzero=561723` at 48 kHz/24-bit and `nonzero=342917` at
 44.1 kHz/16-bit) and `nonzero=0` for every pattern, tone, sine, and silence
 probe at both formats. Earlier focused OUT diagnostics also showed silent host
 output was zero on the device; exact loopback passes at both formats, with the
-first nonzero OUT payload starting after startup zeros. The board was manually
-set back to `audio sine` afterward.
+first nonzero OUT payload starting after startup zeros. At that time the board
+was manually set back to `audio sine` afterward.
 
 Use `audio outdiag reset` before a host probe, then `audio outdiag` afterward to
 dump raw endpoint-3 OUT diagnostics since reset: packet count, byte count,
