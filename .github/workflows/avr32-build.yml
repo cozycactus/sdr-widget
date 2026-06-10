@@ -10,8 +10,6 @@ permissions:
 
 env:
   TOOLCHAIN_REPO: cozycactus/avr32-toolchain-macos-arm64
-  TOOLCHAIN_TAG: v2026.06.03
-  TOOLCHAIN_ARCHIVE: avr32-tools-src-macos-arm64-20260603.tar.gz
   ATMEL_HEADERS_VERSION: 6.1.3.1475
 
 jobs:
@@ -30,15 +28,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "$TOOLCHAIN_TAG" \
+          gh release download \
             --repo "$TOOLCHAIN_REPO" \
-            --pattern "$TOOLCHAIN_ARCHIVE" \
-            --pattern "$TOOLCHAIN_ARCHIVE.sha256"
-          expected="$(awk '{print $1}' "$TOOLCHAIN_ARCHIVE.sha256")"
-          actual="$(shasum -a 256 "$TOOLCHAIN_ARCHIVE" | awk '{print $1}')"
+            --pattern "avr32-tools-src-macos-arm64-*.tar.gz" \
+            --pattern "avr32-tools-src-macos-arm64-*.tar.gz.sha256" \
+            --output-dir .
+          toolchain_archive="$(ls avr32-tools-src-macos-arm64-*.tar.gz | head -n 1)"
+          checksum_file="${toolchain_archive}.sha256"
+          expected="$(awk '{print $1}' "$checksum_file")"
+          actual="$(shasum -a 256 "$toolchain_archive" | awk '{print $1}')"
           test "$actual" = "$expected"
           mkdir -p toolchain
-          tar -xzf "$TOOLCHAIN_ARCHIVE" -C toolchain
+          tar -xzf "$toolchain_archive" -C toolchain
 
       - name: Download Atmel headers
         run: |
