@@ -67,10 +67,10 @@ LDFLAGS := \
 	-Wl,--gc-sections \
 	-Wl,-Map,$(TARGET).map
 
-SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
+SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_cs4272_control.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-codec audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -159,8 +159,35 @@ audio-hw:
 		--expect "external-dac-ad1856-low-jitter-formatter.md" \
 		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
-		--expect "cs4272_control_port_status_only" \
+		--expect "cs4272_control_skeleton_status_only" \
 		--expect "needs_external_codec_board" \
+		$(SERIAL_COMMAND_ARGS)
+
+audio-codec:
+	$(PYTHON) serial-command.py "audio codec" --timeout 4.0 \
+		--expect "audio codec enabled=0" \
+		--expect "external_codec=0" \
+		--expect "bus_configured=0" \
+		--expect "reset_configured=0" \
+		--expect "addr7=0x10" \
+		--expect "twi_hz=100000" \
+		--expect "TWIHS0_status_only" \
+		--expect "SDA=PA3/TWD0" \
+		--expect "SCL=PA4/TWCK0" \
+		--expect "RST=PC17/EXT1.10_status_only" \
+		--expect "VL=3V3_no_5v_logic" \
+		--expect "AD0/CS=strapped_low" \
+		--expect "write_0x07_0x03_program_registers_write_0x07_0x02" \
+		--expect "0x07=0x03" \
+		--expect "0x01=rate" \
+		--expect "0x06=0x10" \
+		--expect "0x07=0x02" \
+		--expect "mode1=8_11k025_12_16:0x39" \
+		--expect "44k1_48:0x09" \
+		--expect "176k4_192:0xe9" \
+		--expect "no_usb_mute_volume_to_codec" \
+		--expect "status_only_external_codec_0_no_pin_mux_no_twi_writes" \
+		--expect "wire_safe_probe_then_twihs0_readback_gate" \
 		$(SERIAL_COMMAND_ARGS)
 
 external-dac-ad1856-mono:
@@ -263,6 +290,8 @@ external-codec-cs4272-control-port:
 	@grep -q "0xe9" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
 	@grep -q "Do not map USB mute/volume controls" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "same70_cs4272_control.c" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "audio codec" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
 	@grep -q "CS4272_F2.pdf" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
 	@printf '%s\n' "external-codec-cs4272-control-port: pass"
 
@@ -353,6 +382,7 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "CS4272 I2C SCL | PA4" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
+	$(MAKE) audio-codec SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
 
 external-codec-clock-plan: external-codec-clock-model

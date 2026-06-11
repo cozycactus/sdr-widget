@@ -33,6 +33,25 @@ pull-ups or any 5 V logic on SAME70 headers.
 The default bus speed for bring-up is 100 kHz. A later 400 kHz mode is fine
 after the first board passes readback and scope checks.
 
+## Firmware Status Skeleton
+
+The stock-board firmware now carries a disabled CS4272 status skeleton in
+`same70_cs4272_control.c`. The serial command `audio codec` reports the planned
+I2C address, PA3/PA4 bus route, PC17 reset route, baseline register sequence,
+`Mode Control 1` values, and the no-USB-mute/volume policy.
+
+This skeleton must stay status-only until the external board exists:
+
+- `enabled=0`
+- `external_codec=0`
+- `bus_configured=0`
+- `reset_configured=0`
+- `status_only_external_codec_0_no_pin_mux_no_twi_writes`
+
+The pre-wiring gate `make -C ports/same70-xplained external-codec-preflight`
+runs both `audio hw` and `audio codec` so a future firmware edit cannot quietly
+turn the control bus into active hardware access.
+
 ## Power-Up And Register Sequence
 
 1. Hold CS4272 `RST` low.

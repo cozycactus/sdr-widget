@@ -85,6 +85,7 @@ audio sine
 audio melody
 audio silence
 audio hw
+audio codec
 audio ctl
 audio outdiag
 audio outdiag reset
@@ -152,6 +153,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained audio-codec
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-cs4272-rate-matrix
@@ -236,8 +238,8 @@ make -C ports/same70-xplained flash-ready
 It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
 The latest run programmed and verified flash with OpenOCD, passed the widget
 and UAC control gates plus the generated-audio gate, exact-verified
-`/tmp/same70-melody-listen.wav` with `compared_samples=352256 mismatches=0`
-and matching hash `0x23eba79a47b2884f`, played it with `afplay`, and ended on
+`/tmp/same70-melody-listen.wav` with `compared_samples=353280 mismatches=0`
+and matching hash `0x61ebe3d6f489b0a7`, played it with `afplay`, and ended on
 `audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
@@ -340,8 +342,8 @@ make -C ports/same70-xplained audio-listen
 
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
-`compared_samples=352256 mismatches=0` and matching hash
-`0x23eba79a47b2884f`, played it with `afplay`, and left the board on
+`compared_samples=353280 mismatches=0` and matching hash
+`0x61ebe3d6f489b0a7`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -518,6 +520,11 @@ Use `make -C ports/same70-xplained external-codec-cs4272-control-port` to check
 the selected CS4272 I2C control route: `PA3/TWD0`, `PA4/TWCK0`, `AD0` strapped
 low for address `0x10`, reset on `PC17`, and the first `CPEN/PDN` register
 sequence.
+Use `audio codec`, or `make -C ports/same70-xplained audio-codec`, to print the
+disabled firmware skeleton from `same70_cs4272_control.c`. It must report
+`enabled=0`, `bus_configured=0`, `reset_configured=0`, `addr7=0x10`, and
+`status_only_external_codec_0_no_pin_mux_no_twi_writes` until the external
+codec board is wired.
 The live firmware status now mirrors that plan while keeping the codec disabled:
 it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
 `cs4272_master_256fs_baseline_full_rate_matrix_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt`,
@@ -527,14 +534,16 @@ it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
 with `codec_bits=16_18_20_24` and `codec_fs=4k_to_200k`.
 It also reports
 `control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only`,
-`rst=pc17_ext1_pin10`, and `cp=0x07_0x03_then_0x02`.
+`rst=pc17_ext1_pin10`, `cp=0x07_0x03_then_0x02`, and
+`control_skeleton=same70_cs4272_control_status_only`.
 The two-family oscillator select is status-only until hardware exists:
 `selected_family=from_usb_rate`, `xo_44_en=not_wired`, and
 `xo_48_en=not_wired`.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
-to prove the stock board still reports no external codec. The latest run passed
-and reported `external codec remains disabled`.
+plus `audio-codec` to prove the stock board still reports no external codec and
+the CS4272 control bus remains inactive. The latest run passed and reported
+`external codec remains disabled`.
 Use `make -C ports/same70-xplained external-codec-wiring-checklist` for the
 offline staged wiring checklist check. The checklist lives in
 `external-codec-wiring-checklist.md` and covers stop conditions, stock-board
@@ -621,8 +630,8 @@ The target matrix for that route is documented in
 44.1 kHz/16-bit and 48 kHz/24-bit until the descriptor, SSC/XDMAC, and verifier
 work is done. The selected control-port path is documented in
 `external-codec-cs4272-control-port.md`: I2C on PA3/PA4, CS4272 address `0x10`,
-and reset on PC17. Do not map USB mute/volume controls to CS4272 registers on
-the bit-perfect path.
+reset on PC17, and the disabled `same70_cs4272_control.c` status skeleton. Do
+not map USB mute/volume controls to CS4272 registers on the bit-perfect path.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.

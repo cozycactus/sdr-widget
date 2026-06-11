@@ -95,6 +95,7 @@ Verified firmware features:
   `control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only`,
   `rst=pc17_ext1_pin10`,
   `cp=0x07_0x03_then_0x02`,
+  `control_skeleton=same70_cs4272_control_status_only`,
   and `needs_external_codec_board`.
 - The practical preferred first full ADC+DAC board is now a CS4272-class I2S
   codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
@@ -108,13 +109,17 @@ Verified firmware features:
   generator. The selected control-port route is documented in
   `ports/same70-xplained/external-codec-cs4272-control-port.md`: I2C on
   PA3/PA4, `AD0` strapped low for address `0x10`, reset on PC17, and no USB
-  mute/volume application to codec registers on the bit-perfect path. Current
-  firmware descriptors still advertise only the verified 44.1 kHz/16-bit and
+  mute/volume application to codec registers on the bit-perfect path. The
+  disabled firmware skeleton lives in `same70_cs4272_control.c`; `audio codec`
+  reports `enabled=0`, `bus_configured=0`, `reset_configured=0`,
+  `addr7=0x10`, the baseline register sequence, and
+  `status_only_external_codec_0_no_pin_mux_no_twi_writes`. Current firmware
+  descriptors still advertise only the verified 44.1 kHz/16-bit and
   48 kHz/24-bit stock-board USB modes. The strict bit-perfect claim for the
   future route is only at the digital I2S/SSC pins before codec digital
   filters; analog output/input is not claimed bit-perfect. This is still
-  documentation/preflight only: stock-board firmware must keep reporting no
-  external codec until hardware is wired and verified.
+  status/preflight only: stock-board firmware must keep reporting no external
+  codec until hardware is wired and verified.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -174,9 +179,10 @@ Verified firmware features:
   I2S codec plan, the CS4272 clock/feedback model, the CS4272 rate matrix, the
   AD1856 mono DAC plan, and `ports/same70-xplained/external-codec-pin-map.md`
   for the selected header route and 3.3 V/no-generic-USB-I2S guardrails, then
-  runs `audio-hw` to prove the stock board still reports no external codec.
-  Latest run passed after flashing the updated status text and reported
-  `external codec remains disabled`.
+  runs `audio-hw` and `audio-codec` to prove the stock board still reports no
+  external codec and that the CS4272 control bus remains inactive. Latest run
+  passed after flashing the updated status text and reported `external codec
+  remains disabled`.
 - `make -C ports/same70-xplained external-codec-original-map` is the offline
   schematic-source gate for the UC3A3 AK5394 ADC-board plus ES9023 DAC signal
   model. It checks `ports/same70-xplained/external-codec-original-uc3a3-map.md`
@@ -217,7 +223,9 @@ Verified firmware features:
   offline gate for the selected CS4272 I2C control-port route. It checks
   PA3/TWD0, PA4/TWCK0, `AD0` low for address `0x10`, PC17 reset, 3.3 V pull-up
   requirements, the `0x07=0x03` then `0x07=0x02` startup sequence, I2S register
-  defaults, and the no-USB-volume-to-codec rule. Latest run passed.
+  defaults, the disabled `same70_cs4272_control.c` firmware skeleton, the
+  `audio codec` status command, and the no-USB-volume-to-codec rule. Latest
+  run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
@@ -263,15 +271,15 @@ Verified firmware features:
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
   run passed, exact-verified `/tmp/same70-melody-listen.wav` with
-  `compared_samples=352256 mismatches=0` and matching hash
-  `0x23eba79a47b2884f`, played it through `afplay`, and ended on
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x61ebe3d6f489b0a7`, played it through `afplay`, and ended on
   `audio melody`.
 - `make -C ports/same70-xplained flash-ready` flashes the connected SAME70,
   waits briefly for USB re-enumeration, then runs `board-ready`. Latest run
   programmed and verified flash with OpenOCD, passed the widget/UAC control and
   generated-audio gates, verified `/tmp/same70-melody-listen.wav` with
-  `compared_samples=352256 mismatches=0` and matching hash
-  `0x23eba79a47b2884f`, played it through `afplay`, and ended on
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x61ebe3d6f489b0a7`, played it through `afplay`, and ended on
   `audio melody`.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
@@ -387,8 +395,8 @@ Verified firmware features:
   USB OUT silent during capture, and leaves the board on `audio melody`.
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
-  `compared_samples=352256 mismatches=0` and matching hash
-  `0x23eba79a47b2884f`, played through `afplay`, and left the board on
+  `compared_samples=353280 mismatches=0` and matching hash
+  `0x61ebe3d6f489b0a7`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -419,8 +427,9 @@ Verified firmware features:
   endpoint-5 IN bytes recorded by the generated silence source.
 - Console commands: `?`, `help`, `status`, `clk`, `usb`, `usb init`,
   `usb attach`, `usb detach`, `audio loop`, `audio pattern`, `audio tone`,
-  `audio sine`, `audio melody`, `audio silence`, `audio hw`, `audio ctl`,
-  `audio outdiag`, `audio outdiag reset`, `audio indiag`, `audio indiag reset`.
+  `audio sine`, `audio melody`, `audio silence`, `audio hw`, `audio codec`,
+  `audio ctl`, `audio outdiag`, `audio outdiag reset`, `audio indiag`,
+  `audio indiag reset`.
   Audio source
   commands now print a terse `audio source=<source>` line instead of the full
   `usb` status block, so they are safer while a host audio stream is active.
@@ -519,6 +528,7 @@ make -C ports/same70-xplained audio-cd-bitperfect
 make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
+make -C ports/same70-xplained audio-codec
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-clock-model
@@ -568,7 +578,7 @@ divider and explicit feedback byte model,
 `external-codec-cs4272-rate-matrix` checks the planned full-rate/full-bit-depth
 CS4272 capability target,
 `external-codec-cs4272-control-port` checks the selected CS4272 I2C control
-route and startup register contract,
+route, disabled firmware status skeleton, and startup register contract,
 `external-codec-i2s-cs4272` checks the practical CS4272-class I2S codec
 bit-perfect digital-boundary plan,
 `external-dac-ad1856-mono` checks the mono DAC planning doc,

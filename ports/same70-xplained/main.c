@@ -1,6 +1,7 @@
 #include "types.h"
 #include "same70_audio_hw.h"
 #include "same70_clock.h"
+#include "same70_cs4272_control.h"
 #include "same70_usb.h"
 
 #define REG32(addr) (*(volatile uint32_t *)(addr))
@@ -86,6 +87,7 @@ static void console_clock_status(void);
 static void console_audio_out_diag(void);
 static void console_audio_in_diag(void);
 static void console_audio_hardware_status(void);
+static void console_audio_codec_status(void);
 static void console_audio_control_status(void);
 static void console_audio_source_name(uint32_t source);
 static void console_audio_format_name(uint32_t format);
@@ -475,6 +477,67 @@ static void console_audio_hardware_status(void)
 	usart1_write("\r\n");
 }
 
+static void console_audio_codec_status(void)
+{
+	same70_cs4272_control_status_t status;
+	const same70_cs4272_register_write_t *writes;
+	uint32_t index;
+
+	same70_cs4272_control_get_status(&status);
+	usart1_write("audio codec enabled=");
+	usart1_write_u32(status.control_enabled);
+	usart1_write(" external_codec=");
+	usart1_write_u32(status.external_codec);
+	usart1_write(" bus_configured=");
+	usart1_write_u32(status.bus_configured);
+	usart1_write(" reset_configured=");
+	usart1_write_u32(status.reset_configured);
+	usart1_write(" addr7=0x");
+	usart1_write_hex8(status.address_7bit);
+	usart1_write(" twi_hz=");
+	usart1_write_u32(status.twi_hz);
+	usart1_write("\r\n");
+	usart1_write("audio codec bus=");
+	usart1_write(status.bus_plan);
+	usart1_write("\r\n");
+	usart1_write("audio codec rst=");
+	usart1_write(status.reset_plan);
+	usart1_write(" power=");
+	usart1_write(status.power_plan);
+	usart1_write("\r\n");
+	usart1_write("audio codec sequence=");
+	usart1_write(status.startup_sequence);
+	usart1_write("\r\n");
+	usart1_write("audio codec baseline=");
+	writes = same70_cs4272_control_baseline_writes();
+	for (index = 0u; index < status.baseline_write_count; index++) {
+		if (index != 0u) {
+			usart1_write(" ");
+		}
+		usart1_write("0x");
+		usart1_write_hex8(writes[index].reg);
+		usart1_write("=");
+		if (writes[index].rate_dependent != 0u) {
+			usart1_write("rate");
+		} else {
+			usart1_write("0x");
+			usart1_write_hex8(writes[index].value);
+		}
+	}
+	usart1_write("\r\n");
+	usart1_write("audio codec ");
+	usart1_write(status.mode1_table);
+	usart1_write("\r\n");
+	usart1_write("audio codec policy=");
+	usart1_write(status.policy);
+	usart1_write(" boundary=");
+	usart1_write(status.boundary);
+	usart1_write("\r\n");
+	usart1_write("audio codec next=");
+	usart1_write(status.next_step);
+	usart1_write("\r\n");
+}
+
 static void console_audio_out_diag(void)
 {
 	same70_usb_audio_out_diag_t diag;
@@ -641,7 +704,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio ctl, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio codec, audio ctl, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -683,6 +746,8 @@ static void console_handle_line(void)
 		console_audio_source_status(SAME70_USB_AUDIO_SOURCE_SILENCE);
 	} else if (text_equals(console_line, "audio hw")) {
 		console_audio_hardware_status();
+	} else if (text_equals(console_line, "audio codec")) {
+		console_audio_codec_status();
 	} else if (text_equals(console_line, "audio ctl")) {
 		console_audio_control_status();
 	} else if (text_equals(console_line, "audio outdiag")) {
