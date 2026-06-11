@@ -83,21 +83,30 @@ Verified firmware features:
   `external_codec=0`,
   `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
   `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
-  `cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt`,
+  `cs4272_master_256fs_baseline_full_rate_matrix_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt`,
   `selected_family=from_usb_rate`,
   `xo_44_en=not_wired`,
   `xo_48_en=not_wired`,
   `44k16_mclk=11289600_bclk=2822400_xo=xo_44_en_feedback_44k1=0x00058333`,
   `48k24_mclk=12288000_bclk=3072000_xo=xo_48_en_feedback_48k=0x00060000`,
+  `target_usb=16_18_20_24bit_8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192`,
+  `codec_bits=16_18_20_24`,
+  `codec_fs=4k_to_200k`,
   and `needs_external_codec_board`.
 - The practical preferred first full ADC+DAC board is now a CS4272-class I2S
   codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
   slave RX/TX, future USB-rate-selected `xo_44_en`/`xo_48_en` controls, and
   explicit USB feedback. This is documented in
-  `ports/same70-xplained/external-codec-i2s-cs4272-bitperfect.md`. The strict
-  bit-perfect claim for that route is only at the digital I2S/SSC pins before
-  codec digital filters; analog output/input is not claimed bit-perfect. This
-  is still documentation/preflight only: stock-board firmware must keep
+  `ports/same70-xplained/external-codec-i2s-cs4272-bitperfect.md`. The planned
+  full CS4272 capability target is documented in
+  `ports/same70-xplained/external-codec-cs4272-rate-matrix.md`: 16/18/20/24-bit
+  valid PCM widths, standard USB rates from 8 kHz through 192 kHz, and the
+  broader codec `4-200 kHz` range with a programmable low-jitter clock
+  generator. Current firmware descriptors still advertise only the verified
+  44.1 kHz/16-bit and 48 kHz/24-bit stock-board USB modes. The strict
+  bit-perfect claim for the future route is only at the digital I2S/SSC pins
+  before codec digital filters; analog output/input is not claimed bit-perfect.
+  This is still documentation/preflight only: stock-board firmware must keep
   reporting no external codec until hardware is wired and verified.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
@@ -155,11 +164,11 @@ Verified firmware features:
   `AD1856=mono_DATA_TD_CLK_TK_LE_TF`, and `needs_external_codec_board`.
 - `make -C ports/same70-xplained external-codec-preflight` is the pre-wiring
   guard for future codec work. It checks the UC3A3 original map, the CS4272
-  I2S codec plan, the CS4272 clock/feedback model, the AD1856 mono DAC plan,
-  and `ports/same70-xplained/external-codec-pin-map.md` for the selected
-  header route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw`
-  to prove the stock board still reports no external codec. Latest run passed
-  after flashing the updated status text and reported
+  I2S codec plan, the CS4272 clock/feedback model, the CS4272 rate matrix, the
+  AD1856 mono DAC plan, and `ports/same70-xplained/external-codec-pin-map.md`
+  for the selected header route and 3.3 V/no-generic-USB-I2S guardrails, then
+  runs `audio-hw` to prove the stock board still reports no external codec.
+  Latest run passed after flashing the updated status text and reported
   `external codec remains disabled`.
 - `make -C ports/same70-xplained external-codec-original-map` is the offline
   schematic-source gate for the UC3A3 AK5394 ADC-board plus ES9023 DAC signal
@@ -187,10 +196,16 @@ Verified firmware features:
   RX/TX direction, explicit USB feedback, no DSP/resampling, logic-analyzer
   bit-perfect proof at the I2S/SSC pins, and source links. Latest run passed.
 - `make -C ports/same70-xplained external-codec-clock-model` is the
-  software-only clock/feedback model for the CS4272 path. It verifies 44.1 kHz
-  and 48 kHz master-mode `256fs` MCLK, `64fs` BCLK/LRCK ratios, the future
+  software-only clock/feedback model for the CS4272 path. It verifies the
+  standard-rate MCLK/LRCK matrix, `64fs` BCLK/LRCK ratios, the future
   `xo_44_en`/`xo_48_en` selection from USB sample rate, and the current
-  high-speed explicit feedback bytes in `same70_usb.c`. Latest run passed.
+  high-speed explicit feedback bytes in `same70_usb.c` for the two advertised
+  modes. Latest run passed.
+- `make -C ports/same70-xplained external-codec-cs4272-rate-matrix` is the
+  offline gate for the planned CS4272 full-rate/full-bit-depth target. It checks
+  the codec 4-50/50-100/100-200 kHz speed ranges, 16/18/20/24-bit capability,
+  standard USB rates from 8 kHz through 192 kHz, the programmable-clock
+  requirement, and the current-descriptor boundary. Latest run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
@@ -237,14 +252,14 @@ Verified firmware features:
   `audio melody` state instead of the smoke gate's final silence state. Latest
   run passed, exact-verified `/tmp/same70-melody-listen.wav` with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0x0c0d418c1965963b`, played it through `afplay`, and ended on
+  `0x136fe76e0d7bfb07`, played it through `afplay`, and ended on
   `audio melody`.
 - `make -C ports/same70-xplained flash-ready` flashes the connected SAME70,
   waits briefly for USB re-enumeration, then runs `board-ready`. Latest run
   programmed and verified flash with OpenOCD, passed the widget/UAC control and
   generated-audio gates, verified `/tmp/same70-melody-listen.wav` with
   `compared_samples=353280 mismatches=0` and matching hash
-  `0xab4b79884dabf283`, played it through `afplay`, and ended on
+  `0x136fe76e0d7bfb07`, played it through `afplay`, and ended on
   `audio melody`.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
@@ -495,6 +510,7 @@ make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-clock-model
+make -C ports/same70-xplained external-codec-cs4272-rate-matrix
 make -C ports/same70-xplained external-codec-i2s-cs4272
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
@@ -534,8 +550,10 @@ AK5394 ADC-board plus the selected AD1856 mono-first DAC test. The
 `external-codec-original-map` target checks the schematic-source map,
 `external-codec-clock-plan` checks the external MCLK/direct-to-codecs and
 shared BCLK/LRCK slave-SSC plan plus AD1856 timing caveat,
-`external-codec-clock-model` checks the software-only CS4272 256fs/64fs
+`external-codec-clock-model` checks the software-only CS4272 standard-rate
 divider and explicit feedback byte model,
+`external-codec-cs4272-rate-matrix` checks the planned full-rate/full-bit-depth
+CS4272 capability target,
 `external-codec-i2s-cs4272` checks the practical CS4272-class I2S codec
 bit-perfect digital-boundary plan,
 `external-dac-ad1856-mono` checks the mono DAC planning doc,

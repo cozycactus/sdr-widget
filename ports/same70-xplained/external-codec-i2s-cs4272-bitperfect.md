@@ -38,9 +38,10 @@ on PB13 is optional only.
 
 ## CS4272 Clock Division
 
-The first CS4272 bring-up should use CS4272 master-mode 256fs clocking. In that
-mode the codec receives a low-jitter MCLK input and divides it to make the
-serial clocks that SAME70 uses as a slave:
+The first CS4272 bring-up should use CS4272 master-mode 256fs clocking for the
+already verified 44.1 kHz and 48 kHz USB baselines. In that mode the codec
+receives a low-jitter MCLK input and divides it to make the serial clocks that
+SAME70 uses as a slave:
 
 ```text
 11.2896 MHz MCLK -> 44.1 kHz LRCK, 2.8224 MHz BCLK
@@ -48,10 +49,11 @@ serial clocks that SAME70 uses as a slave:
 ```
 
 The divider is therefore inside the codec clock domain, not inside SAME70:
-`MCLK/LRCK = 256`, `BCLK/LRCK = 64`, and `MCLK/BCLK = 4`. The offline
-`external-codec-clock-model` target verifies these ratios and checks that the
-current firmware USB high-speed feedback constants match the same 44.1 kHz and
-48 kHz sample rates.
+`MCLK/LRCK = 256`, `BCLK/LRCK = 64`, and `MCLK/BCLK = 4`. The full rate matrix
+also uses the other CS4272-supported master-mode MCLK/LRCK ratios where needed.
+The offline `external-codec-clock-model` target verifies the matrix math and
+checks that the current firmware USB high-speed feedback constants match the
+already advertised 44.1 kHz and 48 kHz sample rates.
 
 ## Two Oscillator Selection
 
@@ -75,6 +77,15 @@ connected to the codec clock input. During any family switch, stop or mute the
 stream, hold the codec in reset or mute, change the oscillator select, wait for
 the new clock to settle, then release reset and restart the stream with matching
 explicit feedback.
+
+The full standard-rate target is documented in
+`external-codec-cs4272-rate-matrix.md`. It covers 8 kHz through 192 kHz and
+16/18/20/24-bit valid PCM widths, while the broader codec range remains
+`4-200 kHz` with a programmable low-jitter clock generator. Current firmware
+descriptors still advertise only the already verified `44.1 kHz / 16-bit` and
+`48 kHz / 24-bit` USB modes; the rest of the matrix is a planned codec
+capability until matching USB descriptors, SSC/XDMAC sizing, and host verifiers
+exist.
 
 ## Candidate Header Signals
 
