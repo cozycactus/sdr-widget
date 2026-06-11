@@ -24,6 +24,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - The codec board pinout, clock direction, or power requirement is unknown.
 - The selected clock plan requires SAME70 to recreate DAC/ADC MCLK from PCK0
   instead of feeding MCLK directly from the external low-jitter clock board.
+- The two-frequency-family clock board can ever let both oscillator outputs
+  drive the same MCLK node at once.
 - AD1856 is powered from SAME70 `3V3`, or its required bipolar supplies are not
   available and measured.
 - AD1856 `LE` timing is assumed to be normal I2S `LRCK` without scope
@@ -54,6 +56,9 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
   `BCLK`, `LRCK`, ADC serial data, DAC serial data, reset/control, and analog
   pins from a CS4272-class I2S codec. Do not use a module that hides the codec
   behind its own USB interface.
+- For two frequency families, confirm the board has fail-safe `XO_44_EN` and
+  `XO_48_EN` controls, or an equivalent low-jitter clock mux select, and that
+  firmware selects the family from USB sample rate.
 - Confirm the board follows the UC3A3 original signal model in
   `external-codec-original-uc3a3-map.md`, including J303/J304 and ES9023 I2S
   net names.

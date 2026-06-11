@@ -10,17 +10,23 @@ USB_HS_FEEDBACK_FRAC_BITS = 16
 
 CS4272_MASTER_256FS_PLANS = (
     {
+        "family": "44k1",
         "rate": 44100,
         "bits": 16,
         "mclk_hz": 11289600,
         "bclk_ratio": 64,
+        "xo_enable": "xo_44_en",
+        "xo_disable": "xo_48_en",
         "feedback_symbol": "audio_feedback_44k1_hs",
     },
     {
+        "family": "48k",
         "rate": 48000,
         "bits": 24,
         "mclk_hz": 12288000,
         "bclk_ratio": 64,
+        "xo_enable": "xo_48_en",
+        "xo_disable": "xo_44_en",
         "feedback_symbol": "audio_feedback_48k_hs",
     },
 )
@@ -58,6 +64,7 @@ def parse_uint8_arrays(path):
 def verify_plan(plan, arrays):
     rate = plan["rate"]
     bits = plan["bits"]
+    family = plan["family"]
     mclk_hz = plan["mclk_hz"]
     bclk_ratio = plan["bclk_ratio"]
     bclk_hz = rate * bclk_ratio
@@ -82,8 +89,9 @@ def verify_plan(plan, arrays):
 
     print(
         "clock_model=CS4272_MASTER_256FS "
-        f"rate={rate} bits={bits} "
+        f"selected_family={family} rate={rate} bits={bits} "
         f"mclk_hz={mclk_hz} bclk_hz={bclk_hz} lrck_hz={rate} "
+        f"xo_enable={plan['xo_enable']} xo_disable={plan['xo_disable']} "
         f"mclk_div_bclk={mclk_hz // bclk_hz} mclk_div_lrck={mclk_ratio} "
         f"feedback_hs_16_16=0x{feedback_value:08x} "
         f"feedback_bytes={format_bytes(feedback_bytes)} "

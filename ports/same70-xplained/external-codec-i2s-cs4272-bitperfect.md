@@ -53,6 +53,29 @@ The divider is therefore inside the codec clock domain, not inside SAME70:
 current firmware USB high-speed feedback constants match the same 44.1 kHz and
 48 kHz sample rates.
 
+## Two Oscillator Selection
+
+Two frequency families require two low-jitter oscillator sources or one
+low-jitter clock generator with two exact audio families. SAME70 should select
+the family from the USB sample rate request, not synthesize MCLK itself:
+
+```text
+selected_family=from_usb_rate
+44.1 kHz USB mode -> XO_44_EN asserted, XO_48_EN deasserted
+48.0 kHz USB mode -> XO_48_EN asserted, XO_44_EN deasserted
+```
+
+The current stock board has no oscillator-select wiring, so live firmware status
+must continue to report `xo_44_en=not_wired` and `xo_48_en=not_wired`.
+
+The hardware must make the selection fail-safe. Do not allow both oscillator
+outputs to drive the same MCLK node. Use oscillator output-enable pins, a
+low-jitter clock mux, or separate fanout paths with only the selected family
+connected to the codec clock input. During any family switch, stop or mute the
+stream, hold the codec in reset or mute, change the oscillator select, wait for
+the new clock to settle, then release reset and restart the stream with matching
+explicit feedback.
+
 ## Candidate Header Signals
 
 | Codec signal | SAME70 route | Board header | Direction |
@@ -62,6 +85,8 @@ current firmware USB high-speed feedback constants match the same 44.1 kHz and
 | LRCK / frame | `RF` on `PD24`, `TF` on `PB0` | `J504 pin 1`, `J505 pin 7` or `J507 pin 5` | Clock board to SAME70/codecs |
 | BCLK / bit clock | `RK` on `PA22`, `TK` on `PB1` | `J504 pin 3`, `J505 pin 8` or `J507 pin 4` | Clock board to SAME70/codecs |
 | MCLK | No preferred SAME70 route | Direct to codec board | Clock board to codec |
+| `XO_44_EN` | TBD GPIO | TBD | SAME70 to clock board |
+| `XO_48_EN` | TBD GPIO | TBD | SAME70 to clock board |
 | Reset/control GPIO | `PC17` | `EXT1 pin 10` | SAME70 to codec |
 | Optional I2C control | `PA3`/`PA4` | `EXT1/EXT2 pins 11/12` or `J500 pins 9/10` | Shared bus, confirm before wiring |
 

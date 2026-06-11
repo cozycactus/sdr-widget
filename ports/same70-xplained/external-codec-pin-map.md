@@ -51,6 +51,8 @@ on its serial clock/frame inputs.
 | DAC frame, original `DA_LRCK` | PB0 | J505 pin 7 or J507 pin 5 | D15 or D24 | TF | Shared with RXD0 on J505 and D24 on J507 | J505/J507 are not populated by default |
 | External low-jitter `MCLK`, original `AD_MCLK`/`DA_MCLK` | -- | No preferred SAME70 route | -- | -- | Feed ADC/DAC directly from the external clock board; do not recreate MCLK through SAME70 | Use clock fanout/buffer or source-side series resistors |
 | Optional diagnostic clock output, not external MCLK | PB13 | J504 pin 5 or J507 pin 19 | DAC0 or D38 | PCK0 | Reserved for firmware diagnostics only in the low-jitter plan | J504/J507 are not populated by default |
+| 44.1 kHz family oscillator enable, future `XO_44_EN` | TBD | TBD | -- | GPIO | Firmware selects from USB rate; currently `xo_44_en=not_wired` | Choose after codec/clock board control pins are known |
+| 48 kHz family oscillator enable, future `XO_48_EN` | TBD | TBD | -- | GPIO | Firmware selects from USB rate; currently `xo_48_en=not_wired` | Choose after codec/clock board control pins are known |
 | Codec reset/control GPIO default, original `AD_RSTN` first | PC17 | EXT1 pin 10 | SPI_SS_B/GPIO | GPIO | Xplained Pro extension header | EXT1 has populated extension-header footprint; verify actual header population |
 | Optional I2C SDA | PA3 | EXT1/EXT2 pin 11 or J500 pin 9 | I2C_SDA or SDA | TWD0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
 | Optional I2C SCL | PA4 | EXT1/EXT2 pin 12 or J500 pin 10 | I2C_SCL or SCL | TWCK0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |

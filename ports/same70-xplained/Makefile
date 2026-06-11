@@ -135,9 +135,14 @@ audio-hw:
 		--expect "CS4272=I2S_TD_RD_BCLK_LRCK" \
 		--expect "CS4272_PRACTICAL_I2S_ADC_DAC_PLAN" \
 		--expect "cs4272_master_256fs" \
+		--expect "selected_family=from_usb_rate" \
+		--expect "xo_44_en=not_wired" \
+		--expect "xo_48_en=not_wired" \
 		--expect "44k16_mclk=11289600" \
+		--expect "xo=xo_44_en" \
 		--expect "feedback_44k1=0x00058333" \
 		--expect "48k24_mclk=12288000" \
+		--expect "xo=xo_48_en" \
 		--expect "feedback_48k=0x00060000" \
 		--expect "MCLK=external_to_codecs" \
 		--expect "AD1856=mono_DATA_TD_CLK_TK_LE_TF" \
@@ -145,7 +150,7 @@ audio-hw:
 		--expect "external-dac-ad1856-low-jitter-formatter.md" \
 		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
-		--expect "cs4272_status_only_then_clock_only_probe" \
+		--expect "cs4272_xo_select_status_only" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
@@ -220,6 +225,9 @@ external-codec-i2s-cs4272: external-codec-clock-model
 	@test -f "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272-class" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272 master-mode 256fs" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "selected_family=from_usb_rate" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "XO_44_EN" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "XO_48_EN" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "I2S serial audio" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_I2S_CS4272)"
@@ -251,6 +259,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "external-codec-low-jitter-clock-plan.md" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "generic USB/I2S audio module" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "The codec board drives any SAME70 I/O above 3.3 V logic" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "both oscillator outputs" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "instead of feeding MCLK directly from the external low-jitter clock board" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external-codec-preflight" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "board-ready" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -288,6 +297,8 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "No preferred SAME70 route" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PB13 | J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "not external MCLK" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "XO_44_EN" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "XO_48_EN" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PC17 | EXT1 pin 10" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"

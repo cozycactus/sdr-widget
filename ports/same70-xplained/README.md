@@ -513,6 +513,9 @@ it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
 `cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_ad1856_formatter_alt`,
 `44k16_mclk=11289600_bclk=2822400_feedback_44k1=0x00058333`, and
 `48k24_mclk=12288000_bclk=3072000_feedback_48k=0x00060000`.
+The two-family oscillator select is status-only until hardware exists:
+`selected_family=from_usb_rate`, `xo_44_en=not_wired`, and
+`xo_48_en=not_wired`.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
@@ -596,7 +599,8 @@ drive the codec and SAME70 slave RX/TX, USB uses explicit feedback, and digital
 bit-perfect verification compares captured I2S/SSC words against the USB PCM
 samples before codec filtering. The software-only
 `external-codec-clock-model.py` helper keeps the MCLK/BCLK/LRCK divider math and
-current explicit feedback constants testable before the codec board exists.
+current explicit feedback constants testable before the codec board exists. It
+also models the future `xo_44_en`/`xo_48_en` selection from USB sample rate.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.

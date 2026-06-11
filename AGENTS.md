@@ -83,13 +83,17 @@ Verified firmware features:
   `external_codec=0`,
   `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
   `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
-  `cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_ad1856_formatter_alt`,
-  `44k16_mclk=11289600_bclk=2822400_feedback_44k1=0x00058333`,
-  `48k24_mclk=12288000_bclk=3072000_feedback_48k=0x00060000`,
+  `cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt`,
+  `selected_family=from_usb_rate`,
+  `xo_44_en=not_wired`,
+  `xo_48_en=not_wired`,
+  `44k16_mclk=11289600_bclk=2822400_xo=xo_44_en_feedback_44k1=0x00058333`,
+  `48k24_mclk=12288000_bclk=3072000_xo=xo_48_en_feedback_48k=0x00060000`,
   and `needs_external_codec_board`.
 - The practical preferred first full ADC+DAC board is now a CS4272-class I2S
   codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
-  slave RX/TX, and explicit USB feedback. This is documented in
+  slave RX/TX, future USB-rate-selected `xo_44_en`/`xo_48_en` controls, and
+  explicit USB feedback. This is documented in
   `ports/same70-xplained/external-codec-i2s-cs4272-bitperfect.md`. The strict
   bit-perfect claim for that route is only at the digital I2S/SSC pins before
   codec digital filters; analog output/input is not claimed bit-perfect. This
@@ -184,7 +188,8 @@ Verified firmware features:
   bit-perfect proof at the I2S/SSC pins, and source links. Latest run passed.
 - `make -C ports/same70-xplained external-codec-clock-model` is the
   software-only clock/feedback model for the CS4272 path. It verifies 44.1 kHz
-  and 48 kHz master-mode `256fs` MCLK, `64fs` BCLK/LRCK ratios, and the current
+  and 48 kHz master-mode `256fs` MCLK, `64fs` BCLK/LRCK ratios, the future
+  `xo_44_en`/`xo_48_en` selection from USB sample rate, and the current
   high-speed explicit feedback bytes in `same70_usb.c`. Latest run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
