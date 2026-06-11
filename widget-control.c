@@ -62,6 +62,8 @@ int *feature_first_value;
 // int feature_last_value[feature_end_index];
 int *feature_last_value;
 
+int finish(int return_value);
+
 void feature_first_and_last_init(void) {
 	int i, j;
 	feature_first_value[true_feature_major_index] = -1;
@@ -152,7 +154,7 @@ char *error_string(int err) {
 }
 
 int device_to_host_handle(libusb_device_handle *h, unsigned char request, unsigned short value, unsigned short index, unsigned short length) {
-	return libusb_control_transfer(h, (REQDIR_DEVICETOHOST | REQTYPE_VENDOR | REQTYPE_STANDARD), request, value, index, usb_data, length, usb_timeout);
+	return libusb_control_transfer(h, (REQDIR_DEVICETOHOST | REQTYPE_VENDOR | REQTYPE_STANDARD), request, value, index, (unsigned char *)usb_data, length, usb_timeout);
 }
 	
 int device_to_host(unsigned char request, unsigned short value, unsigned short index, unsigned short length) {
@@ -190,11 +192,12 @@ libusb_device_handle *find_device(int list_all) {
 			}
 			unsigned char serialId[1024];
 			if ((status = libusb_get_string_descriptor_ascii(h, desc.iSerialNumber, serialId, sizeof(serialId))) <= 0) {
-				if (verbose)
+				if (verbose) {
 					if (status == 0)
 						fprintf(stderr, "find_device: libusb_get_string_descriptor_ascii(%04x:%04x, ...) returned 0 bytes", desc.idVendor, desc.idProduct);
 					else
 						fprintf(stderr, "find_device: libusb_get_string_descriptor_ascii(%04x:%04x, ...) failed: %s", desc.idVendor, desc.idProduct, error_string(status));
+				}
 				libusb_release_interface(h, 0);
 				libusb_close(h);
 				continue;
@@ -206,7 +209,7 @@ libusb_device_handle *find_device(int list_all) {
 				libusb_close(h);
 				continue;
 			}
-			if (usb_serial_id != NULL && strcmp(serialId, usb_serial_id) != 0) {
+			if (usb_serial_id != NULL && strcmp((char *)serialId, usb_serial_id) != 0) {
 				libusb_close(h);
 				continue;
 			}

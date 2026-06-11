@@ -1,9 +1,16 @@
 #!/bin/sh
 ##
-## this makes the widget if the AVR32BIN environment variable
-## is pointing to the directory containing avr32-gcc
+## This makes the widget with avr32-gcc from PATH. Set AVR32BIN to prepend a
+## specific toolchain directory.
 ##
-PATH=${AVR32BIN:=/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.0.0.201009140852/os/linux/x86_64/bin}:$PATH
-#PATH=${AVR32BIN:=/home/alex/as4e-ide/plugins/com.atmel.avr.toolchains.linux.x86_64_3.1.0.201012011657/os/linux/x86_64/bin}:$PATH
-export PATH
+if [ -n "$AVR32BIN" ]; then
+	PATH=$AVR32BIN:$PATH
+	export PATH
+fi
+
+if ! command -v avr32-gcc >/dev/null 2>&1; then
+	echo "avr32-gcc not found; set AVR32BIN or add avr32-gcc to PATH" >&2
+	exit 127
+fi
+
 cd Release && make all
