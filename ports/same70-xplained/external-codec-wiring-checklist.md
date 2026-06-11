@@ -7,12 +7,14 @@ is passed with real measurements, firmware must keep reporting
 `external_codec=0`, `i2sc=not_configured`, and `needs_external_codec_board`.
 
 This checklist is for the UC3A3 original AK5394 ADC-board plus the selected DAC
-path. The original DAC reference is ES9023; the current first DAC experiment is
-one AD1856 mono output test with `DATA`, `CLK`, and `LE`. It is not for a
-generic USB/I2S audio module. The preferred clocking target is the full-duplex
-external low-jitter plan in `external-codec-low-jitter-clock-plan.md`: the
-external board is clock master, SAME70 is an SSC RX/TX slave, and USB OUT uses
-explicit feedback until the real ADC/DAC path is proven.
+path, or for the newer practical CS4272-class I2S codec path documented in
+`external-codec-i2s-cs4272-bitperfect.md`. The original DAC reference is
+ES9023; the current first DAC experiment is one AD1856 mono output test with
+`DATA`, `CLK`, and `LE`. It is not for a generic USB/I2S audio module. The
+preferred clocking target is the full-duplex external low-jitter plan in
+`external-codec-low-jitter-clock-plan.md`: the external board is clock master,
+SAME70 is an SSC RX/TX slave, and USB OUT uses explicit feedback until the real
+ADC/DAC path is proven.
 
 ## Stop Conditions
 
@@ -28,6 +30,8 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
   verification.
 - The AD1856 low-jitter path wires SAME70 directly to AD1856 `CLK`/`LE`
   instead of using an external formatter clocked from the low-jitter domain.
+- The CS4272-class I2S codec path is treated as bit-perfect at the analog
+  output instead of only at the digital I2S/SSC sample boundary.
 - Any short is measured between `3V3`, `5V0`, `GND`, or a selected signal.
 - `make -C ports/same70-xplained external-codec-preflight` fails.
 - `make -C ports/same70-xplained board-ready` fails on the stock board.
@@ -46,6 +50,10 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 
 - Confirm the board exposes separate serial ADC data and DAC data or a mode
   compatible with SAME70 SSC-style transmit/receive wiring.
+- For the practical I2S codec path, confirm the board exposes raw `MCLK`,
+  `BCLK`, `LRCK`, ADC serial data, DAC serial data, reset/control, and analog
+  pins from a CS4272-class I2S codec. Do not use a module that hides the codec
+  behind its own USB interface.
 - Confirm the board follows the UC3A3 original signal model in
   `external-codec-original-uc3a3-map.md`, including J303/J304 and ES9023 I2S
   net names.

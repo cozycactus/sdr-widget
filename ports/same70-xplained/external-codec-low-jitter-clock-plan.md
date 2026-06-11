@@ -23,6 +23,11 @@ Do not use SAME70 PLL/PCK-derived audio clocks for the low-jitter path. `PCK0`
 on `PB13` may be useful as a firmware diagnostic output, but it is not the
 preferred MCLK source for the external ADC/DAC board.
 
+The practical preferred new codec option is a CS4272-class I2S codec documented
+in `external-codec-i2s-cs4272-bitperfect.md`. In that path the codec receives
+external MCLK/BCLK/LRCK directly, SAME70 is only the serial-audio slave, and
+the bit-perfect claim stops at the digital I2S/SSC words before codec filters.
+
 The first selected DAC experiment is one AD1856 mono output test. AD1856 is not
 an I2S DAC; it needs `DATA`, `CLK`, and a low-going `LE` latch pulse after each
 16-bit word. Treat the direct SAME70-to-AD1856 path as a mono

@@ -498,6 +498,13 @@ reserved for optional diagnostics, not external codec MCLK. See
 `external-dac-ad1856-mono-test.md`,
 `external-dac-ad1856-low-jitter-formatter.md` before wiring or enabling codec
 firmware.
+The practical preferred external codec route is now a CS4272-class I2S codec
+with the same external low-jitter clock ownership and SAME70 as serial-audio
+slave. Its plan lives in `external-codec-i2s-cs4272-bitperfect.md`; the strict
+bit-perfect claim is USB PCM sample equality at the I2S/SSC digital pins before
+codec digital filters, not at the analog output.
+Use `make -C ports/same70-xplained external-codec-i2s-cs4272` to check that
+documented route.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
@@ -575,6 +582,11 @@ is documented in `external-codec-pin-map.md`,
 `external-dac-ad1856-low-jitter-formatter.md`, with staged wiring holds
 documented in `external-codec-wiring-checklist.md` and XDMAC double buffering
 still to be designed.
+For the practical first full ADC+DAC board, prefer the CS4272-class I2S codec
+route in `external-codec-i2s-cs4272-bitperfect.md`: external low-jitter clocks
+drive the codec and SAME70 slave RX/TX, USB uses explicit feedback, and digital
+bit-perfect verification compares captured I2S/SSC words against the USB PCM
+samples before codec filtering.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.

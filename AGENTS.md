@@ -84,6 +84,14 @@ Verified firmware features:
   `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
   `external_low_jitter_formatter_owns_ad1856_data_clk_le_slave_ssc_explicit_fb_tbd`,
   and `needs_external_codec_board`.
+- The practical preferred first full ADC+DAC board is now a CS4272-class I2S
+  codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
+  slave RX/TX, and explicit USB feedback. This is documented in
+  `ports/same70-xplained/external-codec-i2s-cs4272-bitperfect.md`. The strict
+  bit-perfect claim for that route is only at the digital I2S/SSC pins before
+  codec digital filters; analog output/input is not claimed bit-perfect. This
+  is still documentation/preflight only: stock-board firmware must keep
+  reporting no external codec until hardware is wired and verified.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -165,6 +173,11 @@ Verified firmware features:
   the external XO domain, that the left channel is used exactly for the first
   mono proof, that explicit USB feedback remains required, and that the HDL
   starter path is documented. Latest run passed.
+- `make -C ports/same70-xplained external-codec-i2s-cs4272` is the offline gate
+  for the practical CS4272-class I2S codec plan. It checks the no-external-codec
+  firmware boundary, external low-jitter clock ownership, SAME70 slave
+  RX/TX direction, explicit USB feedback, no DSP/resampling, logic-analyzer
+  bit-perfect proof at the I2S/SSC pins, and source links. Latest run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
@@ -468,6 +481,7 @@ make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
+make -C ports/same70-xplained external-codec-i2s-cs4272
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained external-dac-ad1856-upduino-v31
@@ -506,6 +520,8 @@ AK5394 ADC-board plus the selected AD1856 mono-first DAC test. The
 `external-codec-original-map` target checks the schematic-source map,
 `external-codec-clock-plan` checks the external MCLK/direct-to-codecs and
 shared BCLK/LRCK slave-SSC plan plus AD1856 timing caveat,
+`external-codec-i2s-cs4272` checks the practical CS4272-class I2S codec
+bit-perfect digital-boundary plan,
 `external-dac-ad1856-mono` checks the mono DAC planning doc,
 `external-dac-ad1856-formatter` checks the preferred AD1856 low-jitter
 formatter plan,
