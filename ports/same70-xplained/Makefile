@@ -67,10 +67,10 @@ LDFLAGS := \
 	-Wl,--gc-sections \
 	-Wl,-Map,$(TARGET).map
 
-SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_cs4272_control.c same70_usb.c
+SRCS := startup_same70.c main.c same70_audio_hw.c same70_audio_matrix.c same70_clock.c same70_cs4272_control.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-codec audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-codec audio-rates audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -159,7 +159,8 @@ audio-hw:
 		--expect "external-dac-ad1856-low-jitter-formatter.md" \
 		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
-		--expect "cs4272_control_skeleton_status_only" \
+		--expect "control_skeleton=same70_cs4272_control_status_only" \
+		--expect "audio_rates_status_only" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
@@ -188,6 +189,35 @@ audio-codec:
 		--expect "no_usb_mute_volume_to_codec" \
 		--expect "status_only_external_codec_0_no_pin_mux_no_twi_writes" \
 		--expect "wire_safe_probe_then_twihs0_readback_gate" \
+		$(SERIAL_COMMAND_ARGS)
+
+audio-rates:
+	$(PYTHON) serial-command.py "audio rates" --timeout 4.0 \
+		--expect "audio rates external_codec=0" \
+		--expect "descriptor_enabled=0" \
+		--expect "current=2" \
+		--expect "target_rates=13" \
+		--expect "target_formats=52" \
+		--expect "current_usb_descriptors=44k16_48k24_only" \
+		--expect "target_bits=16_18_20_24" \
+		--expect "target_rates=8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192" \
+		--expect "status_only_no_new_usb_altsettings_until_ssc_xdmac_and_external_gate" \
+		--expect "future_full_duplex_same70_ssc_slave_xdmac_i2s_to_cs4272" \
+		--expect "explicit_feedback_endpoint_4_rate_family_selected_from_usb_rate" \
+		--expect "rate=8000" \
+		--expect "mclk=6144000" \
+		--expect "feedback=0x00010000" \
+		--expect "mode1=0x39" \
+		--expect "rate=44100" \
+		--expect "current=44k16" \
+		--expect "feedback=0x00058333" \
+		--expect "rate=48000" \
+		--expect "current=48k24" \
+		--expect "feedback=0x00060000" \
+		--expect "rate=192000" \
+		--expect "mclk=24576000" \
+		--expect "mode1=0xe9" \
+		--expect "descriptor_generator_and_host_verifiers_before_advertising_new_modes" \
 		$(SERIAL_COMMAND_ARGS)
 
 external-dac-ad1856-mono:
@@ -271,6 +301,9 @@ external-codec-cs4272-rate-matrix: external-codec-clock-model
 	@grep -q "192 kHz" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
 	@grep -q "programmable clock-generator" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
 	@grep -q "Current firmware descriptors still expose only" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
+	@grep -q "same70_audio_matrix.c" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
+	@grep -q "audio rates" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
+	@grep -q "status_only_no_new_usb_altsettings_until_ssc_xdmac_and_external_gate" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
 	@printf '%s\n' "external-codec-cs4272-rate-matrix: pass"
 
 external-codec-cs4272-control-port:
@@ -383,6 +416,7 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	$(MAKE) audio-codec SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
+	$(MAKE) audio-rates SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
 
 external-codec-clock-plan: external-codec-clock-model

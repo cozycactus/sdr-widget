@@ -1,5 +1,6 @@
 #include "types.h"
 #include "same70_audio_hw.h"
+#include "same70_audio_matrix.h"
 #include "same70_clock.h"
 #include "same70_cs4272_control.h"
 #include "same70_usb.h"
@@ -88,6 +89,7 @@ static void console_audio_out_diag(void);
 static void console_audio_in_diag(void);
 static void console_audio_hardware_status(void);
 static void console_audio_codec_status(void);
+static void console_audio_rates_status(void);
 static void console_audio_control_status(void);
 static void console_audio_source_name(uint32_t source);
 static void console_audio_format_name(uint32_t format);
@@ -538,6 +540,70 @@ static void console_audio_codec_status(void)
 	usart1_write("\r\n");
 }
 
+static void console_audio_rates_status(void)
+{
+	same70_audio_matrix_status_t status;
+	const same70_audio_matrix_rate_t *rates;
+	uint32_t index;
+
+	same70_audio_matrix_get_status(&status);
+	usart1_write("audio rates external_codec=");
+	usart1_write_u32(status.external_codec);
+	usart1_write(" descriptor_enabled=");
+	usart1_write_u32(status.descriptor_enabled);
+	usart1_write(" current=");
+	usart1_write_u32(status.current_descriptor_count);
+	usart1_write(" target_rates=");
+	usart1_write_u32(status.target_rate_count);
+	usart1_write(" target_bits_per_rate=");
+	usart1_write_u32(status.target_bits_per_rate);
+	usart1_write(" target_formats=");
+	usart1_write_u32(status.target_format_count);
+	usart1_write("\r\n");
+	usart1_write("audio rates ");
+	usart1_write(status.current_descriptors);
+	usart1_write(" ");
+	usart1_write(status.target_bits);
+	usart1_write(" ");
+	usart1_write(status.target_rates);
+	usart1_write("\r\n");
+	usart1_write("audio rates descriptor_policy=");
+	usart1_write(status.descriptor_policy);
+	usart1_write(" transport_policy=");
+	usart1_write(status.transport_policy);
+	usart1_write("\r\n");
+	usart1_write("audio rates feedback_policy=");
+	usart1_write(status.feedback_policy);
+	usart1_write("\r\n");
+	rates = same70_audio_matrix_rates();
+	for (index = 0u; index < status.target_rate_count; index++) {
+		usart1_write("audio rate rate=");
+		usart1_write_u32(rates[index].sample_rate_hz);
+		usart1_write(" label=");
+		usart1_write(rates[index].rate_label);
+		usart1_write(" family=");
+		usart1_write(rates[index].family);
+		usart1_write(" speed=");
+		usart1_write(rates[index].speed);
+		usart1_write(" source=");
+		usart1_write(rates[index].clock_source);
+		usart1_write(" mclk=");
+		usart1_write_u32(rates[index].mclk_hz);
+		usart1_write(" bclk=");
+		usart1_write_u32(rates[index].bclk_hz);
+		usart1_write(" feedback=");
+		usart1_write_hex32(rates[index].feedback_hs_16_16);
+		usart1_write(" mode1=0x");
+		usart1_write_hex8(rates[index].mode1);
+		usart1_write(" current=");
+		usart1_write(rates[index].current_descriptor);
+		usart1_write("\r\n");
+	}
+	usart1_write("audio rates next=");
+	usart1_write(status.next_step);
+	usart1_write("\r\n");
+}
+
 static void console_audio_out_diag(void)
 {
 	same70_usb_audio_out_diag_t diag;
@@ -704,7 +770,7 @@ static void console_handle_line(void)
 	}
 
 	if (text_equals(console_line, "?") || text_equals(console_line, "help")) {
-		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio codec, audio ctl, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
+		usart1_write("commands: ?, help, status, clk, usb, usb init, usb attach, usb detach, audio loop, audio pattern, audio tone, audio sine, audio melody, audio silence, audio hw, audio codec, audio rates, audio ctl, audio outdiag, audio outdiag reset, audio indiag, audio indiag reset\r\n");
 	} else if (text_equals(console_line, "status")) {
 		usart1_write("status tick=");
 		usart1_write_u32(tick_count);
@@ -748,6 +814,8 @@ static void console_handle_line(void)
 		console_audio_hardware_status();
 	} else if (text_equals(console_line, "audio codec")) {
 		console_audio_codec_status();
+	} else if (text_equals(console_line, "audio rates")) {
+		console_audio_rates_status();
 	} else if (text_equals(console_line, "audio ctl")) {
 		console_audio_control_status();
 	} else if (text_equals(console_line, "audio outdiag")) {

@@ -86,6 +86,7 @@ audio melody
 audio silence
 audio hw
 audio codec
+audio rates
 audio ctl
 audio outdiag
 audio outdiag reset
@@ -154,6 +155,7 @@ make -C ports/same70-xplained audio-cd-ready
 make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained audio-codec
+make -C ports/same70-xplained audio-rates
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-cs4272-rate-matrix
@@ -239,7 +241,7 @@ It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
 The latest run programmed and verified flash with OpenOCD, passed the widget
 and UAC control gates plus the generated-audio gate, exact-verified
 `/tmp/same70-melody-listen.wav` with `compared_samples=353280 mismatches=0`
-and matching hash `0x61ebe3d6f489b0a7`, played it with `afplay`, and ended on
+and matching hash `0x1bd023e412245bd3`, played it with `afplay`, and ended on
 `audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
@@ -343,7 +345,7 @@ make -C ports/same70-xplained audio-listen
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
 `compared_samples=353280 mismatches=0` and matching hash
-`0x61ebe3d6f489b0a7`, played it with `afplay`, and left the board on
+`0x1bd023e412245bd3`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -516,6 +518,13 @@ Use `make -C ports/same70-xplained external-codec-cs4272-rate-matrix` to check
 the planned full CS4272 target: 16/18/20/24-bit valid PCM widths, standard USB
 rates from 8 kHz through 192 kHz, and the broader codec `4-200 kHz` range that
 requires a programmable low-jitter clock generator.
+Use `audio rates`, or `make -C ports/same70-xplained audio-rates`, to print the
+disabled firmware matrix from `same70_audio_matrix.c`. It must report
+`current_usb_descriptors=44k16_48k24_only`, `target_rates=13`,
+`target_formats=52`, and
+`status_only_no_new_usb_altsettings_until_ssc_xdmac_and_external_gate` until
+the descriptor generator, SSC/XDMAC sizing, host verifiers, and external-codec
+gate exist.
 Use `make -C ports/same70-xplained external-codec-cs4272-control-port` to check
 the selected CS4272 I2C control route: `PA3/TWD0`, `PA4/TWCK0`, `AD0` strapped
 low for address `0x10`, reset on `PC17`, and the first `CPEN/PDN` register
@@ -535,15 +544,17 @@ with `codec_bits=16_18_20_24` and `codec_fs=4k_to_200k`.
 It also reports
 `control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only`,
 `rst=pc17_ext1_pin10`, `cp=0x07_0x03_then_0x02`, and
-`control_skeleton=same70_cs4272_control_status_only`.
+`control_skeleton=same70_cs4272_control_status_only`, plus
+`audio_rates_status_only`.
 The two-family oscillator select is status-only until hardware exists:
 `selected_family=from_usb_rate`, `xo_44_en=not_wired`, and
 `xo_48_en=not_wired`.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
-plus `audio-codec` to prove the stock board still reports no external codec and
-the CS4272 control bus remains inactive. The latest run passed and reported
-`external codec remains disabled`.
+plus `audio-codec` and `audio-rates` to prove the stock board still reports no
+external codec, the CS4272 control bus remains inactive, and the future rate
+matrix remains status-only. The latest run passed and reported `external codec
+remains disabled`.
 Use `make -C ports/same70-xplained external-codec-wiring-checklist` for the
 offline staged wiring checklist check. The checklist lives in
 `external-codec-wiring-checklist.md` and covers stop conditions, stock-board
@@ -628,7 +639,9 @@ also models the future `xo_44_en`/`xo_48_en` selection from USB sample rate.
 The target matrix for that route is documented in
 `external-codec-cs4272-rate-matrix.md`; current firmware still advertises only
 44.1 kHz/16-bit and 48 kHz/24-bit until the descriptor, SSC/XDMAC, and verifier
-work is done. The selected control-port path is documented in
+work is done. The disabled firmware table for that future matrix lives in
+`same70_audio_matrix.c` and is exposed through `audio rates`. The selected
+control-port path is documented in
 `external-codec-cs4272-control-port.md`: I2C on PA3/PA4, CS4272 address `0x10`,
 reset on PC17, and the disabled `same70_cs4272_control.c` status skeleton. Do
 not map USB mute/volume controls to CS4272 registers on the bit-perfect path.

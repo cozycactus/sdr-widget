@@ -9,7 +9,7 @@ void same70_audio_hw_get_status(same70_audio_hw_status_t *status)
 	status->adc_path = "no_adc";
 	status->dac_path = "no_dac";
 	status->candidate_bus = "header_digital_audio_ssc_style";
-	status->candidate_pins = "CS4272=I2S_TD_RD_BCLK_LRCK TD=PD26/J502.1 RD=PA10/J504.2 RF=PD24/J504.1 RK=PA22/J504.3 TK=PB1/J505.8 TF=PB0/J505.7 MCLK=external_to_codecs control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only rst=pc17_ext1_pin10 cp=0x07_0x03_then_0x02 control_skeleton=same70_cs4272_control_status_only xo_44_en=not_wired xo_48_en=not_wired AD1856=mono_DATA_TD_CLK_TK_LE_TF formatter_owns_ad1856_data_clk_le";
+	status->candidate_pins = "CS4272=I2S_TD_RD_BCLK_LRCK TD=PD26/J502.1 RD=PA10/J504.2 RF=PD24/J504.1 RK=PA22/J504.3 TK=PB1/J505.8 TF=PB0/J505.7 MCLK=external_to_codecs control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only rst=pc17_ext1_pin10 cp=0x07_0x03_then_0x02 control_skeleton=same70_cs4272_control_status_only audio_rates_status_only xo_44_en=not_wired xo_48_en=not_wired AD1856=mono_DATA_TD_CLK_TK_LE_TF formatter_owns_ad1856_data_clk_le";
 	status->candidate_headers = "J502,J504,J505,J507,EXT1";
 	status->clock_plan = "cs4272_master_256fs_baseline_full_rate_matrix_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt";
 	status->sample_frame = "selected_family=from_usb_rate 44k16_mclk=11289600_bclk=2822400_xo=xo_44_en_feedback_44k1=0x00058333 48k24_mclk=12288000_bclk=3072000_xo=xo_48_en_feedback_48k=0x00060000 target_usb=16_18_20_24bit_8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192 codec_bits=16_18_20_24 codec_fs=4k_to_200k";
@@ -20,5 +20,5 @@ void same70_audio_hw_get_status(same70_audio_hw_status_t *status)
 	status->original_codec = "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE CS4272_PRACTICAL_I2S_ADC_DAC_PLAN";
 	status->original_transport = "AVR32_SSC_PDCA";
 	status->boundary = "needs_external_codec_board";
-	status->next_step = "cs4272_control_skeleton_status_only_then_usb_descriptor_matrix";
+	status->next_step = "usb_descriptor_matrix_status_only_then_descriptor_generator_and_host_verifiers";
 }

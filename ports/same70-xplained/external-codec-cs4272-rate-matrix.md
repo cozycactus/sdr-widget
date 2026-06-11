@@ -60,6 +60,20 @@ The firmware must also grow matching USB descriptors, sample-rate request
 handling, feedback calculation, SSC/XDMAC packet sizing, and exact host-side
 verifiers before any new rate or bit depth is claimed as supported.
 
+## Firmware Status Skeleton
+
+The stock-board firmware now carries the planned matrix as disabled status data
+in `same70_audio_matrix.c`. The serial command `audio rates` reports:
+
+- `current_usb_descriptors=44k16_48k24_only`
+- `target_bits=16_18_20_24`
+- `target_rates=8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192`
+- `target_formats=52`
+- `status_only_no_new_usb_altsettings_until_ssc_xdmac_and_external_gate`
+
+This is not descriptor enablement. It is a firmware-side target table for the
+future descriptor generator, SSC/XDMAC sizing work, and host verifiers.
+
 ## Current Firmware Boundary
 
 Current firmware descriptors still expose only the already verified stock-board
