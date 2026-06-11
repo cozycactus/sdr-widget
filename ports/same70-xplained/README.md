@@ -155,6 +155,7 @@ make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-cs4272-rate-matrix
+make -C ports/same70-xplained external-codec-cs4272-control-port
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
 make -C ports/same70-xplained external-dac-ad1856-upduino-v31
@@ -235,8 +236,8 @@ make -C ports/same70-xplained flash-ready
 It runs `flash`, waits briefly for USB re-enumeration, then runs `board-ready`.
 The latest run programmed and verified flash with OpenOCD, passed the widget
 and UAC control gates plus the generated-audio gate, exact-verified
-`/tmp/same70-melody-listen.wav` with `compared_samples=353280 mismatches=0`
-and matching hash `0x136fe76e0d7bfb07`, played it with `afplay`, and ended on
+`/tmp/same70-melody-listen.wav` with `compared_samples=352256 mismatches=0`
+and matching hash `0x23eba79a47b2884f`, played it with `afplay`, and ended on
 `audio melody`.
 
 The `stream-probe` target builds and runs a macOS CoreAudio HAL probe that
@@ -339,8 +340,8 @@ make -C ports/same70-xplained audio-listen
 
 Latest checked `audio-listen` run captured four seconds to
 `/tmp/same70-melody-listen.wav`, exact-verified the live stream and WAV with
-`compared_samples=353280 mismatches=0` and matching hash
-`0x136fe76e0d7bfb07`, played it with `afplay`, and left the board on
+`compared_samples=352256 mismatches=0` and matching hash
+`0x23eba79a47b2884f`, played it with `afplay`, and left the board on
 `audio melody`.
 
 Latest exact melody verification used
@@ -513,6 +514,10 @@ Use `make -C ports/same70-xplained external-codec-cs4272-rate-matrix` to check
 the planned full CS4272 target: 16/18/20/24-bit valid PCM widths, standard USB
 rates from 8 kHz through 192 kHz, and the broader codec `4-200 kHz` range that
 requires a programmable low-jitter clock generator.
+Use `make -C ports/same70-xplained external-codec-cs4272-control-port` to check
+the selected CS4272 I2C control route: `PA3/TWD0`, `PA4/TWCK0`, `AD0` strapped
+low for address `0x10`, reset on `PC17`, and the first `CPEN/PDN` register
+sequence.
 The live firmware status now mirrors that plan while keeping the codec disabled:
 it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
 `cs4272_master_256fs_baseline_full_rate_matrix_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_xo_select_from_usb_rate_ad1856_formatter_alt`,
@@ -520,6 +525,9 @@ it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
 `48k24_mclk=12288000_bclk=3072000_feedback_48k=0x00060000`, plus
 `target_usb=16_18_20_24bit_8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192`
 with `codec_bits=16_18_20_24` and `codec_fs=4k_to_200k`.
+It also reports
+`control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only`,
+`rst=pc17_ext1_pin10`, and `cp=0x07_0x03_then_0x02`.
 The two-family oscillator select is status-only until hardware exists:
 `selected_family=from_usb_rate`, `xo_44_en=not_wired`, and
 `xo_48_en=not_wired`.
@@ -611,7 +619,10 @@ also models the future `xo_44_en`/`xo_48_en` selection from USB sample rate.
 The target matrix for that route is documented in
 `external-codec-cs4272-rate-matrix.md`; current firmware still advertises only
 44.1 kHz/16-bit and 48 kHz/24-bit until the descriptor, SSC/XDMAC, and verifier
-work is done.
+work is done. The selected control-port path is documented in
+`external-codec-cs4272-control-port.md`: I2C on PA3/PA4, CS4272 address `0x10`,
+and reset on PC17. Do not map USB mute/volume controls to CS4272 registers on
+the bit-perfect path.
 The current board can prove USB timing and bit-perfect sample movement, but not
 analog SDR input/output until that external codec path exists.
 `same70_audio_hw.c` is the status seam to extend when codec hardware is added.

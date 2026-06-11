@@ -30,6 +30,7 @@ EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 EXTERNAL_CODEC_CLOCK_PLAN ?= external-codec-low-jitter-clock-plan.md
 EXTERNAL_CODEC_I2S_CS4272 ?= external-codec-i2s-cs4272-bitperfect.md
 EXTERNAL_CODEC_CS4272_RATE_MATRIX ?= external-codec-cs4272-rate-matrix.md
+EXTERNAL_CODEC_CS4272_CONTROL_PORT ?= external-codec-cs4272-control-port.md
 EXTERNAL_CODEC_CLOCK_MODEL ?= external-codec-clock-model.py
 EXTERNAL_DAC_AD1856_MONO ?= external-dac-ad1856-mono-test.md
 EXTERNAL_DAC_AD1856_FORMATTER ?= external-dac-ad1856-low-jitter-formatter.md
@@ -69,7 +70,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -131,6 +132,7 @@ audio-hw:
 		--expect "external-codec-low-jitter-clock-plan.md" \
 		--expect "external-codec-pin-map.md" \
 		--expect "external-codec-i2s-cs4272-bitperfect.md" \
+		--expect "external-codec-cs4272-control-port.md" \
 		--expect "external-codec-clock-model.py" \
 		--expect "external_low_jitter" \
 		--expect "CS4272=I2S_TD_RD_BCLK_LRCK" \
@@ -148,13 +150,16 @@ audio-hw:
 		--expect "target_usb=16_18_20_24bit_8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192" \
 		--expect "codec_bits=16_18_20_24" \
 		--expect "codec_fs=4k_to_200k" \
+		--expect "control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only" \
+		--expect "rst=pc17_ext1_pin10" \
+		--expect "cp=0x07_0x03_then_0x02" \
 		--expect "MCLK=external_to_codecs" \
 		--expect "AD1856=mono_DATA_TD_CLK_TK_LE_TF" \
 		--expect "external-dac-ad1856-mono-test.md" \
 		--expect "external-dac-ad1856-low-jitter-formatter.md" \
 		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
-		--expect "cs4272_full_rate_status_only" \
+		--expect "cs4272_control_port_status_only" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
@@ -241,7 +246,27 @@ external-codec-cs4272-rate-matrix: external-codec-clock-model
 	@grep -q "Current firmware descriptors still expose only" "$(EXTERNAL_CODEC_CS4272_RATE_MATRIX)"
 	@printf '%s\n' "external-codec-cs4272-rate-matrix: pass"
 
-external-codec-i2s-cs4272: external-codec-clock-model external-codec-cs4272-rate-matrix
+external-codec-cs4272-control-port:
+	@test -f "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "Use the CS4272 I2C control port first, not SPI" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "SDA/CDIN.*PA3/TWD0" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "SCL/CCLK.*PA4/TWCK0" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "AD0/CS.*address.*0x10" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "RST.*PC17" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "3V3" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "100 kHz" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0x07 = 0x03" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0x07 = 0x02" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0x01.*rate-dependent" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0x06.*0x10" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0x39" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "0xe9" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "Do not map USB mute/volume controls" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@grep -q "CS4272_F2.pdf" "$(EXTERNAL_CODEC_CS4272_CONTROL_PORT)"
+	@printf '%s\n' "external-codec-cs4272-control-port: pass"
+
+external-codec-i2s-cs4272: external-codec-clock-model external-codec-cs4272-rate-matrix external-codec-cs4272-control-port
 	@test -f "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272-class" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272 master-mode 256fs" "$(EXTERNAL_CODEC_I2S_CS4272)"
@@ -263,6 +288,7 @@ external-codec-i2s-cs4272: external-codec-clock-model external-codec-cs4272-rate
 	@grep -q "PCK0.*diagnostic" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "external-codec-clock-model" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "external-codec-cs4272-rate-matrix.md" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "external-codec-cs4272-control-port.md" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272_F2.pdf" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@printf '%s\n' "external-codec-i2s-cs4272: pass"
 
@@ -273,6 +299,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "needs_external_codec_board" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "CS4272-class I2S codec" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external-codec-i2s-cs4272-bitperfect.md" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "CS4272 I2C control bus" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "UC3A3 original AK5394" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "ES9023" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "AD1856" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -295,6 +322,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "PCK0.*not codec MCLK.*PB13.*J504 pin 5 or J507 pin 19" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "explicit feedback endpoint 4" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "PC17.*EXT1 pin 10" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
+	@grep -q "PA3/PA4" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@printf '%s\n' "external-codec-wiring-checklist: pass"
 
 external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-clock-model external-codec-i2s-cs4272
@@ -321,6 +349,8 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	@grep -q "XO_44_EN" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "XO_48_EN" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "PC17 | EXT1 pin 10" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "CS4272 I2C SDA | PA3" "$(EXTERNAL_CODEC_PIN_MAP)"
+	@grep -q "CS4272 I2C SCL | PA4" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external-dac-ad1856-low-jitter-formatter.md" "$(EXTERNAL_CODEC_PIN_MAP)"
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"

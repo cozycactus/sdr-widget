@@ -92,6 +92,9 @@ Verified firmware features:
   `target_usb=16_18_20_24bit_8_11k025_12_16_22k05_24_32_44k1_48_88k2_96_176k4_192`,
   `codec_bits=16_18_20_24`,
   `codec_fs=4k_to_200k`,
+  `control=cs4272_i2c_twi0_pa3_pa4_addr_0x10_status_only`,
+  `rst=pc17_ext1_pin10`,
+  `cp=0x07_0x03_then_0x02`,
   and `needs_external_codec_board`.
 - The practical preferred first full ADC+DAC board is now a CS4272-class I2S
   codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
@@ -102,12 +105,16 @@ Verified firmware features:
   `ports/same70-xplained/external-codec-cs4272-rate-matrix.md`: 16/18/20/24-bit
   valid PCM widths, standard USB rates from 8 kHz through 192 kHz, and the
   broader codec `4-200 kHz` range with a programmable low-jitter clock
-  generator. Current firmware descriptors still advertise only the verified
-  44.1 kHz/16-bit and 48 kHz/24-bit stock-board USB modes. The strict
-  bit-perfect claim for the future route is only at the digital I2S/SSC pins
-  before codec digital filters; analog output/input is not claimed bit-perfect.
-  This is still documentation/preflight only: stock-board firmware must keep
-  reporting no external codec until hardware is wired and verified.
+  generator. The selected control-port route is documented in
+  `ports/same70-xplained/external-codec-cs4272-control-port.md`: I2C on
+  PA3/PA4, `AD0` strapped low for address `0x10`, reset on PC17, and no USB
+  mute/volume application to codec registers on the bit-perfect path. Current
+  firmware descriptors still advertise only the verified 44.1 kHz/16-bit and
+  48 kHz/24-bit stock-board USB modes. The strict bit-perfect claim for the
+  future route is only at the digital I2S/SSC pins before codec digital
+  filters; analog output/input is not claimed bit-perfect. This is still
+  documentation/preflight only: stock-board firmware must keep reporting no
+  external codec until hardware is wired and verified.
 - The macOS CoreAudio HAL stream probe target has verified USB-level active
   streaming against the connected board at both advertised formats. Latest
   48 kHz/24-bit check was `summary mode=loopback rate=48000 bits=24 runs=1
@@ -206,6 +213,11 @@ Verified firmware features:
   the codec 4-50/50-100/100-200 kHz speed ranges, 16/18/20/24-bit capability,
   standard USB rates from 8 kHz through 192 kHz, the programmable-clock
   requirement, and the current-descriptor boundary. Latest run passed.
+- `make -C ports/same70-xplained external-codec-cs4272-control-port` is the
+  offline gate for the selected CS4272 I2C control-port route. It checks
+  PA3/TWD0, PA4/TWCK0, `AD0` low for address `0x10`, PC17 reset, 3.3 V pull-up
+  requirements, the `0x07=0x03` then `0x07=0x02` startup sequence, I2S register
+  defaults, and the no-USB-volume-to-codec rule. Latest run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
@@ -251,15 +263,15 @@ Verified firmware features:
   `audio-listen`; use it when the board should finish in the verified
   `audio melody` state instead of the smoke gate's final silence state. Latest
   run passed, exact-verified `/tmp/same70-melody-listen.wav` with
-  `compared_samples=353280 mismatches=0` and matching hash
-  `0x136fe76e0d7bfb07`, played it through `afplay`, and ended on
+  `compared_samples=352256 mismatches=0` and matching hash
+  `0x23eba79a47b2884f`, played it through `afplay`, and ended on
   `audio melody`.
 - `make -C ports/same70-xplained flash-ready` flashes the connected SAME70,
   waits briefly for USB re-enumeration, then runs `board-ready`. Latest run
   programmed and verified flash with OpenOCD, passed the widget/UAC control and
   generated-audio gates, verified `/tmp/same70-melody-listen.wav` with
-  `compared_samples=353280 mismatches=0` and matching hash
-  `0x136fe76e0d7bfb07`, played it through `afplay`, and ended on
+  `compared_samples=352256 mismatches=0` and matching hash
+  `0x23eba79a47b2884f`, played it through `afplay`, and ended on
   `audio melody`.
 - After macOS audio enumeration and `widget-control -d`, the serial `usb`
   command has been verified with `stall=0`.
@@ -375,8 +387,8 @@ Verified firmware features:
   USB OUT silent during capture, and leaves the board on `audio melody`.
   Latest checked `audio-listen` run wrote `/tmp/same70-melody-listen.wav`,
   passed live exact verification plus disk WAV verification with
-  `compared_samples=353280 mismatches=0` and matching hash
-  `0x0c0d418c1965963b`, played through `afplay`, and left the board on
+  `compared_samples=352256 mismatches=0` and matching hash
+  `0x23eba79a47b2884f`, played through `afplay`, and left the board on
   `audio melody`.
   Latest exact melody gate:
   `make -C ports/same70-xplained audio-verify AUDIO_VERIFY_ARGS="--seconds 1
@@ -511,6 +523,7 @@ make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-clock-model
 make -C ports/same70-xplained external-codec-cs4272-rate-matrix
+make -C ports/same70-xplained external-codec-cs4272-control-port
 make -C ports/same70-xplained external-codec-i2s-cs4272
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
@@ -554,6 +567,8 @@ shared BCLK/LRCK slave-SSC plan plus AD1856 timing caveat,
 divider and explicit feedback byte model,
 `external-codec-cs4272-rate-matrix` checks the planned full-rate/full-bit-depth
 CS4272 capability target,
+`external-codec-cs4272-control-port` checks the selected CS4272 I2C control
+route and startup register contract,
 `external-codec-i2s-cs4272` checks the practical CS4272-class I2S codec
 bit-perfect digital-boundary plan,
 `external-dac-ad1856-mono` checks the mono DAC planning doc,

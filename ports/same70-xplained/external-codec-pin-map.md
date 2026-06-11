@@ -54,8 +54,8 @@ on its serial clock/frame inputs.
 | 44.1 kHz family oscillator enable, future `XO_44_EN` | TBD | TBD | -- | GPIO | Firmware selects from USB rate; currently `xo_44_en=not_wired` | Choose after codec/clock board control pins are known |
 | 48 kHz family oscillator enable, future `XO_48_EN` | TBD | TBD | -- | GPIO | Firmware selects from USB rate; currently `xo_48_en=not_wired` | Choose after codec/clock board control pins are known |
 | Codec reset/control GPIO default, original `AD_RSTN` first | PC17 | EXT1 pin 10 | SPI_SS_B/GPIO | GPIO | Xplained Pro extension header | EXT1 has populated extension-header footprint; verify actual header population |
-| Optional I2C SDA | PA3 | EXT1/EXT2 pin 11 or J500 pin 9 | I2C_SDA or SDA | TWD0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
-| Optional I2C SCL | PA4 | EXT1/EXT2 pin 12 or J500 pin 10 | I2C_SCL or SCL | TWCK0 | Shared with camera connector, AT24MAC402, and EDBG | Use only if sharing is acceptable |
+| CS4272 I2C SDA | PA3 | EXT1/EXT2 pin 11 or J500 pin 9 | I2C_SDA or SDA | TWD0 | Shared with camera connector, AT24MAC402, and EDBG | Selected control-port route; use only if sharing is acceptable |
+| CS4272 I2C SCL | PA4 | EXT1/EXT2 pin 12 or J500 pin 10 | I2C_SCL or SCL | TWCK0 | Shared with camera connector, AT24MAC402, and EDBG | Selected control-port route; use only if sharing is acceptable |
 | Power | -- | J501 pin 4 or EXT VCC pins | 3V3/VCC | 3.3 V supply | Logic supply only unless current budget is confirmed | Never use 5V for SAME70 I/O |
 | Ground | -- | J501 pins 6/7 or nearby header GND | GND | Ground | Common reference | Connect before signals |
 
@@ -99,6 +99,7 @@ accepts external transmit timing. See
 4. Power only the stock SAME70 board and verify `board-ready` still passes.
 5. Attach external board power/ground only; verify supply voltage and current.
 6. Add reset/control wiring and verify GPIO-only control.
+7. Add CS4272 I2C control on PA3/PA4 only after bus sharing is checked.
 7. Add external `MCLK`, `BCLK`, and `LRCK` wiring and verify clock-only input
    at the codecs and SAME70 before connecting data pins.
 8. Add serial audio data pins and create a new explicit external-codec gate.

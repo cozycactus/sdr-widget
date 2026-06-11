@@ -70,7 +70,7 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
   recreate MCLK through PCK0.
 - Confirm the first firmware path will use explicit USB feedback derived from
   real SSC/FIFO cadence, with no sample-rate conversion.
-- Confirm reset polarity and optional control bus requirements.
+- Confirm reset polarity and CS4272 I2C control bus requirements.
 - For the mono AD1856 test, confirm the board exposes `DATA`, `CLK`, `LE`,
   bipolar supplies, common ground, and an analog output filter.
 - For the preferred low-jitter AD1856 path, confirm the formatter drives
@@ -101,7 +101,7 @@ Stop immediately and do not wire or enable codec firmware if any item is true:
 - Wire only codec reset/control after the power-only stage passes.
 - Keep serial audio pins disconnected.
 - Verify reset can hold the codec inactive before any clocks or data are used.
-- If optional I2C is used, confirm PA3/PA4 sharing is acceptable before wiring.
+- For the CS4272 path, confirm PA3/PA4 sharing is acceptable before wiring I2C.
 
 ## Stage 5: Clock-Only Probe
 

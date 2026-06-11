@@ -87,6 +87,18 @@ descriptors still advertise only the already verified `44.1 kHz / 16-bit` and
 capability until matching USB descriptors, SSC/XDMAC sizing, and host verifiers
 exist.
 
+## Control Port
+
+Use the CS4272 I2C control port first. The selected status-only route is
+documented in `external-codec-cs4272-control-port.md`: `SDA/CDIN` on
+`PA3/TWD0`, `SCL/CCLK` on `PA4/TWCK0`, `AD0/CS` strapped low for I2C address
+`0x10`, and `RST` on `PC17`. Firmware must not touch this bus during active
+audio except for explicit stop/mute/reconfigure/start transitions.
+
+The first hardware probe should prove I2C readback and baseline register writes
+while still reporting `external_codec=0`. Do not map USB mute or volume state
+to CS4272 DAC registers on the bit-perfect path.
+
 ## Candidate Header Signals
 
 | Codec signal | SAME70 route | Board header | Direction |
@@ -99,7 +111,7 @@ exist.
 | `XO_44_EN` | TBD GPIO | TBD | SAME70 to clock board |
 | `XO_48_EN` | TBD GPIO | TBD | SAME70 to clock board |
 | Reset/control GPIO | `PC17` | `EXT1 pin 10` | SAME70 to codec |
-| Optional I2C control | `PA3`/`PA4` | `EXT1/EXT2 pins 11/12` or `J500 pins 9/10` | Shared bus, confirm before wiring |
+| I2C control | `PA3`/`PA4` | `EXT1/EXT2 pins 11/12` or `J500 pins 9/10` | Shared bus, confirm before wiring |
 
 Exact CS4272 package pins, pull-ups, mode straps, analog supplies, and reset
 polarity remain board-design tasks. SAME70 Xplained header I/O is 3.3 V only.
