@@ -124,3 +124,20 @@ make -C ports/same70-xplained ad1856-formatter-bitstream \
 Use the actual `ICE40_DEVICE` and `ICE40_PACKAGE` values for the selected
 board; `up5k/sg48` is only an example. The bitstream path uses the board
 wrapper, not the debug-heavy simulation top.
+
+## UPduino v3.1 Starter Bitstream
+
+The selected first external formatter board is UPduino v3.1. Its starter PCF is:
+
+```text
+constraints/upduino-v3.1-ad1856.pcf.example
+```
+
+Build the starter bitstream with:
+
+```sh
+make -C ports/same70-xplained ad1856-formatter-upduino-v31-bitstream
+```
+
+This uses `ICE40_DEVICE=up5k`, `ICE40_PACKAGE=sg48`, and the board wrapper
+top-level. The output is `build/ad1856_formatter-ice40.bin`.

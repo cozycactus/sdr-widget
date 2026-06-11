@@ -1,0 +1,47 @@
+# UPduino v3.1 starter pin map for the AD1856 formatter.
+#
+# Target:
+#   Lattice iCE40UP5K on UPduino v3.1, package sg48.
+#
+# This is a first wiring-friendly map. It keeps the external audio XO on
+# gpio_35, which the UPduino docs call the ideal external clock input, and
+# keeps the SAME70/AD1856 formatter bundle on adjacent left-side header pins.
+# Use 3.3 V logic only.
+
+# External low-jitter XO input, 11.2896 MHz for the first 44.1 kHz test.
+# UPduino PCF label gpio_35, header pin 16, SG48 package pin 35,
+# G0/global clock input.
+set_io clk_xo 35
+set_frequency clk_xo 11.2896
+
+# Reset input. Drive from SAME70 PC17/EXT1 pin 10 later, or pull up to 3.3 V
+# for standalone clock-only formatter tests.
+# UPduino PCF label gpio_37, header pin 18, SG48 package pin 37,
+# G1/global-capable input.
+set_io reset_n 37
+
+# SAME70 slave-TX side.
+# SAME70 TD on PD26 / J502 pin 1 -> UPduino PCF label gpio_23,
+# header pin 11, SG48 package pin 23.
+set_io same_td 23
+
+# UPduino PCF label gpio_25, header pin 12, SG48 package pin 25 ->
+# SAME70 TK on PB1 / J505 pin 8 or J507 pin 4.
+set_io same_tk 25
+
+# UPduino PCF label gpio_26, header pin 13, SG48 package pin 26 ->
+# SAME70 TF on PB0 / J505 pin 7 or J507 pin 5.
+set_io same_tf 26
+
+# AD1856 serial control side.
+# UPduino PCF label gpio_27, header pin 14, SG48 package pin 27 ->
+# AD1856 pin 7 DATA.
+set_io ad1856_data 27
+
+# UPduino PCF label gpio_32, header pin 15, SG48 package pin 32 ->
+# AD1856 pin 5 CLK.
+set_io ad1856_clk 32
+
+# UPduino PCF label gpio_31, header pin 17, SG48 package pin 31 ->
+# AD1856 pin 6 LE.
+set_io ad1856_le 31

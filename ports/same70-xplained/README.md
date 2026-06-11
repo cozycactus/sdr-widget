@@ -156,11 +156,13 @@ make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
+make -C ports/same70-xplained external-dac-ad1856-upduino-v31
 make -C ports/same70-xplained ad1856-formatter-sim
 make -C ports/same70-xplained ad1856-formatter-vcd
 make -C ports/same70-xplained ad1856-formatter-synth
 make -C ports/same70-xplained ad1856-formatter-board-synth
 make -C ports/same70-xplained ad1856-formatter-bitstream-help
+make -C ports/same70-xplained ad1856-formatter-upduino-v31-bitstream
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready
@@ -521,6 +523,12 @@ constraints are selected. Use `make -C ports/same70-xplained
 ad1856-formatter-board-synth` to synthesize the no-debug board wrapper that the
 future bitstream path uses. Use `make -C ports/same70-xplained
 ad1856-formatter-bitstream-help` for the required board-specific PCF variables.
+The selected first board map is UPduino v3.1; use
+`make -C ports/same70-xplained external-dac-ad1856-upduino-v31` to check the
+wiring table and `make -C ports/same70-xplained
+ad1856-formatter-upduino-v31-bitstream` to build the starter iCE40 bitstream.
+Latest UPduino bitstream build passed `nextpnr-ice40` timing for the 11.2896
+MHz `clk_xo` target and wrote `hdl/ad1856_formatter/build/ad1856_formatter-ice40.bin`.
 
 Latest CD bit-perfect check used `make -C ports/same70-xplained
 audio-cd-ready`. The `audio-cd-bitperfect` phase captured input

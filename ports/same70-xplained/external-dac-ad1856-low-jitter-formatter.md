@@ -116,3 +116,13 @@ The bitstream skeleton is present but requires a board-specific PCF:
 ```sh
 make -C ports/same70-xplained ad1856-formatter-bitstream-help
 ```
+
+The selected first board-specific map is UPduino v3.1:
+
+```sh
+make -C ports/same70-xplained external-dac-ad1856-upduino-v31
+make -C ports/same70-xplained ad1856-formatter-upduino-v31-bitstream
+```
+
+The wiring table is in `external-dac-ad1856-upduino-v31.md`, and the PCF is
+`hdl/ad1856_formatter/constraints/upduino-v3.1-ad1856.pcf.example`.

@@ -20,8 +20,12 @@ ICE40_DEVICE ?=
 ICE40_PACKAGE ?=
 PCF ?=
 NEXTPNR_ARGS ?=
+UPDUINO_V31_DEVICE ?= up5k
+UPDUINO_V31_PACKAGE ?= sg48
+UPDUINO_V31_PCF ?= constraints/upduino-v3.1-ad1856.pcf.example
+UPDUINO_V31_NEXTPNR_ARGS ?=
 
-.PHONY: sim sim-vcd waves synth-ice40 synth-ice40-board bitstream-help bitstream-ice40 check-bitstream-config tool-versions clean
+.PHONY: sim sim-vcd waves synth-ice40 synth-ice40-board bitstream-help bitstream-ice40 upduino-v31-bitstream check-bitstream-config tool-versions clean
 
 sim: $(SIM_OUT)
 	$(VVP) $(SIM_OUT)
@@ -39,9 +43,18 @@ synth-ice40-board: $(BOARD_SYNTH_JSON)
 bitstream-help:
 	@printf '%s\n' "Copy constraints/ad1856_formatter-ice40.pcf.example to a board-specific .pcf, then run:"
 	@printf '%s\n' "  make bitstream-ice40 ICE40_DEVICE=up5k ICE40_PACKAGE=sg48 PCF=path/to/board.pcf"
+	@printf '%s\n' "For the selected UPduino v3.1 starter map, run:"
+	@printf '%s\n' "  make upduino-v31-bitstream"
 	@printf '%s\n' "Use the exact ICE40_DEVICE/ICE40_PACKAGE values for the selected FPGA board."
 
 bitstream-ice40: check-bitstream-config $(ICE40_BIN)
+
+upduino-v31-bitstream:
+	$(MAKE) bitstream-ice40 \
+		ICE40_DEVICE=$(UPDUINO_V31_DEVICE) \
+		ICE40_PACKAGE=$(UPDUINO_V31_PACKAGE) \
+		PCF=$(UPDUINO_V31_PCF) \
+		NEXTPNR_ARGS="$(UPDUINO_V31_NEXTPNR_ARGS)"
 
 check-bitstream-config:
 	@if [ -z "$(ICE40_DEVICE)" ] || [ -z "$(ICE40_PACKAGE)" ] || [ -z "$(PCF)" ]; then \

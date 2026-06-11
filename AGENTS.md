@@ -188,6 +188,16 @@ Verified firmware features:
   required iCE40 bitstream variables. The bitstream skeleton requires a
   board-specific PCF made from
   `ports/same70-xplained/hdl/ad1856_formatter/constraints/ad1856_formatter-ice40.pcf.example`.
+- The selected first external formatter board is UPduino v3.1. The wiring plan
+  lives in `ports/same70-xplained/external-dac-ad1856-upduino-v31.md`, the PCF
+  starter is
+  `ports/same70-xplained/hdl/ad1856_formatter/constraints/upduino-v3.1-ad1856.pcf.example`,
+  `make -C ports/same70-xplained external-dac-ad1856-upduino-v31` checks the
+  table, and `make -C ports/same70-xplained
+  ad1856-formatter-upduino-v31-bitstream` builds the starter UPduino
+  `up5k/sg48` bitstream. Latest UPduino starter bitstream build passed
+  `nextpnr-ice40` timing for the 11.2896 MHz `clk_xo` target and wrote
+  `hdl/ad1856_formatter/build/ad1856_formatter-ice40.bin`.
 - `make -C ports/same70-xplained external-codec-wiring-checklist` is the
   offline checklist gate for future external-codec wiring. It verifies
   `ports/same70-xplained/external-codec-wiring-checklist.md`, which captures
@@ -460,11 +470,13 @@ make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
+make -C ports/same70-xplained external-dac-ad1856-upduino-v31
 make -C ports/same70-xplained ad1856-formatter-sim
 make -C ports/same70-xplained ad1856-formatter-vcd
 make -C ports/same70-xplained ad1856-formatter-synth
 make -C ports/same70-xplained ad1856-formatter-board-synth
 make -C ports/same70-xplained ad1856-formatter-bitstream-help
+make -C ports/same70-xplained ad1856-formatter-upduino-v31-bitstream
 make -C ports/same70-xplained uac-verify
 make -C ports/same70-xplained board-verify
 make -C ports/same70-xplained board-ready

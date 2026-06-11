@@ -30,6 +30,7 @@ EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 EXTERNAL_CODEC_CLOCK_PLAN ?= external-codec-low-jitter-clock-plan.md
 EXTERNAL_DAC_AD1856_MONO ?= external-dac-ad1856-mono-test.md
 EXTERNAL_DAC_AD1856_FORMATTER ?= external-dac-ad1856-low-jitter-formatter.md
+EXTERNAL_DAC_AD1856_UPDUINO_V31 ?= external-dac-ad1856-upduino-v31.md
 AD1856_FORMATTER_HDL_DIR ?= hdl/ad1856_formatter
 AUDIO_CD_INPUT_WAV ?= /tmp/same70-loop-cd-input.wav
 AUDIO_CD_OUTPUT_WAV ?= /tmp/same70-loop-cd-output.wav
@@ -65,7 +66,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -169,7 +170,38 @@ external-dac-ad1856-formatter:
 	@grep -q "ad1856-formatter-sim" "$(EXTERNAL_DAC_AD1856_FORMATTER)"
 	@printf '%s\n' "external-dac-ad1856-formatter: pass"
 
-external-codec-wiring-checklist: external-codec-original-map external-codec-clock-plan external-dac-ad1856-mono external-dac-ad1856-formatter
+external-dac-ad1856-upduino-v31:
+	@test -f "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@test -f "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "UPduino v3.1" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "iCE40UP5K" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "clk_xo.*gpio_35" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "same_td.*gpio_23" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "same_tk.*gpio_25" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "same_tf.*gpio_26" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "ad1856_data.*gpio_27" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "ad1856_clk.*gpio_32" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "ad1856_le.*gpio_31" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "reset_n.*gpio_37" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "TD.*PD26.*J502 pin 1" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "TK.*PB1.*J505 pin 8.*J507 pin 4" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "TF.*PB0.*J505 pin 7.*J507 pin 5" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "AD1856 pin 7" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "AD1856 pin 5" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "AD1856 pin 6" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "3.3 V logic only" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "ad1856_formatter_board.v" "$(EXTERNAL_DAC_AD1856_UPDUINO_V31)"
+	@grep -q "set_io clk_xo 35" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io same_td 23" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io same_tk 25" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io same_tf 26" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io ad1856_data 27" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io ad1856_clk 32" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io ad1856_le 31" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@grep -q "set_io reset_n 37" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
+	@printf '%s\n' "external-dac-ad1856-upduino-v31: pass"
+
+external-codec-wiring-checklist: external-codec-original-map external-codec-clock-plan external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31
 	@test -f "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
@@ -282,6 +314,9 @@ ad1856-formatter-bitstream-help:
 
 ad1856-formatter-bitstream:
 	$(MAKE) -C $(AD1856_FORMATTER_HDL_DIR) bitstream-ice40
+
+ad1856-formatter-upduino-v31-bitstream:
+	$(MAKE) -C $(AD1856_FORMATTER_HDL_DIR) upduino-v31-bitstream
 
 widget-verify:
 	$(MAKE) -C ../.. widget-control
