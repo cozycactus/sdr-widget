@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Last updated: 2026-06-07
+Last updated: 2026-06-12
 
 This repo is the legacy SDR Widget firmware tree. The original firmware targets
 an AVR32 AT32UC3A3256; the currently connected bring-up board is an Atmel
@@ -82,7 +82,10 @@ Verified firmware features:
   `same70_audio_hw.c`; latest `audio-hw` still passes while reporting
   `external_codec=0`,
   `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
-  `external_low_jitter_formatter_owns_ad1856_data_clk_le_slave_ssc_explicit_fb_tbd`,
+  `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
+  `cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_ad1856_formatter_alt`,
+  `44k16_mclk=11289600_bclk=2822400_feedback_44k1=0x00058333`,
+  `48k24_mclk=12288000_bclk=3072000_feedback_48k=0x00060000`,
   and `needs_external_codec_board`.
 - The practical preferred first full ADC+DAC board is now a CS4272-class I2S
   codec route with external low-jitter MCLK/BCLK/LRCK, SAME70 as SSC-style
@@ -147,11 +150,12 @@ Verified firmware features:
   `UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE`,
   `AD1856=mono_DATA_TD_CLK_TK_LE_TF`, and `needs_external_codec_board`.
 - `make -C ports/same70-xplained external-codec-preflight` is the pre-wiring
-  guard for future codec work. It checks the UC3A3 original map, the AD1856
-  mono DAC plan, and `ports/same70-xplained/external-codec-pin-map.md` for the
-  selected header route and 3.3 V/no-generic-USB-I2S guardrails, then runs
-  `audio-hw` to prove the stock board still reports no external codec. Latest
-  run passed after flashing the updated status text and reported
+  guard for future codec work. It checks the UC3A3 original map, the CS4272
+  I2S codec plan, the CS4272 clock/feedback model, the AD1856 mono DAC plan,
+  and `ports/same70-xplained/external-codec-pin-map.md` for the selected
+  header route and 3.3 V/no-generic-USB-I2S guardrails, then runs `audio-hw`
+  to prove the stock board still reports no external codec. Latest run passed
+  after flashing the updated status text and reported
   `external codec remains disabled`.
 - `make -C ports/same70-xplained external-codec-original-map` is the offline
   schematic-source gate for the UC3A3 AK5394 ADC-board plus ES9023 DAC signal

@@ -119,23 +119,33 @@ audio-listen: $(STREAM_PROBE)
 	$(AUDIO_PLAYER) $(AUDIO_LISTEN_OUTPUT)
 
 audio-hw:
-	$(PYTHON) serial-command.py "audio hw" \
+	$(PYTHON) serial-command.py "audio hw" --timeout 4.0 \
 		--expect "external_codec=0" \
 		--expect "i2sc=not_configured" \
 		--expect "candidate=header_digital_audio_ssc_style" \
-		--expect "pins=TD=PD26/J502.1" \
+		--expect "TD=PD26/J502.1" \
 		--expect "headers=J502,J504,J505,J507,EXT1" \
 		--expect "voltage=3v3_only_no_5v_logic" \
 		--expect "external-codec-original-uc3a3-map.md" \
 		--expect "external-codec-low-jitter-clock-plan.md" \
 		--expect "external-codec-pin-map.md" \
+		--expect "external-codec-i2s-cs4272-bitperfect.md" \
+		--expect "external-codec-clock-model.py" \
 		--expect "external_low_jitter" \
+		--expect "CS4272=I2S_TD_RD_BCLK_LRCK" \
+		--expect "CS4272_PRACTICAL_I2S_ADC_DAC_PLAN" \
+		--expect "cs4272_master_256fs" \
+		--expect "44k16_mclk=11289600" \
+		--expect "feedback_44k1=0x00058333" \
+		--expect "48k24_mclk=12288000" \
+		--expect "feedback_48k=0x00060000" \
 		--expect "MCLK=external_to_codecs" \
 		--expect "AD1856=mono_DATA_TD_CLK_TK_LE_TF" \
 		--expect "external-dac-ad1856-mono-test.md" \
 		--expect "external-dac-ad1856-low-jitter-formatter.md" \
 		--expect "formatter_owns_ad1856_data_clk_le" \
 		--expect "UC3A3_AK5394_ADC_AD1856_MONO_DAC_TEST_ES9023_REFERENCE" \
+		--expect "cs4272_status_only_then_clock_only_probe" \
 		--expect "needs_external_codec_board" \
 		$(SERIAL_COMMAND_ARGS)
 
@@ -257,7 +267,7 @@ external-codec-wiring-checklist: external-codec-original-map external-codec-cloc
 	@grep -q "PC17.*EXT1 pin 10" "$(EXTERNAL_CODEC_WIRING_CHECKLIST)"
 	@printf '%s\n' "external-codec-wiring-checklist: pass"
 
-external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mono external-dac-ad1856-formatter
+external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mono external-dac-ad1856-formatter external-codec-clock-model external-codec-i2s-cs4272
 	@test -f "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_PIN_MAP)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_PIN_MAP)"

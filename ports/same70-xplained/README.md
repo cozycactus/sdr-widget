@@ -508,6 +508,11 @@ documented route.
 Use `make -C ports/same70-xplained external-codec-clock-model` to verify the
 CS4272 master-mode `256fs` MCLK, `64fs` BCLK/LRCK divider model and the current
 USB high-speed feedback bytes in `same70_usb.c`.
+The live firmware status now mirrors that plan while keeping the codec disabled:
+it reports `CS4272_PRACTICAL_I2S_ADC_DAC_PLAN`,
+`cs4272_master_256fs_divides_mclk_to_bclk_lrck_same70_slave_ssc_explicit_fb_external_low_jitter_ad1856_formatter_alt`,
+`44k16_mclk=11289600_bclk=2822400_feedback_44k1=0x00058333`, and
+`48k24_mclk=12288000_bclk=3072000_feedback_48k=0x00060000`.
 Use `make -C ports/same70-xplained external-codec-preflight` before wiring or
 codec-firmware work; it checks the pin-map guardrails and then runs `audio-hw`
 to prove the stock board still reports no external codec. The latest run passed
