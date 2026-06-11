@@ -29,6 +29,7 @@ EXTERNAL_CODEC_WIRING_CHECKLIST ?= external-codec-wiring-checklist.md
 EXTERNAL_CODEC_ORIGINAL_UC3A3_MAP ?= external-codec-original-uc3a3-map.md
 EXTERNAL_CODEC_CLOCK_PLAN ?= external-codec-low-jitter-clock-plan.md
 EXTERNAL_CODEC_I2S_CS4272 ?= external-codec-i2s-cs4272-bitperfect.md
+EXTERNAL_CODEC_CLOCK_MODEL ?= external-codec-clock-model.py
 EXTERNAL_DAC_AD1856_MONO ?= external-dac-ad1856-mono-test.md
 EXTERNAL_DAC_AD1856_FORMATTER ?= external-dac-ad1856-low-jitter-formatter.md
 EXTERNAL_DAC_AD1856_UPDUINO_V31 ?= external-dac-ad1856-upduino-v31.md
@@ -67,7 +68,7 @@ LDFLAGS := \
 SRCS := startup_same70.c main.c same70_audio_hw.c same70_clock.c same70_usb.c
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
+.PHONY: all clean flash flash-ready probe stream-probe uac-verify audio-verify audio-generated-verify audio-capture audio-cd-bitperfect audio-cd-ready audio-listen audio-hw audio-wav-verify ad1856-formatter-sim ad1856-formatter-vcd ad1856-formatter-synth ad1856-formatter-board-synth ad1856-formatter-bitstream-help ad1856-formatter-bitstream ad1856-formatter-upduino-v31-bitstream external-dac-ad1856-mono external-dac-ad1856-formatter external-dac-ad1856-upduino-v31 external-codec-clock-model external-codec-i2s-cs4272 external-codec-original-map external-codec-clock-plan external-codec-wiring-checklist external-codec-preflight widget-verify board-verify board-ready
 
 all: $(TARGET).elf $(TARGET).bin
 
@@ -202,9 +203,13 @@ external-dac-ad1856-upduino-v31:
 	@grep -q "set_io reset_n 37" "$(AD1856_FORMATTER_HDL_DIR)/constraints/upduino-v3.1-ad1856.pcf.example"
 	@printf '%s\n' "external-dac-ad1856-upduino-v31: pass"
 
-external-codec-i2s-cs4272:
+external-codec-clock-model:
+	$(PYTHON) "$(EXTERNAL_CODEC_CLOCK_MODEL)" --firmware same70_usb.c
+
+external-codec-i2s-cs4272: external-codec-clock-model
 	@test -f "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272-class" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "CS4272 master-mode 256fs" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "I2S serial audio" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "external_codec=0" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "i2sc=not_configured" "$(EXTERNAL_CODEC_I2S_CS4272)"
@@ -218,6 +223,7 @@ external-codec-i2s-cs4272:
 	@grep -q "TD.*PD26.*J502 pin 1" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "RD.*PA10.*J504 pin 2" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "PCK0.*diagnostic" "$(EXTERNAL_CODEC_I2S_CS4272)"
+	@grep -q "external-codec-clock-model" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@grep -q "CS4272_F2.pdf" "$(EXTERNAL_CODEC_I2S_CS4272)"
 	@printf '%s\n' "external-codec-i2s-cs4272: pass"
 
@@ -277,7 +283,7 @@ external-codec-preflight: external-codec-wiring-checklist external-dac-ad1856-mo
 	$(MAKE) audio-hw SERIAL_COMMAND_ARGS="$(SERIAL_COMMAND_ARGS)"
 	@printf '%s\n' "external-codec-preflight: pass; external codec remains disabled"
 
-external-codec-clock-plan:
+external-codec-clock-plan: external-codec-clock-model
 	@test -f "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "external low-jitter clock board" "$(EXTERNAL_CODEC_CLOCK_PLAN)"
 	@grep -q "audio slave for both receive and transmit" "$(EXTERNAL_CODEC_CLOCK_PLAN)"

@@ -57,7 +57,10 @@ Keep ground returns close to clock and data lines.
 
 Start with a single 44.1 kHz-family bring-up:
 
-- `MCLK`: `22.5792 MHz` or `11.2896 MHz`, depending on the ADC/DAC board.
+- CS4272 master-mode first choice: `MCLK` input `11.2896 MHz`, with the codec
+  dividing to `BCLK`/`LRCK`.
+- External clock-generator or other ADC/DAC boards may instead use
+  `22.5792 MHz`; keep those dividers outside SAME70.
 - `BCLK`: `2.8224 MHz` for stereo 32-bit frames (`44.1 kHz * 64`).
 - `LRCK`: `44.1 kHz`.
 
@@ -73,7 +76,10 @@ channel sample exactly for the first mono bit-perfect proof.
 
 Add the 48 kHz family after the 44.1 kHz path is stable:
 
-- `MCLK`: `24.576 MHz` or `12.288 MHz`, depending on the ADC/DAC board.
+- CS4272 master-mode first choice: `MCLK` input `12.288 MHz`, with the codec
+  dividing to `BCLK`/`LRCK`.
+- External clock-generator or other ADC/DAC boards may instead use
+  `24.576 MHz`; keep those dividers outside SAME70.
 - `BCLK`: `3.072 MHz` for stereo 32-bit frames (`48 kHz * 64`).
 - `LRCK`: `48 kHz`.
 

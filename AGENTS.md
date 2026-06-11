@@ -178,6 +178,10 @@ Verified firmware features:
   firmware boundary, external low-jitter clock ownership, SAME70 slave
   RX/TX direction, explicit USB feedback, no DSP/resampling, logic-analyzer
   bit-perfect proof at the I2S/SSC pins, and source links. Latest run passed.
+- `make -C ports/same70-xplained external-codec-clock-model` is the
+  software-only clock/feedback model for the CS4272 path. It verifies 44.1 kHz
+  and 48 kHz master-mode `256fs` MCLK, `64fs` BCLK/LRCK ratios, and the current
+  high-speed explicit feedback bytes in `same70_usb.c`. Latest run passed.
 - `make -C ports/same70-xplained ad1856-formatter-sim` runs the generic Verilog
   starter testbench for the AD1856 low-jitter formatter. The HDL lives in
   `ports/same70-xplained/hdl/ad1856_formatter`; it targets an 11.2896 MHz XO,
@@ -481,6 +485,7 @@ make -C ports/same70-xplained audio-listen
 make -C ports/same70-xplained audio-hw
 make -C ports/same70-xplained external-codec-original-map
 make -C ports/same70-xplained external-codec-clock-plan
+make -C ports/same70-xplained external-codec-clock-model
 make -C ports/same70-xplained external-codec-i2s-cs4272
 make -C ports/same70-xplained external-codec-wiring-checklist
 make -C ports/same70-xplained external-codec-preflight
@@ -520,6 +525,8 @@ AK5394 ADC-board plus the selected AD1856 mono-first DAC test. The
 `external-codec-original-map` target checks the schematic-source map,
 `external-codec-clock-plan` checks the external MCLK/direct-to-codecs and
 shared BCLK/LRCK slave-SSC plan plus AD1856 timing caveat,
+`external-codec-clock-model` checks the software-only CS4272 256fs/64fs
+divider and explicit feedback byte model,
 `external-codec-i2s-cs4272` checks the practical CS4272-class I2S codec
 bit-perfect digital-boundary plan,
 `external-dac-ad1856-mono` checks the mono DAC planning doc,

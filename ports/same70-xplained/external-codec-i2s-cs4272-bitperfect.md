@@ -36,6 +36,23 @@ SAME70 feedback endpoint 4          -> explicit USB feedback from the
 Do not derive codec MCLK from SAME70 PCK0 for this path. PCK0 diagnostic output
 on PB13 is optional only.
 
+## CS4272 Clock Division
+
+The first CS4272 bring-up should use CS4272 master-mode 256fs clocking. In that
+mode the codec receives a low-jitter MCLK input and divides it to make the
+serial clocks that SAME70 uses as a slave:
+
+```text
+11.2896 MHz MCLK -> 44.1 kHz LRCK, 2.8224 MHz BCLK
+12.2880 MHz MCLK -> 48.0 kHz LRCK, 3.0720 MHz BCLK
+```
+
+The divider is therefore inside the codec clock domain, not inside SAME70:
+`MCLK/LRCK = 256`, `BCLK/LRCK = 64`, and `MCLK/BCLK = 4`. The offline
+`external-codec-clock-model` target verifies these ratios and checks that the
+current firmware USB high-speed feedback constants match the same 44.1 kHz and
+48 kHz sample rates.
+
 ## Candidate Header Signals
 
 | Codec signal | SAME70 route | Board header | Direction |
