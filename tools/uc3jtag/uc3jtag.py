@@ -112,7 +112,7 @@ class OpenOCD:
                     + out.strip())
             try:
                 s = socket.create_connection(("127.0.0.1", self.port), timeout=1.0)
-                s.settimeout(10.0)
+                s.settimeout(20.0)
                 self.sock = s
                 return
             except OSError as e:
@@ -210,8 +210,13 @@ MODE_READ = 0x01
 OCDREG_DID = 0x00   # Device ID
 OCDREG_DC = 0x02    # Development Control
 OCDREG_DS = 0x04    # Development Status
+OCDREG_DC_DBE = 1 << 13   # Debug Enable
+OCDREG_DC_DBR = 1 << 12   # Debug Request (halt the CPU)
 
-_MAX_BUSY = 64
+# Busy-wait budget for a single SAB access. A chip-erase holds the Service
+# Access Bus busy until it completes, so this must comfortably exceed the
+# worst-case flash operation time.
+_BUSY_TIMEOUT = 8.0
 
 
 def _ir(ocd: OpenOCD, instr: int) -> None:
@@ -225,6 +230,21 @@ def _dr(ocd: OpenOCD, *pairs: tuple[int, int]) -> list[int]:
     return [int(tok, 16) for tok in out.split()]
 
 
+def _scan_until_ready(ocd, fields, busy_fn, label):
+    """Repeat a DR scan until its busy bit clears or _BUSY_TIMEOUT elapses.
+
+    The SAB asserts busy while a long flash op (e.g. chip-erase) is in flight,
+    so this doubles as the wait for that op to finish.
+    """
+    deadline = time.time() + _BUSY_TIMEOUT
+    while True:
+        ret = _dr(ocd, *fields)
+        if not busy_fn(ret):
+            return ret
+        if time.time() > deadline:
+            raise OpenOCDError(f"{label} stuck busy")
+
+
 def nexus_read(ocd: OpenOCD, addr: int) -> int:
     """Read a 32-bit OCD register over JTAG NEXUS_ACCESS.
 
@@ -233,17 +253,11 @@ def nexus_read(ocd: OpenOCD, addr: int) -> int:
     """
     _ir(ocd, INST_NEXUS_ACCESS)
     a1 = (MODE_READ & 1) | ((addr & 0x7F) << 1)
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (26, 0), (8, a1))
-        if not ((ret[1] >> 6) & 1):
-            break
-    else:
-        raise OpenOCDError("NEXUS address phase stuck busy")
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (32, 0), (2, 0))
-        if not (ret[1] & 1):
-            return ret[0] & 0xFFFFFFFF
-    raise OpenOCDError("NEXUS data phase stuck busy")
+    _scan_until_ready(ocd, [(26, 0), (8, a1)],
+                      lambda r: (r[1] >> 6) & 1, "NEXUS address phase")
+    ret = _scan_until_ready(ocd, [(32, 0), (2, 0)],
+                            lambda r: r[1] & 1, "NEXUS data phase")
+    return ret[0] & 0xFFFFFFFF
 
 
 def mwa_read(ocd: OpenOCD, addr: int, slave: int = SLAVE_HSB_UNCACHED) -> int:
@@ -256,17 +270,11 @@ def mwa_read(ocd: OpenOCD, addr: int, slave: int = SLAVE_HSB_UNCACHED) -> int:
         raise ValueError("address must be word-aligned")
     _ir(ocd, INST_MW_ACCESS)
     a0 = (MODE_READ & 1) | ((addr >> 2) << 1)   # 31-bit field
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (31, a0), (4, slave))
-        if not ((ret[1] >> 1) & 1):
-            break
-    else:
-        raise OpenOCDError("MWA address phase stuck busy")
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (32, 0), (3, 0))
-        if not (ret[1] & 1):
-            return ret[0] & 0xFFFFFFFF
-    raise OpenOCDError("MWA data phase stuck busy")
+    _scan_until_ready(ocd, [(31, a0), (4, slave)],
+                      lambda r: (r[1] >> 1) & 1, "MWA address phase")
+    ret = _scan_until_ready(ocd, [(32, 0), (3, 0)],
+                            lambda r: r[1] & 1, "MWA data phase")
+    return ret[0] & 0xFFFFFFFF
 
 
 def nexus_write(ocd: OpenOCD, addr: int, value: int) -> None:
@@ -277,12 +285,8 @@ def nexus_write(ocd: OpenOCD, addr: int, value: int) -> None:
     """
     _ir(ocd, INST_NEXUS_ACCESS)
     a1 = (MODE_WRITE & 1) | ((addr & 0x7F) << 1)
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (26, 0), (8, a1))
-        if not ((ret[1] >> 6) & 1):
-            break
-    else:
-        raise OpenOCDError("NEXUS address phase stuck busy")
+    _scan_until_ready(ocd, [(26, 0), (8, a1)],
+                      lambda r: (r[1] >> 6) & 1, "NEXUS address phase")
     _dr(ocd, (2, 0), (32, value & 0xFFFFFFFF))
 
 
@@ -297,17 +301,173 @@ def mwa_write(ocd: OpenOCD, addr: int, value: int,
         raise ValueError("address must be word-aligned")
     _ir(ocd, INST_MW_ACCESS)
     a0 = (MODE_WRITE & 1) | ((addr >> 2) << 1)
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (31, a0), (4, slave))
-        if not ((ret[1] >> 1) & 1):
-            break
-    else:
-        raise OpenOCDError("MWA address phase stuck busy")
-    for _ in range(_MAX_BUSY):
-        ret = _dr(ocd, (3, 0), (32, value & 0xFFFFFFFF))
-        if not (ret[0] & 1):
-            return
-    raise OpenOCDError("MWA write data phase stuck busy")
+    _scan_until_ready(ocd, [(31, a0), (4, slave)],
+                      lambda r: (r[1] >> 1) & 1, "MWA address phase")
+    _scan_until_ready(ocd, [(3, 0), (32, value & 0xFFFFFFFF)],
+                      lambda r: r[0] & 1, "MWA write data phase")
+
+
+# Batched MWA helpers: pack a whole page of scans into ONE Tcl-RPC round trip.
+# Page-buffer writes and flash reads never assert busy on this part (verified),
+# so a single pass per word is safe; verify re-reads any mismatch individually.
+
+def _mwa_fill(ocd, addr: int, words: list[int]) -> None:
+    """Fill consecutive words via MWA writes in a single RPC (no result needed)."""
+    out = [f"irscan {TAP} 0x{INST_MW_ACCESS:02x} -endstate IDLE"]
+    a = addr
+    for w in words:
+        a0 = (a >> 2) << 1                       # mode = WRITE (0)
+        out.append(f"drscan {TAP} 31 0x{a0:x} 4 {SLAVE_HSB_UNCACHED} -endstate IDLE")
+        out.append(f"drscan {TAP} 3 0 32 0x{w & 0xFFFFFFFF:x} -endstate IDLE")
+        a += 4
+    ocd._raw("\n".join(out))
+
+
+def mwa_read_words(ocd, addr: int, nwords: int) -> list[int]:
+    """Read consecutive words via MWA in a single RPC (returns Tcl list)."""
+    out = ["set r {}", f"irscan {TAP} 0x{INST_MW_ACCESS:02x} -endstate IDLE"]
+    a = addr
+    for _ in range(nwords):
+        a0 = ((a >> 2) << 1) | MODE_READ
+        out.append(f"drscan {TAP} 31 0x{a0:x} 4 {SLAVE_HSB_UNCACHED} -endstate IDLE")
+        out.append(f"lappend r [lindex [drscan {TAP} 32 0 3 0 -endstate IDLE] 0]")
+        a += 4
+    out.append("return $r")
+    return [int(t, 16) for t in ocd._raw("\n".join(out)).split()]
+
+
+# -- AVR32 UC3A3 FLASHC flash programming -----------------------------------
+# Sequences from app note AVR32708 (doc32070). FLASHC base found empirically
+# on this board: FSR readback 0x6001 => FRDY=1, FSZ=3 (256 KB).
+
+FLASH_BASE = 0x80000000                     # flash array (page data r/w here)
+USER_PAGE_ADDR = FLASH_BASE + 0x00800000    # 0x80800000, single 512B user page
+FLASHC_BASE = 0xFFFE1400                     # FLASHC registers
+FLASHC_FCMD = FLASHC_BASE + 0x04
+FLASHC_FSR = FLASHC_BASE + 0x08
+FLASHC_KEY = 0xA5000000
+
+FCMD_WRITE_PAGE = 1
+FCMD_CLEAR_PAGE_BUFFER = 3
+FCMD_ERASE_ALL = 6
+FCMD_WRITE_USER_PAGE = 13
+FCMD_ERASE_USER_PAGE = 14
+
+FSR_FRDY = 1 << 0
+FSR_LOCKE = 1 << 2
+FSR_PROGE = 1 << 3
+_FSZ_KB = {0: 32, 1: 64, 2: 128, 3: 256, 4: 384, 5: 512, 6: 768, 7: 1024}
+
+PAGE_BYTES = 512
+PAGE_WORDS = 128
+
+
+def flashc_flash_size(ocd) -> int:
+    fsz = (mwa_read(ocd, FLASHC_FSR) >> 13) & 0x7
+    return _FSZ_KB[fsz] * 1024
+
+
+def flashc_wait_ready(ocd, timeout: float = 12.0) -> int:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        fsr = mwa_read(ocd, FLASHC_FSR)
+        if fsr & FSR_LOCKE:
+            raise OpenOCDError("FLASHC LOCKE: write to a locked region")
+        if fsr & FSR_PROGE:
+            raise OpenOCDError("FLASHC PROGE: invalid command/key")
+        if fsr & FSR_FRDY:
+            return fsr
+    raise OpenOCDError("FLASHC FRDY timeout")
+
+
+def flashc_command(ocd, cmd: int, pagen: int = 0) -> None:
+    flashc_wait_ready(ocd)
+    mwa_write(ocd, FLASHC_FCMD, FLASHC_KEY | ((pagen & 0xFFFF) << 8) | (cmd & 0x1F))
+    flashc_wait_ready(ocd)
+
+
+def ocd_setbits(ocd, reg: int, bits: int) -> None:
+    nexus_write(ocd, reg, nexus_read(ocd, reg) | bits)
+
+
+def cpu_halt(ocd) -> None:
+    """Stop the CPU via the OCD (DC.DBE then DC.DBR).
+
+    Mandatory before erasing/programming: if the core keeps running from flash
+    while it is erased it will fault and drag the flash controller into reset,
+    wedging the SAB (requires a power cycle to recover).
+    """
+    ocd_setbits(ocd, OCDREG_DC, OCDREG_DC_DBE)
+    ocd_setbits(ocd, OCDREG_DC, OCDREG_DC_DBR)
+
+
+def cpu_resume(ocd) -> None:
+    nexus_write(ocd, OCDREG_DC, nexus_read(ocd, OCDREG_DC) & ~OCDREG_DC_DBR)
+
+
+def flash_erase_all(ocd) -> None:
+    flashc_command(ocd, FCMD_ERASE_ALL)
+
+
+def _words_be(buf: bytes) -> list[int]:
+    return [int.from_bytes(buf[i:i + 4], "big") for i in range(0, len(buf), 4)]
+
+
+def flash_program_page(ocd, page_index: int, buf512: bytes) -> None:
+    flashc_command(ocd, FCMD_CLEAR_PAGE_BUFFER)
+    _mwa_fill(ocd, FLASH_BASE + page_index * PAGE_BYTES, _words_be(buf512))
+    flashc_command(ocd, FCMD_WRITE_PAGE, page_index)
+
+
+def flash_program_user_page(ocd, buf512: bytes) -> None:
+    flashc_command(ocd, FCMD_ERASE_USER_PAGE)
+    flashc_command(ocd, FCMD_CLEAR_PAGE_BUFFER)
+    _mwa_fill(ocd, USER_PAGE_ADDR, _words_be(buf512))
+    flashc_command(ocd, FCMD_WRITE_USER_PAGE)
+
+
+def parse_ihex(path: str) -> list[tuple[int, bytes]]:
+    """Minimal Intel HEX parser (record types 00 data, 01 EOF, 04 ext-linear)."""
+    segs: list[tuple[int, bytes]] = []
+    ext = 0
+    with open(path) as f:
+        for ln in f:
+            ln = ln.strip()
+            if not ln.startswith(":"):
+                continue
+            b = bytes.fromhex(ln[1:])
+            if (sum(b) & 0xFF) != 0:
+                raise ValueError(f"ihex checksum error: {ln}")
+            n, addr, rt, data = b[0], (b[1] << 8) | b[2], b[3], b[4:4 + b[0]]
+            if rt == 0:
+                segs.append(((ext << 16) + addr, data))
+            elif rt == 4:
+                ext = (data[0] << 8) | data[1]
+            elif rt == 1:
+                break
+            elif rt == 2:
+                raise ValueError("ihex type-02 (segment) not supported")
+    return segs
+
+
+def build_image(segs, flash_size: int):
+    """Split hex into main-flash pages (page_index -> 512B) and the user page."""
+    main: dict[int, bytearray] = {}
+    user = None
+    for addr, data in segs:
+        for i, byte in enumerate(data):
+            a = addr + i
+            if FLASH_BASE <= a < FLASH_BASE + flash_size:
+                off = a - FLASH_BASE
+                pg = main.setdefault(off // PAGE_BYTES, bytearray(b"\xff" * PAGE_BYTES))
+                pg[off % PAGE_BYTES] = byte
+            elif USER_PAGE_ADDR <= a < USER_PAGE_ADDR + PAGE_BYTES:
+                if user is None:
+                    user = bytearray(b"\xff" * PAGE_BYTES)
+                user[a - USER_PAGE_ADDR] = byte
+            else:
+                raise OpenOCDError(f"hex address 0x{a:08X} outside flash/user page")
+    return main, user
 
 
 # -- CLI --------------------------------------------------------------------
@@ -351,6 +511,118 @@ def cmd_read(args) -> int:
     return 0
 
 
+def cmd_write(args) -> int:
+    """Raw system-bus word write via MWA (for SRAM/peripherals; flash needs
+    the page-buffer + FLASHC sequence, not raw writes)."""
+    addr = int(args.addr, 0)
+    value = int(args.value, 0)
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        mwa_write(ocd, addr, value, slave=args.slave)
+        if args.verify:
+            back = mwa_read(ocd, addr, slave=args.slave)
+            ok = back == (value & 0xFFFFFFFF)
+            print(f"0x{addr:08X}: wrote 0x{value:08X}, read 0x{back:08X} "
+                  f"-> {'OK' if ok else 'MISMATCH'}")
+            return 0 if ok else 2
+        print(f"0x{addr:08X} <- 0x{value:08X}")
+    return 0
+
+
+def cmd_flashinfo(args) -> int:
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        fsr = mwa_read(ocd, FLASHC_FSR)
+        size = flashc_flash_size(ocd)
+        print(f"FLASHC FSR = 0x{fsr:08X}  FRDY={fsr & 1}  "
+              f"LOCKE={(fsr >> 2) & 1}  PROGE={(fsr >> 3) & 1}")
+        print(f"flash size = {size // 1024} KB ({size // PAGE_BYTES} pages)")
+        return 0
+
+
+def cmd_erase(args) -> int:
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        if not args.no_halt:
+            print("Halting CPU...", flush=True)
+            cpu_halt(ocd)
+        print("Chip erase (ERASE_ALL)...", flush=True)
+        flash_erase_all(ocd)
+        w0 = mwa_read(ocd, FLASH_BASE)
+        wn = mwa_read(ocd, FLASH_BASE + flashc_flash_size(ocd) - 4)
+        ok = w0 == 0xFFFFFFFF and wn == 0xFFFFFFFF
+        print(f"after erase: [0x{FLASH_BASE:08X}]=0x{w0:08X}  "
+              f"[top]=0x{wn:08X} -> {'ERASED' if ok else 'NOT BLANK'}")
+        return 0 if ok else 2
+
+
+def cmd_program(args) -> int:
+    segs = parse_ihex(args.hexfile)
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        size = flashc_flash_size(ocd)
+        main, user = build_image(segs, size)
+        pages = sorted(main)
+        print(f"{args.hexfile}: {len(pages)} flash pages"
+              f"{' + user page' if user else ''} (flash {size // 1024} KB)")
+
+        if not args.no_halt:
+            print("Halting CPU...", flush=True)
+            cpu_halt(ocd)
+        if not args.no_erase:
+            print("Chip erase...", flush=True)
+            flash_erase_all(ocd)
+
+        print("Programming...", flush=True)
+        for i, pi in enumerate(pages):
+            flash_program_page(ocd, pi, bytes(main[pi]))
+            if i % 16 == 0 or i == len(pages) - 1:
+                print(f"\r  page {i + 1}/{len(pages)}", end="", flush=True)
+        print()
+        if user is not None:
+            print("Programming user page...", flush=True)
+            flash_program_user_page(ocd, bytes(user))
+
+        if args.no_verify:
+            return 0
+        print("Verifying...", flush=True)
+        bad = 0
+        for i, pi in enumerate(pages):
+            expect = _words_be(bytes(main[pi]))
+            got = mwa_read_words(ocd, FLASH_BASE + pi * PAGE_BYTES, PAGE_WORDS)
+            for j, (e, g) in enumerate(zip(expect, got)):
+                if e != g:
+                    # re-read individually to rule out a transient busy glitch
+                    g2 = mwa_read(ocd, FLASH_BASE + pi * PAGE_BYTES + j * 4)
+                    if g2 != e:
+                        bad += 1
+                        if bad <= 8:
+                            print(f"  MISMATCH @0x{FLASH_BASE + pi*PAGE_BYTES + j*4:08X}"
+                                  f": exp 0x{e:08X} got 0x{g2:08X}")
+            if i % 16 == 0 or i == len(pages) - 1:
+                print(f"\r  page {i + 1}/{len(pages)}", end="", flush=True)
+        print()
+        if user is not None:
+            exp = _words_be(bytes(user))
+            got = mwa_read_words(ocd, USER_PAGE_ADDR, PAGE_WORDS)
+            bad += sum(1 for e, g in zip(exp, got) if e != g)
+        if bad:
+            print(f"VERIFY FAILED: {bad} word(s) differ", file=sys.stderr)
+            return 2
+        print("VERIFY OK")
+        return 0
+
+
+def cmd_halt(args) -> int:
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        cpu_halt(ocd)
+        dc = nexus_read(ocd, OCDREG_DC)
+        ds = nexus_read(ocd, OCDREG_DS)
+        print(f"halt requested: DC=0x{dc:08X}  DS=0x{ds:08X}")
+        return 0
+
+
 def cmd_notimpl(args) -> int:
     print(f"'{args.cmd}' is not implemented yet. Run 'idcode' first to confirm "
           "the JTAG link, then we build this milestone. See the roadmap in the "
@@ -387,12 +659,38 @@ def main(argv=None) -> int:
                     help="SAB slave (5=HSB uncached, 4=HSB cached, 1=OCD)")
     pr.set_defaults(func=cmd_read)
 
-    for name, help_ in [("halt", "enter debug (TODO)"),
-                        ("erase", "chip erase (TODO)"),
-                        ("program", "flash a .hex/.bin (TODO)"),
-                        ("fuses", "read/write fuses, restore bootloader (TODO)")]:
-        sub.add_parser(name, parents=[common], help=help_).set_defaults(
-            func=cmd_notimpl)
+    pw = sub.add_parser("write", parents=[common],
+                        help="raw bus word write via MWA (SRAM/peripherals)")
+    pw.add_argument("addr", help="word-aligned address")
+    pw.add_argument("value", help="32-bit value, e.g. 0xDEADBEEF")
+    pw.add_argument("--verify", action="store_true", help="read back after write")
+    pw.add_argument("--slave", type=lambda s: int(s, 0), default=SLAVE_HSB_UNCACHED)
+    pw.set_defaults(func=cmd_write)
+
+    sub.add_parser("flashinfo", parents=[common],
+                   help="read FLASHC status and flash size").set_defaults(
+        func=cmd_flashinfo)
+
+    sub.add_parser("halt", parents=[common],
+                   help="stop the CPU via the OCD (DC.DBE|DBR)").set_defaults(
+        func=cmd_halt)
+
+    pe = sub.add_parser("erase", parents=[common],
+                        help="halt + chip erase (ERASE_ALL) + blank check")
+    pe.add_argument("--no-halt", action="store_true", help="skip CPU halt (unsafe)")
+    pe.set_defaults(func=cmd_erase)
+
+    pp = sub.add_parser("program", parents=[common],
+                        help="halt + erase + flash an Intel .hex, then verify")
+    pp.add_argument("hexfile", help="Intel HEX file (e.g. ../../Release/widget.hex)")
+    pp.add_argument("--no-halt", action="store_true", help="skip CPU halt (unsafe)")
+    pp.add_argument("--no-erase", action="store_true", help="skip chip erase")
+    pp.add_argument("--no-verify", action="store_true", help="skip verify")
+    pp.set_defaults(func=cmd_program)
+
+    sub.add_parser("fuses", parents=[common],
+                   help="GP/BOOTPROT fuses, restore bootloader (TODO)").set_defaults(
+        func=cmd_notimpl)
 
     args = p.parse_args(argv)
     try:

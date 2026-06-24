@@ -71,11 +71,20 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 | 1 | `idcode`        | ✅ **verified on HW** | reads `0x7202603F` (AT32UC3A3) |
 | 2 | `did`           | ✅ **verified on HW** | NEXUS reg read; DID == IDCODE |
 | 3 | `read`          | ✅ **verified on HW** | MEMORY_WORD_ACCESS; reads flash reliably |
-| 4 | `write` (mem)   | coded, untested | MWA write (avr32_jtag.c layout) |
-| 5 | `halt`/`reset`  | TODO | AVR_RESET / OCD DC debug-request |
-| 6 | `erase`         | TODO | JTAG CHIP_ERASE opcode (from datasheet) |
-| 7 | `program`       | TODO | FLASHC page-buffer + FCMD write-page sequence |
-| 8 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
+| 4 | `write` (mem)   | ✅ **verified on HW** | MWA write (SRAM read-back OK) |
+| 5 | `flashinfo`     | ✅ **verified on HW** | FLASHC base 0xFFFE1400; FSR/size |
+| 6 | `halt`          | coded | OCD DC.DBE\|DBR — **required before erase** |
+| 7 | `erase`         | coded, retry pending | ERASE_ALL via FCMD (now halts CPU first) |
+| 8 | `program`       | coded, retry pending | FLASHC page program + verify |
+| 9 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
+
+### ⚠️ Lesson learned (the hard way)
+The first `erase` ran **without halting the CPU**. The core kept executing from
+flash while it was being erased, faulted, and pulled the flash controller into
+reset — wedging the SAB (all reads returned `0x00000001`, FSR `FSZ=0`). The TAP
+still responded (not bricked), but **recovery required a power cycle**. Fix:
+`erase`/`program` now issue an OCD **CPU halt (DC.DBE|DBR)** before touching
+flash. Always halt first.
 
 The NEXUS / Memory-Word-Access scans are ported verbatim from OpenOCD's
 `src/target/avr32_jtag.c` (the bit-field layouts are reproduced in
