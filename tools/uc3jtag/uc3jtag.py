@@ -192,6 +192,124 @@ def read_idcode(ocd: OpenOCD) -> int:
     raise OpenOCDError(f"could not parse IDCODE from scan_chain output:\n{out}")
 
 
+# -- AVR32 UC3 JTAG access (ported from OpenOCD src/target/avr32_jtag.c) -----
+#
+# We replicate OpenOCD's AVR32 NEXUS/Memory-Word-Access scans using raw
+# irscan/drscan over Tcl-RPC. The bit field layouts below are taken verbatim
+# from avr32_jtag.c so the DR scans are byte-for-byte identical.
+
+INST_NEXUS_ACCESS = 0x10
+INST_MW_ACCESS = 0x11
+SLAVE_OCD = 0x01
+SLAVE_HSB_CACHED = 0x04
+SLAVE_HSB_UNCACHED = 0x05
+MODE_WRITE = 0x00
+MODE_READ = 0x01
+
+# OCD (NEXUS) register addresses.
+OCDREG_DID = 0x00   # Device ID
+OCDREG_DC = 0x02    # Development Control
+OCDREG_DS = 0x04    # Development Status
+
+_MAX_BUSY = 64
+
+
+def _ir(ocd: OpenOCD, instr: int) -> None:
+    ocd.cmd(f"irscan {TAP} 0x{instr:02x} -endstate IDLE")
+
+
+def _dr(ocd: OpenOCD, *pairs: tuple[int, int]) -> list[int]:
+    """drscan with (num_bits, value) fields; returns captured value per field."""
+    args = " ".join(f"{n} 0x{v:x}" for n, v in pairs)
+    out = ocd.cmd(f"drscan {TAP} {args} -endstate IDLE")
+    return [int(tok, 16) for tok in out.split()]
+
+
+def nexus_read(ocd: OpenOCD, addr: int) -> int:
+    """Read a 32-bit OCD register over JTAG NEXUS_ACCESS.
+
+    Address phase: 26 unused bits + 8 bits {mode:1, addr:7}; busy = field1 bit 6.
+    Data phase:    32 data bits + 2 status bits;             busy = field1 bit 0.
+    """
+    _ir(ocd, INST_NEXUS_ACCESS)
+    a1 = (MODE_READ & 1) | ((addr & 0x7F) << 1)
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (26, 0), (8, a1))
+        if not ((ret[1] >> 6) & 1):
+            break
+    else:
+        raise OpenOCDError("NEXUS address phase stuck busy")
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (32, 0), (2, 0))
+        if not (ret[1] & 1):
+            return ret[0] & 0xFFFFFFFF
+    raise OpenOCDError("NEXUS data phase stuck busy")
+
+
+def mwa_read(ocd: OpenOCD, addr: int, slave: int = SLAVE_HSB_UNCACHED) -> int:
+    """Read a 32-bit word from the system bus over JTAG MEMORY_WORD_ACCESS.
+
+    Address phase: 31 bits {mode:1, (addr>>2):30} + 4 bits slave; busy=field1 bit1.
+    Data phase:    32 data bits + 3 status bits;                   busy=field1 bit0.
+    """
+    if addr & 3:
+        raise ValueError("address must be word-aligned")
+    _ir(ocd, INST_MW_ACCESS)
+    a0 = (MODE_READ & 1) | ((addr >> 2) << 1)   # 31-bit field
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (31, a0), (4, slave))
+        if not ((ret[1] >> 1) & 1):
+            break
+    else:
+        raise OpenOCDError("MWA address phase stuck busy")
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (32, 0), (3, 0))
+        if not (ret[1] & 1):
+            return ret[0] & 0xFFFFFFFF
+    raise OpenOCDError("MWA data phase stuck busy")
+
+
+def nexus_write(ocd: OpenOCD, addr: int, value: int) -> None:
+    """Write a 32-bit OCD register over JTAG NEXUS_ACCESS.
+
+    Data phase per avr32_jtag.c: field0 = 2 dummy bits, field1 = 32 data bits.
+    (OpenOCD's nexus-write busy check is a no-op, so a single pass suffices.)
+    """
+    _ir(ocd, INST_NEXUS_ACCESS)
+    a1 = (MODE_WRITE & 1) | ((addr & 0x7F) << 1)
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (26, 0), (8, a1))
+        if not ((ret[1] >> 6) & 1):
+            break
+    else:
+        raise OpenOCDError("NEXUS address phase stuck busy")
+    _dr(ocd, (2, 0), (32, value & 0xFFFFFFFF))
+
+
+def mwa_write(ocd: OpenOCD, addr: int, value: int,
+              slave: int = SLAVE_HSB_UNCACHED) -> None:
+    """Write a 32-bit word to the system bus over JTAG MEMORY_WORD_ACCESS.
+
+    Data phase per avr32_jtag.c: field0 = 3 status bits (busy=bit0),
+    field1 = 32 data bits.
+    """
+    if addr & 3:
+        raise ValueError("address must be word-aligned")
+    _ir(ocd, INST_MW_ACCESS)
+    a0 = (MODE_WRITE & 1) | ((addr >> 2) << 1)
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (31, a0), (4, slave))
+        if not ((ret[1] >> 1) & 1):
+            break
+    else:
+        raise OpenOCDError("MWA address phase stuck busy")
+    for _ in range(_MAX_BUSY):
+        ret = _dr(ocd, (3, 0), (32, value & 0xFFFFFFFF))
+        if not (ret[0] & 1):
+            return
+    raise OpenOCDError("MWA write data phase stuck busy")
+
+
 # -- CLI --------------------------------------------------------------------
 def cmd_idcode(args) -> int:
     with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
@@ -204,6 +322,33 @@ def cmd_idcode(args) -> int:
         print(f"IDCODE = 0x{idcode:08X}")
         print(f"         {decode_idcode(idcode)}")
         return 0
+
+
+def cmd_did(args) -> int:
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        did = nexus_read(ocd, OCDREG_DID)
+        dc = nexus_read(ocd, OCDREG_DC)
+        ds = nexus_read(ocd, OCDREG_DS)
+        print(f"OCD DID (NEXUS 0x00) = 0x{did:08X}")
+        print(f"OCD DC  (NEXUS 0x02) = 0x{dc:08X}")
+        print(f"OCD DS  (NEXUS 0x04) = 0x{ds:08X}")
+        if did in (0, 0xFFFFFFFF):
+            print("DID looks invalid -- NEXUS access not working.", file=sys.stderr)
+            return 2
+        return 0
+
+
+def cmd_read(args) -> int:
+    addr = int(args.addr, 0)
+    count = args.count
+    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                 verbose=args.verbose) as ocd:
+        for i in range(count):
+            a = addr + 4 * i
+            val = mwa_read(ocd, a, slave=args.slave)
+            print(f"0x{a:08X}: 0x{val:08X}")
+    return 0
 
 
 def cmd_notimpl(args) -> int:
@@ -229,6 +374,19 @@ def main(argv=None) -> int:
     sub.add_parser("idcode", parents=[common],
                    help="connect and read the device IDCODE").set_defaults(
         func=cmd_idcode)
+
+    sub.add_parser("did", parents=[common],
+                   help="read OCD DID/DC/DS registers (NEXUS access)").set_defaults(
+        func=cmd_did)
+
+    pr = sub.add_parser("read", parents=[common],
+                        help="read words from the system bus (MEMORY_WORD_ACCESS)")
+    pr.add_argument("addr", help="word-aligned address, e.g. 0x80000000 (flash base)")
+    pr.add_argument("count", nargs="?", type=int, default=1, help="word count")
+    pr.add_argument("--slave", type=lambda s: int(s, 0), default=SLAVE_HSB_UNCACHED,
+                    help="SAB slave (5=HSB uncached, 4=HSB cached, 1=OCD)")
+    pr.set_defaults(func=cmd_read)
+
     for name, help_ in [("halt", "enter debug (TODO)"),
                         ("erase", "chip erase (TODO)"),
                         ("program", "flash a .hex/.bin (TODO)"),

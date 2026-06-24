@@ -66,22 +66,28 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 
 ## Roadmap
 
-| # | Command | Status | Needs |
+| # | Command | Status | Notes |
 |---|---------|--------|-------|
-| 1 | `idcode`  | ✅ implemented | hardware wiring to verify |
-| 2 | `halt`    | TODO | AVR32 JTAG opcodes (AVR_RESET, HALT) |
-| 3 | memory    | TODO | NEXUS / MEMORY_WORD_ACCESS over JTAG |
-| 4 | `erase`   | TODO | JTAG CHIP_ERASE opcode |
-| 5 | `program` | TODO | FLASHC page-buffer write sequence |
-| 6 | `fuses`   | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
+| 1 | `idcode`        | ✅ **verified on HW** | reads `0x7202603F` (AT32UC3A3) |
+| 2 | `did`           | ✅ **verified on HW** | NEXUS reg read; DID == IDCODE |
+| 3 | `read`          | ✅ **verified on HW** | MEMORY_WORD_ACCESS; reads flash reliably |
+| 4 | `write` (mem)   | coded, untested | MWA write (avr32_jtag.c layout) |
+| 5 | `halt`/`reset`  | TODO | AVR_RESET / OCD DC debug-request |
+| 6 | `erase`         | TODO | JTAG CHIP_ERASE opcode (from datasheet) |
+| 7 | `program`       | TODO | FLASHC page-buffer + FCMD write-page sequence |
+| 8 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
 
-Milestones 2–6 are protocol work on the same transport; opcodes/sequences come
-from the AVR32 UC3 datasheet "Programming and Debugging" chapter. Each is gated
-on the previous one passing on real hardware.
+The NEXUS / Memory-Word-Access scans are ported verbatim from OpenOCD's
+`src/target/avr32_jtag.c` (the bit-field layouts are reproduced in
+`uc3jtag.py`). Remaining milestones need the FLASHC programming sequence and the
+CHIP_ERASE/AVR_RESET opcodes from the AVR32 UC3 datasheet "Programming and
+Debugging" chapter. Each is gated on the previous passing on real hardware.
 
 ## Status
 
-The full software path is validated end-to-end (launch OpenOCD → RPC connect →
-`scan_chain` → decode IDCODE → graceful failure on an open chain). What remains
-before milestone 1 "passes" is purely physical: wire either Atmel-ICE port to the UC3
-JTAG pins and power the board.
+Validated end-to-end on real hardware (Atmel-ICE **AVR port** → AT32UC3A3256):
+IDCODE, OCD register read via NEXUS, and system-bus reads via
+MEMORY_WORD_ACCESS all work from macOS. Diagnostic finding: the **top of flash
+(bootloader region) reads `0xFFFFFFFF`** — the DFU bootloader has been erased,
+which is why DFU no longer enumerates. Next phase: chip-erase + FLASHC flash
+programming to reflash the application (and optionally restore the bootloader).
