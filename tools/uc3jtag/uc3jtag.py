@@ -27,7 +27,7 @@ Milestones
   [6] fuses   - GP/BOOTPROT fuses + restore DFU bootloader
 
 Only milestone 1 is implemented so far; it is the gate that proves generic
-JTAG reaches the UC3 through the Atmel-ICE SAM port. The rest is protocol work
+JTAG reaches the UC3 through the Atmel-ICE (either port). The rest is protocol work
 built on the same transport.
 
 No third-party Python packages required (stdlib only).
@@ -108,7 +108,7 @@ class OpenOCD:
                 raise OpenOCDError(
                     "OpenOCD exited before the RPC port was ready.\n"
                     "This usually means it could not reach the target "
-                    "(check power, SAM-port wiring, VTG).\n\n--- openocd ---\n"
+                    "(check power, JTAG wiring, VTG).\n\n--- openocd ---\n"
                     + out.strip())
             try:
                 s = socket.create_connection(("127.0.0.1", self.port), timeout=1.0)

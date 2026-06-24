@@ -16,28 +16,31 @@ the AVR32-UC3-specific protocol OpenOCD lacks.
 
 ```
 uc3jtag.py ──Tcl-RPC(socket)──► openocd ──CMSIS-DAP/USB──► Atmel-ICE ──JTAG──► UC3A3
-   (UC3 protocol: irscan/drscan)   (transport only)        (SAM port)
+   (UC3 protocol: irscan/drscan)   (transport only)      (AVR or SAM port)
 ```
 
 Requirements: `openocd` (already installed) and Python 3 (stdlib only — **no
 pip packages**).
 
-## Wiring — use the Atmel-ICE **SAM** port (ARM 10-pin), not the AVR port
+## Wiring — either Atmel-ICE port works
 
-The SAM port's TCK/TMS/TDI/TDO are plain JTAG signals; the UC3 TAP does not care
-that the host side is nominally "ARM". The AVR port needs Atmel's proprietary
-EDBG protocol, which CMSIS-DAP does not speak — so we deliberately use the SAM
-port. (Red ribbon stripe = pin 1.)
+Per Microchip's docs the Atmel-ICE's two 10-pin connectors are *"directly
+electrically connected"* — they carry the **same JTAG signals**
+(TCK/TMS/TDI/TDO/nSRST/VTG), only on different pin positions. The
+"SAM = CMSIS-DAP / AVR = atprogram" distinction is about the *software protocol*,
+not the physical wires, so CMSIS-DAP JTAG reaches the UC3 through the **AVR port
+too**. Use whichever connector matches your target board's pinout. (Red ribbon
+stripe = pin 1.)
 
-| Atmel-ICE SAM pin | Signal | UC3A3 pin |
-|---|---|---|
-| 1 | VTG (reference sense only) | VDDIO (3.3 V) |
-| 2 | TMS | TMS |
-| 4 | TCK | TCK |
-| 6 | TDO | TDO |
-| 8 | TDI | TDI |
-| 10 | nRST *(optional now)* | RESET_N |
-| 3 / 5 / 9 | GND | GND |
+| Signal | AVR port pin | SAM port pin | UC3A3 pin |
+|---|---|---|---|
+| VTG (reference sense only) | 4 | 1 | VDDIO (3.3 V) |
+| TMS | 5 | 2 | TMS |
+| TCK | 1 | 4 | TCK |
+| TDO | 3 | 6 | TDO |
+| TDI | 9 | 8 | TDI |
+| nSRST *(optional now)* | 6 | 10 | RESET_N |
+| GND | 2, 10 | 3, 5, 9 | GND |
 
 **Power the board from its own supply** — the Atmel-ICE only *senses* VTG, it
 does not power the target (same lesson as the SAM E70 attempt).
@@ -80,5 +83,5 @@ on the previous one passing on real hardware.
 
 The full software path is validated end-to-end (launch OpenOCD → RPC connect →
 `scan_chain` → decode IDCODE → graceful failure on an open chain). What remains
-before milestone 1 "passes" is purely physical: wire the SAM port to the UC3
+before milestone 1 "passes" is purely physical: wire either Atmel-ICE port to the UC3
 JTAG pins and power the board.
