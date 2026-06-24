@@ -112,7 +112,7 @@ class OpenOCD:
                     + out.strip())
             try:
                 s = socket.create_connection(("127.0.0.1", self.port), timeout=1.0)
-                s.settimeout(20.0)
+                s.settimeout(60.0)
                 self.sock = s
                 return
             except OSError as e:
@@ -323,17 +323,27 @@ def _mwa_fill(ocd, addr: int, words: list[int]) -> None:
     ocd._raw("\n".join(out))
 
 
-def mwa_read_words(ocd, addr: int, nwords: int) -> list[int]:
-    """Read consecutive words via MWA in a single RPC (returns Tcl list)."""
-    out = ["set r {}", f"irscan {TAP} 0x{INST_MW_ACCESS:02x} -endstate IDLE"]
-    a = addr
-    for _ in range(nwords):
-        a0 = ((a >> 2) << 1) | MODE_READ
-        out.append(f"drscan {TAP} 31 0x{a0:x} 4 {SLAVE_HSB_UNCACHED} -endstate IDLE")
-        out.append(f"lappend r [lindex [drscan {TAP} 32 0 3 0 -endstate IDLE] 0]")
-        a += 4
-    out.append("return $r")
-    return [int(t, 16) for t in ocd._raw("\n".join(out)).split()]
+def mwa_read_words(ocd, addr: int, nwords: int, chunk: int = 32) -> list[int]:
+    """Read consecutive words via MWA, batching `chunk` words per RPC.
+
+    Large single-RPC scripts (128 words) occasionally stall OpenOCD, so we keep
+    each round trip small and concatenate.
+    """
+    vals: list[int] = []
+    done = 0
+    while done < nwords:
+        n = min(chunk, nwords - done)
+        out = ["set r {}", f"irscan {TAP} 0x{INST_MW_ACCESS:02x} -endstate IDLE"]
+        a = addr + done * 4
+        for _ in range(n):
+            a0 = ((a >> 2) << 1) | MODE_READ
+            out.append(f"drscan {TAP} 31 0x{a0:x} 4 {SLAVE_HSB_UNCACHED} -endstate IDLE")
+            out.append(f"lappend r [lindex [drscan {TAP} 32 0 3 0 -endstate IDLE] 0]")
+            a += 4
+        out.append("return $r")
+        vals += [int(t, 16) for t in ocd._raw("\n".join(out)).split()]
+        done += n
+    return vals
 
 
 # -- AVR32 UC3A3 FLASHC flash programming -----------------------------------
@@ -470,6 +480,39 @@ def build_image(segs, flash_size: int):
     return main, user
 
 
+def verify_grouped(make_ocd, main, user, group: int = 16, progress: bool = True) -> int:
+    """Read back flash and compare to the expected image; returns mismatch count.
+
+    OpenOCD's RPC server wedges after a few thousand result-returning reads in a
+    single session, so we restart the session every `group` pages to stay well
+    under that threshold.
+    """
+    pages = sorted(main)
+    n = len(pages)
+    bad = 0
+    for start in range(0, n, group):
+        with make_ocd() as ocd:
+            for pi in pages[start:start + group]:
+                expect = _words_be(bytes(main[pi]))
+                got = mwa_read_words(ocd, FLASH_BASE + pi * PAGE_BYTES, PAGE_WORDS)
+                for j, (e, g) in enumerate(zip(expect, got)):
+                    if e != g and mwa_read(ocd, FLASH_BASE + pi * PAGE_BYTES + j * 4) != e:
+                        bad += 1
+                        if bad <= 8:
+                            print(f"  MISMATCH @0x{FLASH_BASE + pi * PAGE_BYTES + j * 4:08X}"
+                                  f": exp 0x{e:08X} got 0x{g:08X}")
+        if progress:
+            print(f"\r  {min(start + group, n)}/{n} pages", end="", flush=True)
+    if progress:
+        print()
+    if user is not None:
+        with make_ocd() as ocd:
+            exp = _words_be(bytes(user))
+            got = mwa_read_words(ocd, USER_PAGE_ADDR, PAGE_WORDS)
+            bad += sum(1 for e, g in zip(exp, got) if e != g)
+    return bad
+
+
 # -- CLI --------------------------------------------------------------------
 def cmd_idcode(args) -> int:
     with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
@@ -556,10 +599,15 @@ def cmd_erase(args) -> int:
         return 0 if ok else 2
 
 
+def _make_ocd(args):
+    return lambda: OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
+                           verbose=args.verbose)
+
+
 def cmd_program(args) -> int:
     segs = parse_ihex(args.hexfile)
-    with OpenOCD(cfg=args.config, port=args.port, openocd=args.openocd,
-                 verbose=args.verbose) as ocd:
+    mk = _make_ocd(args)
+    with mk() as ocd:
         size = flashc_flash_size(ocd)
         main, user = build_image(segs, size)
         pages = sorted(main)
@@ -583,34 +631,31 @@ def cmd_program(args) -> int:
             print("Programming user page...", flush=True)
             flash_program_user_page(ocd, bytes(user))
 
-        if args.no_verify:
-            return 0
-        print("Verifying...", flush=True)
-        bad = 0
-        for i, pi in enumerate(pages):
-            expect = _words_be(bytes(main[pi]))
-            got = mwa_read_words(ocd, FLASH_BASE + pi * PAGE_BYTES, PAGE_WORDS)
-            for j, (e, g) in enumerate(zip(expect, got)):
-                if e != g:
-                    # re-read individually to rule out a transient busy glitch
-                    g2 = mwa_read(ocd, FLASH_BASE + pi * PAGE_BYTES + j * 4)
-                    if g2 != e:
-                        bad += 1
-                        if bad <= 8:
-                            print(f"  MISMATCH @0x{FLASH_BASE + pi*PAGE_BYTES + j*4:08X}"
-                                  f": exp 0x{e:08X} got 0x{g2:08X}")
-            if i % 16 == 0 or i == len(pages) - 1:
-                print(f"\r  page {i + 1}/{len(pages)}", end="", flush=True)
-        print()
-        if user is not None:
-            exp = _words_be(bytes(user))
-            got = mwa_read_words(ocd, USER_PAGE_ADDR, PAGE_WORDS)
-            bad += sum(1 for e, g in zip(exp, got) if e != g)
-        if bad:
-            print(f"VERIFY FAILED: {bad} word(s) differ", file=sys.stderr)
-            return 2
-        print("VERIFY OK")
+    if args.no_verify:
         return 0
+    print("Verifying...", flush=True)
+    bad = verify_grouped(mk, main, user)
+    if bad:
+        print(f"VERIFY FAILED: {bad} word(s) differ", file=sys.stderr)
+        return 2
+    print("VERIFY OK")
+    return 0
+
+
+def cmd_verify(args) -> int:
+    segs = parse_ihex(args.hexfile)
+    mk = _make_ocd(args)
+    with mk() as ocd:
+        size = flashc_flash_size(ocd)
+    main, user = build_image(segs, size)
+    print(f"Verifying {args.hexfile} ({len(main)} pages"
+          f"{' + user page' if user else ''})...", flush=True)
+    bad = verify_grouped(mk, main, user)
+    if bad:
+        print(f"VERIFY FAILED: {bad} word(s) differ", file=sys.stderr)
+        return 2
+    print("VERIFY OK")
+    return 0
 
 
 def cmd_halt(args) -> int:
@@ -687,6 +732,11 @@ def main(argv=None) -> int:
     pp.add_argument("--no-erase", action="store_true", help="skip chip erase")
     pp.add_argument("--no-verify", action="store_true", help="skip verify")
     pp.set_defaults(func=cmd_program)
+
+    pv = sub.add_parser("verify", parents=[common],
+                        help="read back flash and compare to an Intel .hex")
+    pv.add_argument("hexfile", help="Intel HEX file")
+    pv.set_defaults(func=cmd_verify)
 
     sub.add_parser("fuses", parents=[common],
                    help="GP/BOOTPROT fuses, restore bootloader (TODO)").set_defaults(
