@@ -184,5 +184,83 @@ class TclRpcFramingTests(unittest.TestCase):
         self.assertEqual(ocd._raw("a"), "HELLO")
 
 
+class IntelHexValidationTests(unittest.TestCase):
+    def test_type05_start_address_ignored(self):
+        path = write_ihex([ihex_record(0, 5, bytes([0x80, 0, 0, 0]))])
+        self.addCleanup(os.unlink, path)
+        self.assertEqual(uc3jtag.parse_ihex(path), [])
+
+    def test_type03_start_address_ignored(self):
+        path = write_ihex([ihex_record(0, 3, bytes([0, 0, 0, 0]))])
+        self.addCleanup(os.unlink, path)
+        self.assertEqual(uc3jtag.parse_ihex(path), [])
+
+    def test_truncated_type04_raises_valueerror(self):
+        # Hand-craft a record whose byte-count (2) disagrees with its 1 data
+        # byte. Old code sliced past the end -> IndexError.
+        body = bytes([0x02, 0x00, 0x00, 0x04, 0x80])  # count=2 but only 1 byte
+        line = ":" + (body + bytes([(-sum(body)) & 0xFF])).hex().upper()
+        fd, path = tempfile.mkstemp(suffix=".hex")
+        with os.fdopen(fd, "w") as f:
+            f.write(line + "\n")
+        self.addCleanup(os.unlink, path)
+        with self.assertRaises(ValueError):
+            uc3jtag.parse_ihex(path)
+
+    def test_unsupported_record_type_raises(self):
+        path = write_ihex([ihex_record(0, 6, bytes([0x00]))])
+        self.addCleanup(os.unlink, path)
+        with self.assertRaises(ValueError):
+            uc3jtag.parse_ihex(path)
+
+
+class BootloaderMergeBoundsTests(unittest.TestCase):
+    def test_boot_byte_at_app_base_rejected(self):
+        app = write_ihex([
+            ihex_record(0, 4, bytes([0x80, 0x00])),
+            ihex_record(0x2000, 0, bytes([0xAA])),
+        ])
+        boot = write_ihex([
+            ihex_record(0, 4, bytes([0x80, 0x00])),
+            ihex_record(0x2000, 0, bytes([0xCC])),   # at APP_BASE -> would clobber app
+        ])
+        self.addCleanup(os.unlink, app)
+        self.addCleanup(os.unlink, boot)
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            make_bootloader_image.build_merged_image(app, boot)
+
+    def test_app_byte_outside_flash_rejected(self):
+        app = write_ihex([
+            ihex_record(0, 4, bytes([0x70, 0x00])),   # 0x70000000 -> outside flash
+            ihex_record(0x0000, 0, bytes([0x01, 0x02])),
+        ])
+        boot = write_ihex([
+            ihex_record(0, 4, bytes([0x80, 0x00])),
+            ihex_record(0x0000, 0, bytes([0x03])),
+        ])
+        self.addCleanup(os.unlink, app)
+        self.addCleanup(os.unlink, boot)
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            make_bootloader_image.build_merged_image(app, boot)
+
+    def test_emit_creates_missing_output_dir(self):
+        d = tempfile.mkdtemp()
+        out = os.path.join(d, "nested", "sub", "merged.hex")
+        make_bootloader_image.emit_ihex(out, {uc3jtag.FLASH_BASE + 0x2000: 0x42})
+        self.addCleanup(os.unlink, out)
+        self.assertTrue(os.path.exists(out))
+        # round-trips back through the parser
+        self.assertEqual(
+            uc3jtag.parse_ihex(out),
+            [(uc3jtag.FLASH_BASE + 0x2000, bytes([0x42]))],
+        )
+
+
+class OpenOCDLaunchTests(unittest.TestCase):
+    def test_bad_explicit_openocd_path_raises_clean_error(self):
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            uc3jtag.OpenOCD(openocd="/no/such/openocd", cfg=uc3jtag.DEFAULT_CFG)
+
+
 if __name__ == "__main__":
     unittest.main()

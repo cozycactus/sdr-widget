@@ -48,22 +48,42 @@ def emit_ihex(path, mem):
                    % (len(run), lo, bytes(run).hex().upper(), (-sum(d)) & 0xFF))
         i = j
     out.append(":00000001FF")
+    out_dir = os.path.dirname(os.path.abspath(path))
+    os.makedirs(out_dir, exist_ok=True)
     with open(path, "w") as f:
         f.write("\n".join(out) + "\n")
 
 
 def build_merged_image(app, boot):
+    """Overlay a bootloader HEX onto an app HEX.
+
+    The bootloader owns [FLASH_BASE, APP_BASE); the app owns [APP_BASE, ...).
+    App records in the bootloader window are dropped (the bootloader provides
+    its own reset trampoline). To avoid silent corruption:
+      - app bytes below APP_BASE but outside the bootloader window are rejected;
+      - bootloader bytes at/above APP_BASE are rejected (they'd clobber the app).
+    """
     mem = {}
     dropped_app_bytes = 0
     for addr, data in u.parse_ihex(app):
         for i, b in enumerate(data):
-            if addr + i >= APP_BASE:
-                mem[addr + i] = b
+            a = addr + i
+            if a >= APP_BASE:
+                mem[a] = b
+            elif u.FLASH_BASE <= a < APP_BASE:
+                dropped_app_bytes += 1          # bootloader window: bootloader wins
             else:
-                dropped_app_bytes += 1
+                raise u.OpenOCDError(
+                    f"app byte at 0x{a:08X} is below the bootloader window "
+                    f"(0x{u.FLASH_BASE:08X}); refusing to merge")
     for addr, data in u.parse_ihex(boot):
         for i, b in enumerate(data):
-            mem[addr + i] = b
+            a = addr + i
+            if a >= APP_BASE:
+                raise u.OpenOCDError(
+                    f"bootloader byte at 0x{a:08X} is at/above APP_BASE "
+                    f"(0x{APP_BASE:08X}); it would overwrite the application")
+            mem[a] = b
     return mem, dropped_app_bytes
 
 
@@ -85,6 +105,8 @@ def main():
             "UC3_BOOTLOADER_HEX")
 
     mem, dropped = build_merged_image(args.app, args.bootloader)
+    if not mem:
+        parser.error("merged image is empty (no flash data from app or bootloader)")
     emit_ihex(args.out, mem)
     print(f"wrote {args.out}: {os.path.basename(args.bootloader)} + {args.app} "
           f"(app >= 0x{APP_BASE:08X})")

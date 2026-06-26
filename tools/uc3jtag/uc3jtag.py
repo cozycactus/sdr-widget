@@ -64,6 +64,11 @@ class OpenOCD:
         self.openocd = openocd or shutil.which("openocd")
         if not self.openocd:
             raise OpenOCDError("openocd not found on PATH (brew install open-ocd)")
+        # An explicit --openocd path that doesn't exist (or isn't a file) should
+        # fail with a clear message, not a raw FileNotFoundError from Popen.
+        if openocd and not (os.path.isfile(self.openocd)
+                            and os.access(self.openocd, os.X_OK)):
+            raise OpenOCDError(f"openocd not executable: {self.openocd}")
         if not os.path.exists(self.cfg):
             raise OpenOCDError(f"transport config not found: {self.cfg}")
         self.proc: subprocess.Popen | None = None
@@ -458,7 +463,14 @@ def flash_program_user_page(ocd, buf512: bytes) -> None:
 
 
 def parse_ihex(path: str) -> list[tuple[int, bytes]]:
-    """Minimal Intel HEX parser (record types 00 data, 01 EOF, 04 ext-linear)."""
+    """Minimal Intel HEX parser.
+
+    Handles record types 00 (data), 01 (EOF), 04 (extended linear address).
+    Types 03/05 (start address) carry no flash data and are ignored. Type 02
+    (extended segment) is rejected. Malformed records (bad checksum, truncated,
+    or a byte-count that disagrees with the payload) raise ValueError rather
+    than slicing past the end of the line.
+    """
     segs: list[tuple[int, bytes]] = []
     ext = 0
     with open(path) as f:
@@ -466,18 +478,32 @@ def parse_ihex(path: str) -> list[tuple[int, bytes]]:
             ln = ln.strip()
             if not ln.startswith(":"):
                 continue
-            b = bytes.fromhex(ln[1:])
+            try:
+                b = bytes.fromhex(ln[1:])
+            except ValueError:
+                raise ValueError(f"ihex non-hex record: {ln}")
+            if len(b) < 5:                       # count + addr(2) + type + checksum
+                raise ValueError(f"ihex record too short: {ln}")
             if (sum(b) & 0xFF) != 0:
                 raise ValueError(f"ihex checksum error: {ln}")
-            n, addr, rt, data = b[0], (b[1] << 8) | b[2], b[3], b[4:4 + b[0]]
+            n, addr, rt = b[0], (b[1] << 8) | b[2], b[3]
+            if len(b) != n + 5:                  # n data bytes between type and checksum
+                raise ValueError(f"ihex length mismatch (count={n}): {ln}")
+            data = b[4:4 + n]
             if rt == 0:
                 segs.append(((ext << 16) + addr, data))
             elif rt == 4:
+                if n != 2:
+                    raise ValueError(f"ihex type-04 must carry 2 bytes: {ln}")
                 ext = (data[0] << 8) | data[1]
             elif rt == 1:
                 break
+            elif rt in (3, 5):
+                continue                         # start-address records: no flash data
             elif rt == 2:
                 raise ValueError("ihex type-02 (segment) not supported")
+            else:
+                raise ValueError(f"ihex unsupported record type 0x{rt:02X}: {ln}")
     return segs
 
 
