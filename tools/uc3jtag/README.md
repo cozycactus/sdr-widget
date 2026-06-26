@@ -76,7 +76,7 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 | 5 | `flashinfo`     | ✅ **verified on HW** | FLASHC base 0xFFFE1400; FSR/size |
 | 6 | `halt`          | coded | OCD DC.DBE\|DBR — **required before erase** |
 | 7 | `erase`         | coded, destructive | ERASE_ALL via FCMD (now halts CPU first) |
-| 8 | `program`       | coded, guarded | FLASHC page program + verify; full erase requires `--erase-all` |
+| 8 | `program`       | coded | per-page erase+write+verify; `--erase-all` wipes the whole chip first |
 | 9 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
 
 ### ⚠️ Lesson learned (the hard way)
@@ -85,8 +85,9 @@ flash while it was being erased, faulted, and pulled the flash controller into
 reset — wedging the SAB (all reads returned `0x00000001`, FSR `FSZ=0`). The TAP
 still responded (not bricked), but **recovery required a power cycle**. Fix:
 `erase`/`program` now issue an OCD **CPU halt (DC.DBE|DBR)** before touching
-flash. `program` does not erase by default; pass `--erase-all` only when you
-intend to wipe the whole chip and restore everything needed by the image.
+flash. `program` erases each page it writes (safe partial reprogram — untouched
+regions, e.g. a bootloader, are preserved); pass `--erase-all` only when you
+intend to wipe the whole chip first (clean slate / clear stale pages).
 
 The NEXUS / Memory-Word-Access scans are ported verbatim from OpenOCD's
 `src/target/avr32_jtag.c` (the bit-field layouts are reproduced in

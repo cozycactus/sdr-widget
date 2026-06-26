@@ -362,6 +362,7 @@ FLASHC_FSR = FLASHC_BASE + 0x08
 FLASHC_KEY = 0xA5000000
 
 FCMD_WRITE_PAGE = 1
+FCMD_ERASE_PAGE = 2
 FCMD_CLEAR_PAGE_BUFFER = 3
 FCMD_ERASE_ALL = 6
 FCMD_WRITE_USER_PAGE = 13
@@ -427,7 +428,11 @@ def _words_be(buf: bytes) -> list[int]:
     return [int.from_bytes(buf[i:i + 4], "big") for i in range(0, len(buf), 4)]
 
 
-def flash_program_page(ocd, page_index: int, buf512: bytes) -> None:
+def flash_program_page(ocd, page_index: int, buf512: bytes, erase: bool = True) -> None:
+    # NOR flash only clears bits (1->0), so the page must be blank before
+    # WRITE_PAGE. Erase it first unless the caller already did a full chip erase.
+    if erase:
+        flashc_command(ocd, FCMD_ERASE_PAGE, page_index)
     flashc_command(ocd, FCMD_CLEAR_PAGE_BUFFER)
     _mwa_fill(ocd, FLASH_BASE + page_index * PAGE_BYTES, _words_be(buf512))
     flashc_command(ocd, FCMD_WRITE_PAGE, page_index)
@@ -632,9 +637,12 @@ def cmd_program(args) -> int:
             print("Skipping chip erase; pass --erase-all for a full destructive erase.",
                   flush=True)
 
+        # If we just chip-erased, pages are blank; otherwise erase each page
+        # before writing so re-programming a non-blank chip is correct.
+        erase_each = not args.erase_all
         print("Programming...", flush=True)
         for i, pi in enumerate(pages):
-            flash_program_page(ocd, pi, bytes(main[pi]))
+            flash_program_page(ocd, pi, bytes(main[pi]), erase=erase_each)
             if i % 16 == 0 or i == len(pages) - 1:
                 print(f"\r  page {i + 1}/{len(pages)}", end="", flush=True)
         print()
