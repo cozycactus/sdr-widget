@@ -68,6 +68,10 @@ class OpenOCD:
             raise OpenOCDError(f"transport config not found: {self.cfg}")
         self.proc: subprocess.Popen | None = None
         self.sock: socket.socket | None = None
+        # Receive buffer for Tcl-RPC: a single recv() may return more than one
+        # sentinel-terminated reply (TCP coalescing) or split one across reads,
+        # so we accumulate here and hand back exactly one reply per _raw() call.
+        self._rxbuf = b""
         # OpenOCD output goes to a temp file (not a PIPE): an undrained PIPE
         # fills its ~64KB OS buffer and deadlocks openocd on write.
         self._logfile = None
@@ -113,6 +117,7 @@ class OpenOCD:
             try:
                 s = socket.create_connection(("127.0.0.1", self.port), timeout=1.0)
                 s.settimeout(60.0)
+                self._rxbuf = b""
                 self.sock = s
                 return
             except OSError as e:
@@ -146,15 +151,17 @@ class OpenOCD:
         if not self.sock:
             raise OpenOCDError("not connected")
         self.sock.sendall(command.encode() + RPC_SENTINEL)
-        chunks = []
-        while True:
+        # One reply == bytes up to the next sentinel. recv() boundaries do not
+        # align with sentinels (TCP may coalesce replies or split one), so we
+        # read into a buffer and keep whatever follows the sentinel for the
+        # next call instead of assuming the chunk ends exactly on it.
+        while RPC_SENTINEL not in self._rxbuf:
             data = self.sock.recv(4096)
             if not data:
                 raise OpenOCDError("RPC connection closed by OpenOCD")
-            chunks.append(data)
-            if data.endswith(RPC_SENTINEL):
-                break
-        return b"".join(chunks)[:-1].decode(errors="replace")
+            self._rxbuf += data
+        reply, self._rxbuf = self._rxbuf.split(RPC_SENTINEL, 1)
+        return reply.decode(errors="replace")
 
     def cmd(self, command: str) -> str:
         if self.verbose:
@@ -356,6 +363,11 @@ def mwa_read_words(ocd, addr: int, nwords: int, chunk: int = 32) -> list[int]:
 
 FLASH_BASE = 0x80000000                     # flash array (page data r/w here)
 USER_PAGE_ADDR = FLASH_BASE + 0x00800000    # 0x80800000, single 512B user page
+# The DFU/ISP bootloader occupies the bottom 8 KB (pages 0-15). A normal
+# application HEX still contains a reset trampoline in this window, so blindly
+# programming such a HEX overwrites an installed bootloader. `program --app-only`
+# drops records in this range so an existing bootloader is preserved.
+BOOT_REGION_BYTES = 0x2000                  # 0x80000000-0x80001FFF
 FLASHC_BASE = 0xFFFE1400                     # FLASHC registers
 FLASHC_FCMD = FLASHC_BASE + 0x04
 FLASHC_FSR = FLASHC_BASE + 0x08
@@ -487,6 +499,12 @@ def build_image(segs, flash_size: int):
             else:
                 raise OpenOCDError(f"hex address 0x{a:08X} outside flash/user page")
     return main, user
+
+
+def boot_region_pages(flash_size: int) -> set[int]:
+    """Page indices covered by the bootloader window [FLASH_BASE, +BOOT_REGION_BYTES)."""
+    n = min(BOOT_REGION_BYTES, flash_size) // PAGE_BYTES
+    return set(range(n))
 
 
 def verify_grouped(make_ocd, main, user, group: int = 16, progress: bool = True) -> int:
@@ -623,7 +641,30 @@ def cmd_program(args) -> int:
             print("Refusing to program UC3 user page records from this HEX without "
                   "--program-user-page.", file=sys.stderr)
             return 2
+
+        # Bootloader-region policy. A normal application HEX has a reset
+        # trampoline in pages 0-15, which would overwrite an installed
+        # bootloader. --app-only drops those pages to preserve it; otherwise
+        # warn loudly so the overwrite is never silent.
+        boot_pages = boot_region_pages(size)
+        touched_boot = sorted(p for p in main if p in boot_pages)
+        if args.app_only:
+            for p in touched_boot:
+                del main[p]
+            if touched_boot:
+                print(f"--app-only: dropped {len(touched_boot)} bootloader-region "
+                      f"page(s) (0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
+                      "existing bootloader preserved.")
+        elif touched_boot and not args.erase_all:
+            print(f"WARNING: this HEX writes {len(touched_boot)} page(s) in the "
+                  f"bootloader region (0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
+                  "any installed bootloader there will be overwritten. Pass "
+                  "--app-only to preserve it.", file=sys.stderr)
+
         pages = sorted(main)
+        if not pages and user is None:
+            print("Nothing to program after applying policy filters.", file=sys.stderr)
+            return 2
         print(f"{args.hexfile}: {len(pages)} flash pages"
               f"{' + user page' if user else ''} (flash {size // 1024} KB)")
 
@@ -751,6 +792,10 @@ def main(argv=None) -> int:
     pp.add_argument("--erase-all", action="store_true",
                     help="chip erase before programming; destroys bootloader/config "
                          "unless the image restores them")
+    pp.add_argument("--app-only", action="store_true",
+                    help="drop records in the bootloader region "
+                         "(0x80000000-0x80001FFF) so an installed bootloader is "
+                         "preserved; otherwise a normal app HEX overwrites it")
     pp.add_argument("--program-user-page", action="store_true",
                     help="allow programming records in the UC3 user page at 0x80800000")
     pp.add_argument("--no-verify", action="store_true", help="skip verify")

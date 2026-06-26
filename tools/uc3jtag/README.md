@@ -76,7 +76,7 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 | 5 | `flashinfo`     | ✅ **verified on HW** | FLASHC base 0xFFFE1400; FSR/size |
 | 6 | `halt`          | coded | OCD DC.DBE\|DBR — **required before erase** |
 | 7 | `erase`         | coded, destructive | ERASE_ALL via FCMD (now halts CPU first) |
-| 8 | `program`       | coded | per-page erase+write+verify; `--erase-all` wipes the whole chip first |
+| 8 | `program`       | coded | per-page erase+write+verify; `--app-only` preserves the bootloader region, `--erase-all` wipes the whole chip first |
 | 9 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
 
 ### ⚠️ Lesson learned (the hard way)
@@ -85,9 +85,12 @@ flash while it was being erased, faulted, and pulled the flash controller into
 reset — wedging the SAB (all reads returned `0x00000001`, FSR `FSZ=0`). The TAP
 still responded (not bricked), but **recovery required a power cycle**. Fix:
 `erase`/`program` now issue an OCD **CPU halt (DC.DBE|DBR)** before touching
-flash. `program` erases each page it writes (safe partial reprogram — untouched
-regions, e.g. a bootloader, are preserved); pass `--erase-all` only when you
-intend to wipe the whole chip first (clean slate / clear stale pages).
+flash. `program` erases each page it writes. Note that a normal application HEX
+(e.g. `Release/widget.hex`) contains a reset trampoline in the bootloader region
+(`0x80000000-0x80001FFF`), so programming it **overwrites any installed
+bootloader** there — `program` warns when this will happen. Pass `--app-only` to
+drop those records and preserve an existing bootloader, or `--erase-all` only
+when you intend to wipe the whole chip first (clean slate / clear stale pages).
 
 The NEXUS / Memory-Word-Access scans are ported verbatim from OpenOCD's
 `src/target/avr32_jtag.c` (the bit-field layouts are reproduced in
