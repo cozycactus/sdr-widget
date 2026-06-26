@@ -42,6 +42,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -76,7 +77,9 @@ class OpenOCD:
             raise OpenOCDError(f"transport config not found: {self.cfg}")
         self.proc: subprocess.Popen | None = None
         self.sock: socket.socket | None = None
-        self._log: list[str] = []
+        # OpenOCD output goes to a temp file (not a PIPE): an undrained PIPE
+        # fills its ~64KB OS buffer and deadlocks openocd on write.
+        self._logfile = None
 
     # -- process lifecycle --------------------------------------------------
     def __enter__(self) -> "OpenOCD":
@@ -94,8 +97,9 @@ class OpenOCD:
                "-c", "init"]
         if self.verbose:
             print("+ " + " ".join(cmd), file=sys.stderr)
+        self._logfile = tempfile.TemporaryFile(mode="w+")
         self.proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            cmd, stdout=self._logfile, stderr=subprocess.STDOUT, text=True)
         self._connect_or_die()
 
     def _connect_or_die(self, timeout: float = 15.0) -> None:
@@ -104,7 +108,8 @@ class OpenOCD:
         while time.time() < deadline:
             # If OpenOCD died (e.g. JTAG chain interrogation failed), surface its log.
             if self.proc.poll() is not None:
-                out = self.proc.stdout.read() if self.proc.stdout else ""
+                self._logfile.seek(0)
+                out = self._logfile.read()
                 raise OpenOCDError(
                     "OpenOCD exited before the RPC port was ready.\n"
                     "This usually means it could not reach the target "
@@ -125,7 +130,8 @@ class OpenOCD:
             if self.sock:
                 try:
                     self._raw("shutdown")
-                except OSError:
+                except (OSError, OpenOCDError):
+                    # shutdown often drops the socket before replying; ignore.
                     pass
                 self.sock.close()
         finally:
@@ -136,6 +142,9 @@ class OpenOCD:
                     self.proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     self.proc.kill()
+            if self._logfile:
+                self._logfile.close()
+                self._logfile = None
 
     # -- Tcl-RPC ------------------------------------------------------------
     def _raw(self, command: str) -> str:
@@ -745,7 +754,7 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
     try:
         return args.func(args)
-    except OpenOCDError as e:
+    except (OpenOCDError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 

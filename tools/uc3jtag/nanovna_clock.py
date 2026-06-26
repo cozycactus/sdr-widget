@@ -10,11 +10,17 @@ import sys
 import time
 
 import serial
+from serial.tools import list_ports
 
 
 def find_port():
-    ports = sorted(glob.glob("/dev/cu.usbmodem*"))
-    return ports[0] if ports else None
+    # Prefer a device that identifies as a NanoVNA (STM VID 0x0483 / product name),
+    # so we don't grab some unrelated USB-serial device.
+    for p in list_ports.comports():
+        if p.vid == 0x0483 or (p.product and "nanovna" in p.product.lower()):
+            return p.device
+    g = sorted(glob.glob("/dev/cu.usbmodem*"))
+    return g[0] if g else None
 
 
 def cmd(ser, c, wait=0.35):
