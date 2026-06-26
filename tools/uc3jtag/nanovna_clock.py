@@ -9,8 +9,11 @@ import glob
 import sys
 import time
 
-import serial
-from serial.tools import list_ports
+try:
+    import serial
+    from serial.tools import list_ports
+except ImportError:
+    sys.exit("nanovna_clock.py requires pyserial (python3 -m pip install pyserial)")
 
 
 def find_port():

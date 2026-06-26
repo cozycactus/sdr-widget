@@ -33,7 +33,12 @@ jobs:
             --pattern "avr32-tools-src-macos-arm64-*.tar.gz" \
             --pattern "avr32-tools-src-macos-arm64-*.tar.gz.sha256" \
             --output-dir .
-          toolchain_archive="$(ls avr32-tools-src-macos-arm64-*.tar.gz | head -n 1)"
+          set -- avr32-tools-src-macos-arm64-*.tar.gz
+          if [ "$#" -ne 1 ] || [ ! -e "$1" ]; then
+            echo "expected exactly one AVR32 toolchain archive, found: $*" >&2
+            exit 1
+          fi
+          toolchain_archive="$1"
           checksum_file="${toolchain_archive}.sha256"
           expected="$(awk '{print $1}' "$checksum_file")"
           actual="$(shasum -a 256 "$toolchain_archive" | awk '{print $1}')"
@@ -59,3 +64,8 @@ jobs:
           avr32-gcc --version
           make clean
           make all AVR32_TOOLCHAIN="$toolchain_root"
+
+      - name: Check Python tools
+        run: |
+          python3 -m py_compile tools/uc3jtag/uc3jtag.py tools/uc3jtag/make_bootloader_image.py tools/uc3jtag/nanovna_clock.py
+          python3 -m unittest discover -s tools/uc3jtag -p 'test_*.py'

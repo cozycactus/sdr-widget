@@ -19,8 +19,9 @@ uc3jtag.py ──Tcl-RPC(socket)──► openocd ──CMSIS-DAP/USB──► A
    (UC3 protocol: irscan/drscan)   (transport only)      (AVR or SAM port)
 ```
 
-Requirements: `openocd` (already installed) and Python 3 (stdlib only — **no
-pip packages**).
+Requirements: `openocd` (already installed) and Python 3. `uc3jtag.py` itself
+uses only the Python stdlib. `nanovna_clock.py` is optional and additionally
+requires `pyserial`.
 
 ## Wiring — either Atmel-ICE port works
 
@@ -74,8 +75,8 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 | 4 | `write` (mem)   | ✅ **verified on HW** | MWA write (SRAM read-back OK) |
 | 5 | `flashinfo`     | ✅ **verified on HW** | FLASHC base 0xFFFE1400; FSR/size |
 | 6 | `halt`          | coded | OCD DC.DBE\|DBR — **required before erase** |
-| 7 | `erase`         | coded, retry pending | ERASE_ALL via FCMD (now halts CPU first) |
-| 8 | `program`       | coded, retry pending | FLASHC page program + verify |
+| 7 | `erase`         | coded, destructive | ERASE_ALL via FCMD (now halts CPU first) |
+| 8 | `program`       | coded, guarded | FLASHC page program + verify; full erase requires `--erase-all` |
 | 9 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
 
 ### ⚠️ Lesson learned (the hard way)
@@ -84,7 +85,8 @@ flash while it was being erased, faulted, and pulled the flash controller into
 reset — wedging the SAB (all reads returned `0x00000001`, FSR `FSZ=0`). The TAP
 still responded (not bricked), but **recovery required a power cycle**. Fix:
 `erase`/`program` now issue an OCD **CPU halt (DC.DBE|DBR)** before touching
-flash. Always halt first.
+flash. `program` does not erase by default; pass `--erase-all` only when you
+intend to wipe the whole chip and restore everything needed by the image.
 
 The NEXUS / Memory-Word-Access scans are ported verbatim from OpenOCD's
 `src/target/avr32_jtag.c` (the bit-field layouts are reproduced in

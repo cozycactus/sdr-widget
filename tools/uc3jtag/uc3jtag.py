@@ -17,18 +17,9 @@ a dumb transport and speak its Tcl-RPC protocol over a local TCP socket,
 issuing raw `irscan`/`drscan`/`runtest`. On top of that we implement only the
 AVR32-UC3-specific bits OpenOCD lacks.
 
-Milestones
-----------
-  [1] idcode  - connect and read the device IDCODE          <-- viability gate
-  [2] halt    - AVR_RESET + enter debug (needs JTAG opcodes)
-  [3] memory  - HSB read/write via NEXUS/MEMORY access
-  [4] erase   - JTAG CHIP_ERASE
-  [5] program - FLASHC page-buffer programming of a .hex/.bin
-  [6] fuses   - GP/BOOTPROT fuses + restore DFU bootloader
-
-Only milestone 1 is implemented so far; it is the gate that proves generic
-JTAG reaches the UC3 through the Atmel-ICE (either port). The rest is protocol work
-built on the same transport.
+Implemented milestones cover IDCODE, OCD register access, memory read/write,
+FLASHC erase/program/verify, and CPU halt. Fuse/BOOTPROT handling is still not
+implemented.
 
 No third-party Python packages required (stdlib only).
 """
@@ -100,7 +91,11 @@ class OpenOCD:
         self._logfile = tempfile.TemporaryFile(mode="w+")
         self.proc = subprocess.Popen(
             cmd, stdout=self._logfile, stderr=subprocess.STDOUT, text=True)
-        self._connect_or_die()
+        try:
+            self._connect_or_die()
+        except Exception:
+            self.stop()
+            raise
 
     def _connect_or_die(self, timeout: float = 15.0) -> None:
         deadline = time.time() + timeout
@@ -619,6 +614,10 @@ def cmd_program(args) -> int:
     with mk() as ocd:
         size = flashc_flash_size(ocd)
         main, user = build_image(segs, size)
+        if user is not None and not args.program_user_page:
+            print("Refusing to program UC3 user page records from this HEX without "
+                  "--program-user-page.", file=sys.stderr)
+            return 2
         pages = sorted(main)
         print(f"{args.hexfile}: {len(pages)} flash pages"
               f"{' + user page' if user else ''} (flash {size // 1024} KB)")
@@ -626,9 +625,12 @@ def cmd_program(args) -> int:
         if not args.no_halt:
             print("Halting CPU...", flush=True)
             cpu_halt(ocd)
-        if not args.no_erase:
+        if args.erase_all:
             print("Chip erase...", flush=True)
             flash_erase_all(ocd)
+        else:
+            print("Skipping chip erase; pass --erase-all for a full destructive erase.",
+                  flush=True)
 
         print("Programming...", flush=True)
         for i, pi in enumerate(pages):
@@ -735,10 +737,14 @@ def main(argv=None) -> int:
     pe.set_defaults(func=cmd_erase)
 
     pp = sub.add_parser("program", parents=[common],
-                        help="halt + erase + flash an Intel .hex, then verify")
+                        help="halt + flash an Intel .hex, then verify")
     pp.add_argument("hexfile", help="Intel HEX file (e.g. ../../Release/widget.hex)")
     pp.add_argument("--no-halt", action="store_true", help="skip CPU halt (unsafe)")
-    pp.add_argument("--no-erase", action="store_true", help="skip chip erase")
+    pp.add_argument("--erase-all", action="store_true",
+                    help="chip erase before programming; destroys bootloader/config "
+                         "unless the image restores them")
+    pp.add_argument("--program-user-page", action="store_true",
+                    help="allow programming records in the UC3 user page at 0x80800000")
     pp.add_argument("--no-verify", action="store_true", help="skip verify")
     pp.set_defaults(func=cmd_program)
 
