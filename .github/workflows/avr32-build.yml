@@ -51,7 +51,7 @@ jobs:
           toolchain_root="$PWD/toolchain/avr32-tools-src"
           headers_zip="atmel-headers-${ATMEL_HEADERS_VERSION}.zip"
           mkdir -p "$toolchain_root/downloads" "$toolchain_root/atmel-headers"
-          curl -L \
+          curl -fL --retry 3 \
             "https://ww1.microchip.com/downloads/archive/${headers_zip}" \
             -o "$toolchain_root/downloads/${headers_zip}"
           unzip -q -o "$toolchain_root/downloads/${headers_zip}" \

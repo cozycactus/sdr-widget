@@ -6,6 +6,7 @@ import unittest
 
 import make_bootloader_image
 import uc3jtag
+import nanovna_clock
 
 
 def ihex_record(addr, record_type, data):
@@ -260,6 +261,17 @@ class OpenOCDLaunchTests(unittest.TestCase):
     def test_bad_explicit_openocd_path_raises_clean_error(self):
         with self.assertRaises(uc3jtag.OpenOCDError):
             uc3jtag.OpenOCD(openocd="/no/such/openocd", cfg=uc3jtag.DEFAULT_CFG)
+
+
+class NanoVNATests(unittest.TestCase):
+    def test_command_rejected_detects_unknown(self):
+        self.assertTrue(nanovna_clock._command_rejected("cw?"))
+        self.assertTrue(nanovna_clock._command_rejected("Unknown command"))
+        self.assertTrue(nanovna_clock._command_rejected("ERROR: bad arg"))
+
+    def test_command_rejected_accepts_clean_reply(self):
+        self.assertFalse(nanovna_clock._command_rejected(""))
+        self.assertFalse(nanovna_clock._command_rejected("ch0 12288000"))
 
 
 if __name__ == "__main__":

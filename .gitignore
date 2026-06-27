@@ -8,3 +8,11 @@
 *.d
 *.elf
 widget-control
+
+# Generated build artifacts
+a.out
+Release/*.hex
+
+# Python tooling (tools/uc3jtag)
+__pycache__/
+*.pyc
