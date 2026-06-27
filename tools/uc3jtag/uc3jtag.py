@@ -226,8 +226,15 @@ MODE_READ = 0x01
 OCDREG_DID = 0x00   # Device ID
 OCDREG_DC = 0x02    # Development Control
 OCDREG_DS = 0x04    # Development Status
+OCDREG_DINST = 0x41  # Debug Instruction (execute an instruction in debug mode)
 OCDREG_DC_DBE = 1 << 13   # Debug Enable
 OCDREG_DC_DBR = 1 << 12   # Debug Request (halt the CPU)
+OCDREG_DS_DBA = 1 << 26   # Debug Active (set while the core is halted in debug)
+
+# Return-from-debug instruction (from OpenOCD avr32_jtag.h). Writing this to
+# DINST executes RETD on the core, which is how the CPU actually leaves debug
+# mode -- clearing DBR alone does NOT resume it (DBR auto-clears on debug entry).
+INSTR_RETD = 0xD703D623
 
 # Busy-wait budget for a single SAB access. A chip-erase holds the Service
 # Access Bus busy until it completes, so this must comfortably exceed the
@@ -434,7 +441,15 @@ def cpu_halt(ocd) -> None:
 
 
 def cpu_resume(ocd) -> None:
-    nexus_write(ocd, OCDREG_DC, nexus_read(ocd, OCDREG_DC) & ~OCDREG_DC_DBR)
+    """Resume the CPU from debug mode by executing RETD via DINST.
+
+    Verified on real HW (AT32UC3A3256): clearing DC.DBR does NOT resume the
+    core -- DBR auto-clears the moment the CPU enters debug, so re-clearing it
+    is a no-op and the core stays halted (DS.DBA remains set). The architectural
+    exit is the RETD instruction written to the debug-instruction register.
+    """
+    nexus_write(ocd, OCDREG_DC, OCDREG_DC_DBE)   # keep debug enabled for the issue
+    nexus_write(ocd, OCDREG_DINST, INSTR_RETD)   # execute return-from-debug
 
 
 def flash_erase_all(ocd) -> None:

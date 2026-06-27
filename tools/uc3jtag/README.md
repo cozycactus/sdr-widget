@@ -74,7 +74,7 @@ openocd -f openocd/uc3a3.cfg -c "init; scan_chain; shutdown"
 | 3 | `read`          | ✅ **verified on HW** | MEMORY_WORD_ACCESS; reads flash reliably |
 | 4 | `write` (mem)   | ✅ **verified on HW** | MWA write (SRAM read-back OK) |
 | 5 | `flashinfo`     | ✅ **verified on HW** | FLASHC base 0xFFFE1400; FSR/size |
-| 6 | `halt`          | coded | OCD DC.DBE\|DBR — **required before erase** |
+| 6 | `halt`/resume   | ✅ **verified on HW** | OCD DC.DBE\|DBR halts; resume needs RETD via DINST (clearing DBR is a no-op) |
 | 7 | `erase`         | coded, destructive | ERASE_ALL via FCMD (now halts CPU first) |
 | 8 | `program`       | coded | per-page erase+write+verify; `--app-only` preserves the bootloader region, `--erase-all` wipes the whole chip first |
 | 9 | `fuses`         | TODO | GP/BOOTPROT fuses + DFU-bootloader restore |
