@@ -32,7 +32,7 @@ jobs:
             --repo "$TOOLCHAIN_REPO" \
             --pattern "avr32-tools-src-macos-arm64-*.tar.gz" \
             --pattern "avr32-tools-src-macos-arm64-*.tar.gz.sha256" \
-            --output-dir .
+            --dir .
           set -- avr32-tools-src-macos-arm64-*.tar.gz
           if [ "$#" -ne 1 ] || [ ! -e "$1" ]; then
             echo "expected exactly one AVR32 toolchain archive, found: $*" >&2
