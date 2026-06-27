@@ -2,7 +2,7 @@
 """Back up the entire AT32UC3A3256 flash (main 256KB + user page) to an Intel
 HEX file via the verified uc3jtag read path. Read-only; does not modify flash."""
 import sys, os, time
-HERE = "/Users/ruslanmigirov/cozycactus/sdr-widget/tools/uc3jtag"
+HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import uc3jtag as u
 from make_bootloader_image import emit_ihex

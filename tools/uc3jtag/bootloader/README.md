@@ -19,7 +19,7 @@ Expected SHA-256:
 Build a flashable bootloader+app image and program it:
 
     python3 ../make_bootloader_image.py --bootloader at32uc3a3-isp-1.0.3.hex
-    python3 ../uc3jtag.py program --erase-all --program-user-page merged_boot_widget.hex
+    python3 ../uc3jtag.py program --erase-all --program-boot-region --program-user-page merged_boot_widget.hex
 
 The bootloader hands off to the app's `program_start` at `0x80002000`
 (see `SOFTWARE_FRAMEWORK/ASM/trampoline.x`).

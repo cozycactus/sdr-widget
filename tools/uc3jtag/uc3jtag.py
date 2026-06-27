@@ -548,6 +548,37 @@ def boot_region_pages(flash_size: int) -> set[int]:
     return set(range(n))
 
 
+def apply_boot_region_policy(main: dict[int, bytearray], flash_size: int,
+                             app_only: bool = False,
+                             program_boot_region: bool = False,
+                             erase_all: bool = False) -> list[int]:
+    """Apply bootloader-region safety policy to a page image.
+
+    By default, refuse to program pages in the DFU/ISP bootloader window. The
+    caller must either drop them with --app-only, or explicitly allow them with
+    --program-boot-region.
+    """
+    if app_only and erase_all:
+        raise OpenOCDError("--app-only cannot be combined with --erase-all; "
+                           "full chip erase destroys the bootloader")
+    if app_only and program_boot_region:
+        raise OpenOCDError("--app-only and --program-boot-region are mutually exclusive")
+
+    boot_pages = boot_region_pages(flash_size)
+    touched_boot = sorted(p for p in main if p in boot_pages)
+    if touched_boot and not app_only and not program_boot_region:
+        raise OpenOCDError(
+            f"HEX writes {len(touched_boot)} page(s) in the bootloader region "
+            f"(0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
+            "pass --app-only to preserve an installed bootloader or "
+            "--program-boot-region to overwrite/restore it")
+
+    if app_only:
+        for p in touched_boot:
+            del main[p]
+    return touched_boot
+
+
 def verify_grouped(make_ocd, main, user, group: int = 16, progress: bool = True) -> int:
     """Read back flash and compare to the expected image; returns mismatch count.
 
@@ -683,24 +714,14 @@ def cmd_program(args) -> int:
                   "--program-user-page.", file=sys.stderr)
             return 2
 
-        # Bootloader-region policy. A normal application HEX has a reset
-        # trampoline in pages 0-15, which would overwrite an installed
-        # bootloader. --app-only drops those pages to preserve it; otherwise
-        # warn loudly so the overwrite is never silent.
-        boot_pages = boot_region_pages(size)
-        touched_boot = sorted(p for p in main if p in boot_pages)
-        if args.app_only:
-            for p in touched_boot:
-                del main[p]
-            if touched_boot:
-                print(f"--app-only: dropped {len(touched_boot)} bootloader-region "
-                      f"page(s) (0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
-                      "existing bootloader preserved.")
-        elif touched_boot and not args.erase_all:
-            print(f"WARNING: this HEX writes {len(touched_boot)} page(s) in the "
-                  f"bootloader region (0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
-                  "any installed bootloader there will be overwritten. Pass "
-                  "--app-only to preserve it.", file=sys.stderr)
+        touched_boot = apply_boot_region_policy(
+            main, size, app_only=args.app_only,
+            program_boot_region=args.program_boot_region,
+            erase_all=args.erase_all)
+        if args.app_only and touched_boot:
+            print(f"--app-only: dropped {len(touched_boot)} bootloader-region "
+                  f"page(s) (0x{FLASH_BASE:08X}-0x{FLASH_BASE + BOOT_REGION_BYTES - 1:08X}); "
+                  "existing bootloader preserved.")
 
         pages = sorted(main)
         if not pages and user is None:
@@ -836,7 +857,10 @@ def main(argv=None) -> int:
     pp.add_argument("--app-only", action="store_true",
                     help="drop records in the bootloader region "
                          "(0x80000000-0x80001FFF) so an installed bootloader is "
-                         "preserved; otherwise a normal app HEX overwrites it")
+                         "preserved")
+    pp.add_argument("--program-boot-region", action="store_true",
+                    help="allow programming records in the bootloader region "
+                         "(0x80000000-0x80001FFF)")
     pp.add_argument("--program-user-page", action="store_true",
                     help="allow programming records in the UC3 user page at 0x80800000")
     pp.add_argument("--no-verify", action="store_true", help="skip verify")

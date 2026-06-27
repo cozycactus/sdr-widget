@@ -8,7 +8,7 @@ into one image for JTAG flashing, so the board boots the bootloader and DFU work
 The bootloader owns 0x80000000-0x80001FFF; the app's trampoline in that range is
 dropped (the bootloader hands off to program_start at 0x80002000). Then flash:
 
-    python3 uc3jtag.py program --erase-all --program-user-page bootloader/merged_boot_widget.hex
+    python3 uc3jtag.py program --erase-all --program-boot-region --program-user-page bootloader/merged_boot_widget.hex
 """
 import argparse
 import os

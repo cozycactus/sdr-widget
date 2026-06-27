@@ -67,5 +67,5 @@ jobs:
 
       - name: Check Python tools
         run: |
-          python3 -m py_compile tools/uc3jtag/uc3jtag.py tools/uc3jtag/make_bootloader_image.py tools/uc3jtag/nanovna_clock.py
+          python3 -m py_compile tools/uc3jtag/*.py
           python3 -m unittest discover -s tools/uc3jtag -p 'test_*.py'

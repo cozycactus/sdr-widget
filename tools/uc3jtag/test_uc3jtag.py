@@ -97,16 +97,54 @@ class BootRegionPolicyTests(unittest.TestCase):
         self.assertIn(0, touched)
 
     def test_app_only_filter_preserves_bootloader_pages(self):
-        # Simulate the --app-only filter cmd_program applies: drop boot pages.
         main, _ = uc3jtag.build_image(
             [(uc3jtag.FLASH_BASE, bytes([0x11])),            # page 0  (boot)
              (uc3jtag.FLASH_BASE + 0x4000, bytes([0x22]))],  # page 32 (app)
             flash_size=256 * 1024)
-        boot_pages = uc3jtag.boot_region_pages(256 * 1024)
-        for p in [p for p in main if p in boot_pages]:
-            del main[p]
+        touched = uc3jtag.apply_boot_region_policy(
+            main, 256 * 1024, app_only=True)
+
+        self.assertEqual(touched, [0])
         self.assertNotIn(0, main)
         self.assertIn(0x4000 // uc3jtag.PAGE_BYTES, main)
+
+    def test_default_policy_rejects_bootloader_region_pages(self):
+        main, _ = uc3jtag.build_image(
+            [(uc3jtag.FLASH_BASE, bytes([0x11])),
+             (uc3jtag.FLASH_BASE + 0x4000, bytes([0x22]))],
+            flash_size=256 * 1024)
+
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            uc3jtag.apply_boot_region_policy(main, 256 * 1024)
+
+    def test_program_boot_region_policy_allows_bootloader_pages(self):
+        main, _ = uc3jtag.build_image(
+            [(uc3jtag.FLASH_BASE, bytes([0x11]))],
+            flash_size=256 * 1024)
+
+        touched = uc3jtag.apply_boot_region_policy(
+            main, 256 * 1024, program_boot_region=True)
+
+        self.assertEqual(touched, [0])
+        self.assertIn(0, main)
+
+    def test_app_only_rejects_full_chip_erase(self):
+        main, _ = uc3jtag.build_image(
+            [(uc3jtag.FLASH_BASE + 0x4000, bytes([0x22]))],
+            flash_size=256 * 1024)
+
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            uc3jtag.apply_boot_region_policy(
+                main, 256 * 1024, app_only=True, erase_all=True)
+
+    def test_app_only_and_program_boot_region_are_mutually_exclusive(self):
+        main, _ = uc3jtag.build_image(
+            [(uc3jtag.FLASH_BASE + 0x4000, bytes([0x22]))],
+            flash_size=256 * 1024)
+
+        with self.assertRaises(uc3jtag.OpenOCDError):
+            uc3jtag.apply_boot_region_policy(
+                main, 256 * 1024, app_only=True, program_boot_region=True)
 
 
 class _FakeRPCServer:
